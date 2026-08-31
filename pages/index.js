@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { renderPreview, downloadName } from '../lib/preview.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
 import Editor from '../components/Editor.js';
+import Block from '../components/Blocks.js';
 
 const KEY = 'itin.session.v1';
 const POLL_MS = 2000;
@@ -123,15 +124,15 @@ export default function Home() {
   }, [messages, thinking, building]);
 
   // --- sending ------------------------------------------------------------
-  const send = useCallback(async () => {
-    const text = draft.trim();
+  const send = useCallback(async (override) => {
+    const text = typeof override === 'string' ? override : draft.trim();
     if ((!text && !pending.length) || !session) return;
 
     // Optimistic: the poll will replace this with the real transcript.
     const label = [pending.map((f) => '📎 ' + f.name).join('\n'), text]
       .filter(Boolean).join('\n');
     setMessages((m) => [...m, { role: 'user', text: label, id: 'tmp' + Date.now() }]);
-    setDraft('');
+    if (typeof override !== 'string') setDraft('');
     const files = pending;
     setPending([]);
     setThinking(true);
@@ -238,9 +239,13 @@ export default function Home() {
             )}
 
             {messages.map((m) => (
-              <div key={m.id} className={'msg ' + m.role}>
-                {m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
-              </div>
+              m.role === 'block' ? (
+                <Block key={m.id} block={m} disabled={thinking} onChoose={(t) => send(t)} />
+              ) : (
+                <div key={m.id} className={'msg ' + m.role}>
+                  {m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                </div>
+              )
             ))}
 
             {thinking && (

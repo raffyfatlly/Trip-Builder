@@ -13,6 +13,7 @@ import { BUILDER_SYSTEM } from '../lib/builderPrompt.js';
 import { TOOLS } from '../lib/schema.js';
 import { BUILD_TOOL } from '../lib/brief.js';
 import { READ_TOOL, EDIT_TOOL } from '../lib/editTools.js';
+import { PRESENT_TOOL } from '../lib/blocks.js';
 import { CHAT_AGENT_ID, BUILDER_AGENT_ID } from '../lib/config.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
@@ -40,7 +41,20 @@ async function update(id, body) {
 
 if (which === 'chat' || which === 'both') {
   const a = await update(CHAT_AGENT_ID, {
-    model: MODEL, system: SYSTEM, tools: [BUILD_TOOL, READ_TOOL, EDIT_TOOL],
+    model: MODEL, system: SYSTEM, tools: [
+    // The chat agent researches now: a travel agent that cannot tell you what
+    // a hotel costs is not a travel agent. Bounded by the prompt rather than
+    // switched off, because a search turn is still far cheaper than a build.
+    {
+      type: 'agent_toolset_20260401',
+      default_config: { enabled: false },
+      configs: [
+        { name: 'web_search', enabled: true },
+        { name: 'web_fetch', enabled: true },
+      ],
+    },
+    BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL,
+  ],
   });
   console.log('chat agent   v' + a.version);
 }

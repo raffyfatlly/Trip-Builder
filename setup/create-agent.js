@@ -18,6 +18,7 @@ import { BUILDER_SYSTEM } from '../lib/builderPrompt.js';
 import { TOOLS } from '../lib/schema.js';
 import { BUILD_TOOL } from '../lib/brief.js';
 import { READ_TOOL, EDIT_TOOL } from '../lib/editTools.js';
+import { PRESENT_TOOL } from '../lib/blocks.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) throw new Error('ANTHROPIC_API_KEY not set');
@@ -52,7 +53,20 @@ const chat = await post('/v1/agents', {
   name: 'Itinerary chat',
   model: MODEL,
   system: SYSTEM,
-  tools: [BUILD_TOOL, READ_TOOL, EDIT_TOOL],
+  tools: [
+    // The chat agent researches now: a travel agent that cannot tell you what
+    // a hotel costs is not a travel agent. Bounded by the prompt rather than
+    // switched off, because a search turn is still far cheaper than a build.
+    {
+      type: 'agent_toolset_20260401',
+      default_config: { enabled: false },
+      configs: [
+        { name: 'web_search', enabled: true },
+        { name: 'web_fetch', enabled: true },
+      ],
+    },
+    BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL,
+  ],
 });
 console.log('chat agent   ' + chat.id + '  v' + chat.version);
 
