@@ -9,6 +9,7 @@ import Onboard from '../components/Onboard.js';
 import Plan from '../components/Plan.js';
 import Drawer from '../components/Drawer.js';
 import Rich from '../components/Rich.js';
+import Actions from '../components/Actions.js';
 import { applyMemory } from '../lib/memory.js';
 
 const KEY = 'itin.session.v1';
@@ -236,6 +237,28 @@ export default function Home() {
   // Sending is the one moment to override that: their own message should
   // always bring them back to the bottom.
   const stickToBottom = () => { pinned.current = true; };
+
+  // The box grows with what they write, up to a point, then scrolls. Height
+  // has to be reset to auto first or it can only ever get taller — shrinking
+  // back after a delete would not work.
+  const grow = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 168) + 'px';
+  }, []);
+
+  useEffect(() => { grow(); }, [draft, grow]);
+
+  // On a phone there is no shift key, so Enter cannot mean "send" — it has to
+  // mean a new line, or you can never write a second paragraph. With a real
+  // keyboard Enter still sends and shift+Enter breaks the line, which is what
+  // anyone typing at a desk expects.
+  const [hasKeyboard, setHasKeyboard] = useState(false);
+  useEffect(() => {
+    try { setHasKeyboard(window.matchMedia('(hover: hover) and (pointer: fine)').matches); }
+    catch (e) { setHasKeyboard(false); }
+  }, []);
 
   // --- sending ------------------------------------------------------------
   const send = useCallback(async (override) => {
@@ -507,9 +530,12 @@ export default function Home() {
                 <Block key={m.id} block={m} disabled={thinking} onChoose={(t) => send(t)} />
               ) : (
                 <div key={m.id} className={'msg ' + m.role}>
-                  {m.role === 'assistant'
-                    ? <Rich text={m.text} />
-                    : m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                  {m.role === 'assistant' ? (
+                    <>
+                      <Rich text={m.text} />
+                      <Actions actions={m.actions} />
+                    </>
+                  ) : m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
                 </div>
               )
             ))}
@@ -588,7 +614,12 @@ export default function Home() {
                 placeholder={messages.length ? "Reply, or attach a booking" : "Tell me about your trip"}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+                  if (e.key !== 'Enter' || e.shiftKey) return;
+                  // Mid-composition in an IME, Enter is choosing a candidate.
+                  if (e.nativeEvent && e.nativeEvent.isComposing) return;
+                  if (!hasKeyboard) return;             // phone: Enter is a new line
+                  e.preventDefault();
+                  send();
                 }}
               />
               <button className="sendbtn" onClick={send} disabled={!draft.trim() && !pending.length}>
@@ -752,19 +783,31 @@ export default function Home() {
         .eg:active{transform:scale(.98)}
 
         .msg{
-          max-width:min(80%,52ch);padding:12px 16px;border-radius:22px;margin:9px 0;
-          font-size:15px;line-height:1.55;animation:rise 260ms var(--e) both;
+          font-size:15px;line-height:1.55;margin:9px 0;
+          animation:rise 260ms var(--e) both;
         }
         .msg p{margin:0}
         .msg p + p{margin-top:9px}
-        .msg.assistant{background:var(--surface);box-shadow:var(--sh-s);border-bottom-left-radius:8px}
+
+        /* The agent gets the page; only the traveller gets a bubble.
+           (raffy, 2026-08-31: "agent is just taking the whole space just like
+           this claude session.") Two speakers of equal weight in matching
+           bubbles reads as a transcript. One voice on the page and the other
+           in a bubble reads as someone talking to you — and it gives long
+           replies, lists and prices the full column to breathe in. */
+        .msg.assistant{max-width:60ch;padding:2px 2px 4px}
+
         .msg.user{
-          background:var(--deep);color:#EAF2EC;margin-left:auto;
-          border-bottom-right-radius:8px;box-shadow:var(--sh-m);
+          max-width:min(80%,44ch);width:fit-content;margin-left:auto;
+          padding:11px 15px;border-radius:20px;border-bottom-right-radius:8px;
+          background:var(--deep);color:#EAF2EC;box-shadow:var(--sh-m);
         }
         @keyframes rise{from{opacity:0;transform:translateY(7px) scale(.985)}to{opacity:1;transform:none}}
 
-        .typing{display:flex;gap:5px;align-items:center;width:auto;max-width:none;width:fit-content}
+        .typing{
+          display:flex;gap:5px;align-items:center;width:fit-content;max-width:none;
+          padding:10px 2px;
+        }
         .typing span{
           width:7px;height:7px;border-radius:99px;background:var(--ink-faint);opacity:.45;
           animation:bob 1.15s infinite;
@@ -854,9 +897,9 @@ export default function Home() {
         .attach input{display:none}
         .attach svg{width:20px;height:20px}
         textarea{
-          flex:1;border:0;outline:0;resize:none;background:none;font-size:16px;
-          line-height:1.45;padding:11px 2px;max-height:140px;color:var(--ink);
-          font-family:inherit;
+          flex:1;min-width:0;border:0;outline:0;resize:none;background:none;
+          font-size:16px;line-height:1.45;padding:11px 2px;color:var(--ink);
+          font-family:inherit;max-height:168px;overflow-y:auto;
         }
         textarea::placeholder{color:var(--ink-faint)}
         .sendbtn{
