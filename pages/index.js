@@ -922,23 +922,6 @@ export default function Home() {
           background:linear-gradient(160deg,var(--sage),#D5E2D2);
         }
 
-        /* The way through to the itinerary lives in the header. It used to
-           float above the composer, where it sat on top of the last thing the
-           agent said — the one part of the screen you are reading. */
-        .itbtn{
-          position:relative;display:inline-flex;align-items:center;gap:7px;
-          border:0;background:var(--deep);color:#EAF2EC;
-          padding:8px 14px;border-radius:99px;box-shadow:var(--sh-s);
-          font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
-          transition:transform 160ms var(--e);
-        }
-        .itbtn:active{transform:scale(.96)}
-        .itbtn svg{width:15px;height:15px;flex:none}
-        .ping{
-          position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:99px;
-          background:var(--coral);border:2px solid var(--bg);
-        }
-
         @media (max-width:860px){
           .split{padding:0 14px}
           .pane{

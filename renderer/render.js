@@ -264,7 +264,13 @@ export function render(T, templateSrc) {
       if(fcard) fcard.hidden = !hasFlights;
 
       el = document.getElementById('foot');
-      var notes = tr.notes || [];
+      // A note about a specific stay's booking is tagged with that stay's
+      // index. Once it is confirmed the note is stale, so it is dropped here
+      // rather than staying stuck on screen — this re-runs every time the
+      // preview redraws, including right after "Confirm" in the editor.
+      var notes = (tr.notes || []).filter(function(n){
+        return !(n.stay != null && T.stays[n.stay] && !T.stays[n.stay].draft);
+      });
       if(el){
         el.hidden = !notes.length && !tr.credits;
         el.innerHTML =
