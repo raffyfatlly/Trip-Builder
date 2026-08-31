@@ -261,29 +261,6 @@ export default function Home() {
 
   useEffect(() => { grow(); }, [draft, grow]);
 
-  // A resting box was measured once, right after mount, and never touched
-  // again until the next keystroke — so anything that changed the real layout
-  // in between (the conversation loading in above it, the web font finishing
-  // its swap, the keyboard opening and resizing the viewport on a phone) left
-  // a stale inline height behind it. None of those fire a 'draft' change, so
-  // none of them re-ran grow(). This is very likely what "looks right, then
-  // stops staying put once the conversation loads" actually is.
-  useEffect(() => {
-    grow();
-    const vv = typeof window !== 'undefined' && window.visualViewport;
-    window.addEventListener('resize', grow);
-    if (vv) vv.addEventListener('resize', grow);
-    if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(grow).catch(() => {});
-    }
-    return () => {
-      window.removeEventListener('resize', grow);
-      if (vv) vv.removeEventListener('resize', grow);
-    };
-  }, [grow]);
-
-  useEffect(() => { grow(); }, [messages.length, grow]);
-
   // On a phone there is no shift key, so Enter cannot mean "send" — it has to
   // mean a new line, or you can never write a second paragraph. With a real
   // keyboard Enter still sends and shift+Enter breaks the line, which is what
@@ -757,15 +734,7 @@ export default function Home() {
           font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
           -webkit-font-smoothing:antialiased;
         }
-        /* -webkit-appearance:auto and its own padding/line-height survive an
-           unstyled <button> on real phones even after width/height/border are
-           set — box-sizing:border-box then eats into that padding unevenly,
-           which is why a button that measured dead centre in devtools can
-           still look off on an actual device. Reset was too thin. */
-        button{
-          font-family:inherit;margin:0;padding:0;border:0;background:none;
-          line-height:0;-webkit-appearance:none;appearance:none;
-        }
+        button{font-family:inherit}
       `}</style>
 
       <style jsx>{`
@@ -931,7 +900,7 @@ export default function Home() {
         }
         .chip button{border:0;background:none;font-size:16px;line-height:1;color:var(--ink-faint);cursor:pointer;padding:0 3px}
         .row{
-          display:flex;align-items:center;gap:8px;background:var(--surface);
+          display:flex;align-items:flex-end;gap:8px;background:var(--surface);
           border-radius:26px;padding:7px 7px 7px 6px;box-shadow:var(--sh-m);
         }
 
@@ -950,22 +919,18 @@ export default function Home() {
         .attach{
           width:42px;height:42px;flex:none;display:grid;place-items:center;cursor:pointer;
           color:var(--ink-faint);border-radius:99px;transition:background 160ms;
-          line-height:0;
         }
         .attach:hover{background:var(--sage)}
         .attach input{display:none}
-        .attach svg{width:19px;height:19px;display:block}
+        .attach svg{width:20px;height:20px}
         textarea{
           flex:1;min-width:0;border:0;outline:0;resize:none;background:none;
           font-size:16px;line-height:1.45;color:var(--ink);
           font-family:inherit;max-height:168px;overflow-y:auto;
-          -webkit-appearance:none;appearance:none;
-          /* Small and even. The row centres it against the two round buttons
-             with flex align-items — real phones render fonts with different
-             metrics than devtools, and padding hand-tuned to one line-height
-             number is exactly the kind of fix that only holds on the machine
-             that wrote it. Let flex do the centring, not arithmetic. */
-          padding:11px 4px;
+          /* The vertical centring is done by padding rather than by the flex
+             row, so the first line of text sits on the same optical line as
+             the two icons either side of it. */
+          padding:13px 4px 10px;
           /* The default bar is a heavy grey slab against a white composer.
              Thin and nearly invisible until it is needed. */
           scrollbar-width:thin;
@@ -979,11 +944,11 @@ export default function Home() {
         textarea:hover::-webkit-scrollbar-thumb{background:rgba(12,36,27,.26)}
         textarea::placeholder{color:var(--ink-faint)}
         .sendbtn{
-          width:42px;height:42px;flex:none;border-radius:99px;background:var(--coral);
+          width:42px;height:42px;flex:none;border:0;border-radius:99px;background:var(--coral);
           color:#fff;display:grid;place-items:center;cursor:pointer;
           transition:transform 160ms var(--e),opacity 160ms;
         }
-        .sendbtn svg{width:19px;height:19px;display:block}
+        .sendbtn svg{width:20px;height:20px;display:block}
         .sendbtn:disabled{opacity:.32;cursor:default}
         .sendbtn:not(:disabled):active{transform:scale(.92)}
 
