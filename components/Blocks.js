@@ -2,7 +2,17 @@
 // researched numbers. Tapping an option sends it back as a message, so the
 // conversation carries on normally and typing is always still available.
 
-export default function Block({ block, onChoose, disabled }) {
+// Anywhere named should be one tap from seeing it. The agent supplies a real
+// URL when its research turned one up; when it did not, a Maps search for the
+// name is still better than nothing — and it is honest about being a search
+// rather than pretending to be the venue's own page.
+// (raffy, 2026-08-31: "when it suggest places like in chat, make sure it
+// attach a link directly.")
+const mapsFor = (name, where) =>
+  'https://www.google.com/maps/search/' +
+  encodeURIComponent([name, where].filter(Boolean).join(' '));
+
+export default function Block({ block, onChoose, disabled, where }) {
   const { kind, title, intro, items, facts, spots, choose, proposal } = block;
 
   return (
@@ -28,6 +38,14 @@ export default function Block({ block, onChoose, disabled }) {
         <div key={i} className="opt spot">
           <div className="name">{sp.name}</div>
           <div className="buzz">{sp.buzz}</div>
+          {sp.rating && (
+            <div className="rating">
+              <svg className="star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.2l5.9-.9z" />
+              </svg>
+              <span>{sp.rating}</span>
+            </div>
+          )}
           {sp.meta && <div className="meta">{sp.meta}</div>}
           {sp.best && (
             <div className="best">
@@ -58,9 +76,24 @@ export default function Block({ block, onChoose, disabled }) {
               onClick={() => onChoose(`Tell me more about ${sp.name}.`)}>
               Tell me more
             </button>
+          </div>
+          <div className="links">
             {sp.link && (
-              <a className="link" href={sp.link} target="_blank" rel="noopener noreferrer">Open</a>
+              <a href={sp.link} target="_blank" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                </svg>
+                Their site
+              </a>
             )}
+            <a href={mapsFor(sp.name, where)} target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" />
+              </svg>
+              Map
+            </a>
           </div>
         </div>
       ))}
@@ -109,6 +142,14 @@ export default function Block({ block, onChoose, disabled }) {
             <div className="name">{o.name}</div>
             {o.price && <div className="price">{o.price}</div>}
           </div>
+          {o.rating && (
+            <div className="rating">
+              <svg className="star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.2l5.9-.9z" />
+              </svg>
+              <span>{o.rating}</span>
+            </div>
+          )}
           {o.meta && <div className="meta">{o.meta}</div>}
           <div className="why">{o.why}</div>
           {o.watch && (
@@ -134,9 +175,24 @@ export default function Block({ block, onChoose, disabled }) {
               onClick={() => onChoose(`Tell me more about ${o.name}.`)}>
               Tell me more
             </button>
+          </div>
+          <div className="links">
             {o.link && (
-              <a className="link" href={o.link} target="_blank" rel="noopener noreferrer">Open</a>
+              <a href={o.link} target="_blank" rel="noopener noreferrer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                </svg>
+                Their site
+              </a>
             )}
+            <a href={mapsFor(o.name, where)} target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" />
+              </svg>
+              Map
+            </a>
           </div>
         </div>
       ))}
@@ -177,6 +233,13 @@ export default function Block({ block, onChoose, disabled }) {
           font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;
           color:var(--coral-text,#AE4715);line-height:1.35;margin-top:4px;
         }
+        /* The rating sits directly under the name because it is the first
+           thing anyone looks for when choosing between three places. */
+        .rating{
+          display:flex;align-items:center;gap:5px;margin-top:5px;
+          font-size:12.5px;font-weight:650;color:var(--ink-soft);
+        }
+        .rating .star{width:13px;height:13px;flex:none;color:#E8A33D}
         .meta{font-size:12.5px;color:var(--ink-faint);margin-top:4px}
         .why{font-size:13.5px;line-height:1.5;color:var(--ink-soft);margin-top:9px}
         .watch{
@@ -237,6 +300,21 @@ export default function Block({ block, onChoose, disabled }) {
         .pick{background:var(--coral);color:#fff}
         .more{background:var(--sage);color:var(--ink-soft)}
         .link{background:none;color:var(--ink-faint);margin-left:auto;padding-right:4px}
+
+        /* Links sit in their own quiet row under the buttons. Mixed in with
+           them they wrapped, and a link that has wrapped onto its own line
+           looks like something went wrong rather than something on offer. */
+        .links{
+          display:flex;flex-wrap:wrap;gap:14px;align-items:center;
+          margin-top:11px;padding-top:11px;border-top:1px solid var(--line);
+        }
+        .links :global(a),.links a{
+          display:inline-flex;align-items:center;gap:6px;padding:0;
+          background:none;color:var(--ink-soft);font-size:12.5px;font-weight:650;
+          text-decoration:none;
+        }
+        .links a:hover{color:var(--ink)}
+        .links a :global(svg),.links svg{width:13px;height:13px;flex:none;color:var(--ink-faint)}
 
         @keyframes rise{
           from{opacity:0;transform:translateY(7px) scale(.985)}

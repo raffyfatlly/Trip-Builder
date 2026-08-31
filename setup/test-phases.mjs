@@ -33,6 +33,17 @@ const PROPOSAL = {
     unsure: ['Ba Na Hills tickets sell out on weekends — worth booking ahead.'],
   },
 };
+const OPTIONS = {
+  role: 'block', id: 'b3', kind: 'options', title: 'Three that fit', items: [
+    { name: 'Furama Resort', price: 'RM420/night', rating: '4.6 on Google, 2,318 reviews',
+      meta: 'Bac My An beach, 10 min from the airport',
+      why: 'The only one with a pool shallow enough for Nur.',
+      link: 'https://furamavietnam.com/' },
+    { name: 'Sala Danang', price: 'RM280/night',
+      meta: 'My Khe, across the road from the sand',
+      why: 'Cheapest of the three and still on the beach.' },
+  ], facts: [], spots: [], choose: true, proposal: null,
+};
 const SPOTS = {
   role: 'block', id: 'b2', kind: 'spots', title: 'What people are photographing', items: [], facts: [], choose: false,
   spots: [{
@@ -86,6 +97,30 @@ const base = {
   ok('accepting is what triggers the build', !!sent && /build it/i.test(sent.text));
   ok('no horizontal overflow at 390px',
      (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+  await ctx.close();
+}
+
+// --- what makes a recommendation worth trusting --------------------------
+{
+  const { ctx, page } = await scenario({ ...base, transcript: [...base.transcript, OPTIONS] });
+  ok('a rating is shown where there is one',
+     (await page.locator('.opt').first().innerText()).includes('4.6 on Google'));
+  ok('and how many reviews it rests on',
+     (await page.locator('.opt').first().innerText()).includes('2,318'));
+  ok('a place without one simply has none',
+     await page.locator('.opt').nth(1).locator('.rating').count() === 0);
+
+  // Somewhere named should never be a dead end.
+  ok('its own page is linked when known',
+     await page.locator('.opt').first().locator('a[href="https://furamavietnam.com/"]').count() === 1);
+  ok('and there is always a map link',
+     await page.locator('.opt').first().locator('.links a').last().count() === 1);
+  ok('even for the one with no site of its own',
+     await page.locator('.opt').nth(1).locator('.links a').last().count() === 1);
+  const href = await page.locator('.opt').nth(1).locator('.links a').last().getAttribute('href');
+  ok('and it searches for the place, in the right city',
+     href.includes('Sala%20Danang') && href.includes('Da%20Nang'), decodeURIComponent(href));
+  await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/ratings.png' });
   await ctx.close();
 }
 

@@ -245,7 +245,18 @@ export default function Home() {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 168) + 'px';
+    const h = el.scrollHeight;
+    el.style.height = Math.min(h, 168) + 'px';
+    // Past one line the controls drop to their own row underneath, so the
+    // text gets the full width instead of threading between two buttons.
+    // Measured against the line height rather than a fixed pixel count, so it
+    // holds if the type size ever changes.
+    // scrollHeight includes the padding, so compare like with like — measuring
+    // the raw value against one line made an EMPTY box look like two lines.
+    const cs = getComputedStyle(el);
+    const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const line = parseFloat(cs.lineHeight) || 22;
+    setTall((h - pad) > line * 1.6);
   }, []);
 
   useEffect(() => { grow(); }, [draft, grow]);
@@ -254,6 +265,7 @@ export default function Home() {
   // mean a new line, or you can never write a second paragraph. With a real
   // keyboard Enter still sends and shift+Enter breaks the line, which is what
   // anyone typing at a desk expects.
+  const [tall, setTall] = useState(false);
   const [hasKeyboard, setHasKeyboard] = useState(false);
   useEffect(() => {
     try { setHasKeyboard(window.matchMedia('(hover: hover) and (pointer: fine)').matches); }
@@ -527,7 +539,7 @@ export default function Home() {
 
             {messages.map((m) => (
               m.role === 'block' ? (
-                <Block key={m.id} block={m} disabled={thinking} onChoose={(t) => send(t)} />
+                <Block key={m.id} block={m} disabled={thinking} where={tripName} onChoose={(t) => send(t)} />
               ) : (
                 <div key={m.id} className={'msg ' + m.role}>
                   {m.role === 'assistant' ? (
@@ -600,7 +612,7 @@ export default function Home() {
                 ))}
               </div>
             )}
-            <div className="row">
+            <div className={'row' + (tall ? ' tall' : '')}>
               <label className="attach" title="Attach a photo or booking">
                 <input type="file" multiple accept="image/*,application/pdf,text/plain" onChange={attach} />
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -889,6 +901,19 @@ export default function Home() {
           display:flex;align-items:flex-end;gap:8px;background:var(--surface);
           border-radius:26px;padding:7px 7px 7px 6px;box-shadow:var(--sh-m);
         }
+
+        /* Once the message wraps, the buttons drop to a row of their own and
+           the text takes the full width. Threading a paragraph through a gap
+           between two round buttons wastes the line and reads badly.
+           (raffy, 2026-08-31: "the text move up and the icons stay down
+           rather than it stays in line.") */
+        .row.tall{
+          display:grid;grid-template-columns:1fr auto;grid-template-areas:'text text' 'attach send';
+          gap:4px 8px;border-radius:22px;padding:4px 7px 7px;
+        }
+        .row.tall textarea{grid-area:text;padding:9px 6px 2px}
+        .row.tall .attach{grid-area:attach;justify-self:start}
+        .row.tall .sendbtn{grid-area:send}
         .attach{
           width:42px;height:42px;flex:none;display:grid;place-items:center;cursor:pointer;
           color:var(--ink-faint);border-radius:99px;transition:background 160ms;

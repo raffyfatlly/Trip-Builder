@@ -126,6 +126,47 @@ await ctx.close();
   await c2.close();
 }
 
+// --- the composer once it wraps ------------------------------------------
+{
+  const c3 = await browser.newContext({
+    viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+  });
+  await c3.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_C' } }));
+  await c3.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  await c3.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: TRANSCRIPT, itinerary: null, plan: { destination: 'Da Nang, Vietnam' },
+    agentEdits: [], memoryOps: [], building: false, thinking: false, turns: 1 } }));
+  const p3 = await c3.newPage();
+  p3.on('pageerror', (e) => errs.push(e.message));
+  await p3.goto(B, { waitUntil: 'networkidle' });
+  await p3.waitForTimeout(1400);
+
+  const ta3 = p3.locator('textarea');
+  const send3 = p3.locator('.sendbtn');
+  const midY = async (l) => { const b = await l.boundingBox(); return b.y + b.height / 2; };
+
+  await ta3.fill('short');
+  await p3.waitForTimeout(250);
+  ok('one line keeps everything on one row', await p3.locator('.composer .row.tall').count() === 0);
+  ok('and the send button sits beside the text',
+     Math.abs((await midY(ta3)) - (await midY(send3))) < 14);
+
+  await ta3.fill('A much longer message that will certainly wrap onto several lines in a composer this narrow, because it simply keeps going.');
+  await p3.waitForTimeout(350);
+  ok('once it wraps, the controls drop to their own row', await p3.locator('.composer .row.tall').count() === 1);
+  ok('the text now sits above them', (await midY(ta3)) < (await midY(send3)) - 20);
+  const tb = await ta3.boundingBox();
+  const rb = await p3.locator('.composer .row').boundingBox();
+  ok('and takes the full width', tb.width > rb.width * 0.85,
+     Math.round(tb.width) + ' of ' + Math.round(rb.width));
+  await p3.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/composer-tall.png' });
+
+  await ta3.fill('short');
+  await p3.waitForTimeout(300);
+  ok('deleting it back collapses the row again', await p3.locator('.composer .row.tall').count() === 0);
+  await c3.close();
+}
+
 ok('no page errors', errs.length === 0, errs.join(' / '));
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
