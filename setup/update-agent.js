@@ -15,6 +15,7 @@ import { BUILD_TOOL } from '../lib/brief.js';
 import { READ_TOOL, EDIT_TOOL } from '../lib/editTools.js';
 import { PRESENT_TOOL } from '../lib/blocks.js';
 import { FIND_TOOL } from '../lib/photos.js';
+import { NOTE_TOOL } from '../lib/plan.js';
 import { CHAT_AGENT_ID, BUILDER_AGENT_ID } from '../lib/config.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
@@ -54,7 +55,7 @@ if (which === 'chat' || which === 'both') {
         { name: 'web_fetch', enabled: true },
       ],
     },
-    BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL,
+    BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL, NOTE_TOOL,
   ],
   });
   console.log('chat agent   v' + a.version);

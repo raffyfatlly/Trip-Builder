@@ -5,6 +5,8 @@ import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/
 import { loadTrips, rememberTrip, forgetTrip, shortDate } from '../lib/trips.js';
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
+import Onboard from '../components/Onboard.js';
+import Plan from '../components/Plan.js';
 
 const KEY = 'itin.session.v1';
 const POLL_MS = 2000;
@@ -28,6 +30,9 @@ export default function Home() {
   const [trips, setTrips] = useState([]);
   const [tripsOpen, setTripsOpen] = useState(false);
   const [unseen, setUnseen] = useState(false);
+  const [plan, setPlan] = useState({});
+  const [skipOb, setSkipOb] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const router = useRouter();
 
@@ -105,6 +110,8 @@ export default function Home() {
         setBuilding(!!d.building);
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
+        setPlan(d.plan || {});
+        setLoaded(true);
       } catch (e) { /* transient, next tick retries */ }
       if (alive) timer = setTimeout(tick, POLL_MS);
     };
@@ -283,6 +290,14 @@ export default function Home() {
 
   const openSheet = () => { setSheet(true); setUnseen(false); };
 
+  // The onboarding steps stand in for the empty chat, not in front of it: skip
+  // them and you are simply in the conversation with the box focused.
+  //
+  // Waits for the first poll. Reopening an existing trip starts with an empty
+  // transcript for a moment, and flashing the onboarding at someone who is
+  // three days into planning would be its own small betrayal.
+  const onboarding = !booting && loaded && messages.length === 0 && !skipOb;
+
   return (
     <div className="app">
       <header className="bar">
@@ -346,15 +361,28 @@ export default function Home() {
 
       <main className="split">
         <section className={'chat' + (sheet ? ' hidden-m' : '')}>
+          {onboarding ? (
+            <Onboard
+              onStart={(seed) => { setSkipOb(true); send(seed); }}
+              onSkip={() => { setSkipOb(true); setTimeout(() => inputRef.current?.focus(), 0); }}
+            />
+          ) : (
+            <>
+          <Plan
+            plan={plan}
+            built={ready}
+            building={building}
+            onBuild={() => send('Build it now with what you have.')}
+          />
           <div className="scroll" ref={scroller}>
             {booting && <div className="sys">Starting…</div>}
 
-            {!booting && messages.length === 0 && (
+            {!booting && messages.length === 0 && skipOb && (
               <div className="intro">
                 <h1>Where are you going?</h1>
                 <p>
-                  Tell me about your trip and I will build you an itinerary app for it.
-                  Dates, who is coming, where you are staying. Anything you know.
+                  Tell me about your trip and I will plan it with you, then build
+                  you an itinerary app for it.
                 </p>
                 <div className="egs">
                   {[
@@ -431,6 +459,8 @@ export default function Home() {
               </button>
             </div>
           </div>
+            </>
+          )}
         </section>
 
         <section className={'pane' + (sheet ? ' open' : '')}>

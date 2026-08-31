@@ -1,0 +1,230 @@
+import { useState } from 'react';
+import { STEPS, seedMessage } from '../lib/onboarding.js';
+
+// The few taps before the conversation starts.
+//
+// Every step is skippable and the whole thing is skippable, because the agent
+// asks better questions than a form does. This is here to save typing and to
+// give the first reply something to work with — not to gate anything.
+
+const blank = { destination: '', when: { start: '', end: '', rough: '' }, who: { list: [{ name: '', age: '' }] }, about: [] };
+
+export default function Onboard({ onStart, onSkip }) {
+  const [i, setI] = useState(0);
+  const [a, setA] = useState(blank);
+  const step = STEPS[i];
+  const last = i === STEPS.length - 1;
+
+  const set = (k, v) => setA((p) => ({ ...p, [k]: v }));
+  const next = () => (last ? onStart(seedMessage(a), a) : setI(i + 1));
+
+  // Enough to be worth answering. An empty step is a skip, not an error.
+  const answered = {
+    destination: !!a.destination.trim(),
+    when: !!(a.when.start || a.when.rough),
+    who: (a.who.list || []).some((p) => p.name.trim() || p.age),
+    about: a.about.length > 0,
+  }[step.key];
+
+  return (
+    <div className="ob">
+      <div className="obtop">
+        <div className="pips">
+          {STEPS.map((s, n) => <i key={s.key} className={n <= i ? 'on' : ''} />)}
+        </div>
+        <button className="skipall" onClick={() => onSkip()}>Skip</button>
+      </div>
+
+      <div className="obbody" key={step.key}>
+        <h1>{step.title}</h1>
+        <p className="obsub">{step.sub}</p>
+
+        {step.type === 'text' && (
+          <>
+            <input
+              className="obinput"
+              autoFocus
+              value={a.destination}
+              placeholder={step.placeholder}
+              onChange={(e) => set('destination', e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && answered) next(); }}
+            />
+            <div className="chiprow">
+              {step.chips.map((c) => (
+                <button
+                  key={c}
+                  className={'obchip' + (a.destination === c ? ' on' : '')}
+                  onClick={() => set('destination', c)}
+                >{c}</button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {step.type === 'dates' && (
+          <div className="fields">
+            <label>
+              <span>Arriving</span>
+              <input type="date" value={a.when.start}
+                onChange={(e) => set('when', { ...a.when, start: e.target.value })} />
+            </label>
+            <label>
+              <span>Leaving</span>
+              <input type="date" value={a.when.end} min={a.when.start || undefined}
+                onChange={(e) => set('when', { ...a.when, end: e.target.value })} />
+            </label>
+            <label className="wide">
+              <span>Or just roughly</span>
+              <input placeholder="September, school holidays, next spring"
+                value={a.when.rough}
+                onChange={(e) => set('when', { ...a.when, rough: e.target.value })} />
+            </label>
+          </div>
+        )}
+
+        {step.type === 'who' && (
+          <div className="who">
+            {(a.who.list || []).map((p, n) => (
+              <div className="whorow" key={n}>
+                <input
+                  placeholder={n === 0 ? 'Your name' : 'Name'}
+                  value={p.name}
+                  onChange={(e) => {
+                    const list = [...a.who.list];
+                    list[n] = { ...list[n], name: e.target.value };
+                    set('who', { ...a.who, list });
+                  }}
+                />
+                <input
+                  className="age"
+                  placeholder="Age"
+                  inputMode="numeric"
+                  value={p.age}
+                  onChange={(e) => {
+                    const list = [...a.who.list];
+                    list[n] = { ...list[n], age: e.target.value.replace(/\D/g, '').slice(0, 2) };
+                    set('who', { ...a.who, list });
+                  }}
+                />
+                {a.who.list.length > 1 && (
+                  <button className="whox" aria-label="Remove"
+                    onClick={() => set('who', { ...a.who, list: a.who.list.filter((_, j) => j !== n) })}>×</button>
+                )}
+              </div>
+            ))}
+            <button className="addwho"
+              onClick={() => set('who', { ...a.who, list: [...a.who.list, { name: '', age: '' }] })}>
+              + Add someone
+            </button>
+            <p className="tiny">Leave the age blank for adults.</p>
+          </div>
+        )}
+
+        {step.type === 'multi' && (
+          <div className="chiprow wrap">
+            {step.options.map((o) => (
+              <button
+                key={o}
+                className={'obchip' + (a.about.includes(o) ? ' on' : '')}
+                onClick={() => set('about', a.about.includes(o)
+                  ? a.about.filter((x) => x !== o)
+                  : [...a.about, o])}
+              >{o}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="obfoot">
+        {i > 0 && <button className="obback" onClick={() => setI(i - 1)}>Back</button>}
+        <button className="obnext" onClick={next}>
+          {last ? 'Start planning' : (answered ? 'Next' : 'Skip this')}
+        </button>
+      </div>
+
+      <style jsx>{`
+        .ob{
+          flex:1;display:flex;flex-direction:column;min-height:0;
+          padding:0 4px calc(18px + env(safe-area-inset-bottom));
+        }
+        .obtop{display:flex;align-items:center;justify-content:space-between;padding:2px 0 22px}
+        .pips{display:flex;gap:6px}
+        .pips i{width:22px;height:4px;border-radius:99px;background:var(--line);transition:background 240ms var(--e)}
+        .pips i.on{background:var(--deep)}
+        .skipall{
+          border:0;background:none;color:var(--ink-soft);font-size:13px;font-weight:600;
+          cursor:pointer;padding:4px 2px;
+        }
+        .skipall:hover{color:var(--ink)}
+
+        .obbody{flex:1;min-height:0;overflow-y:auto;animation:rise 280ms var(--e) both}
+        h1{
+          font-family:'Outfit',sans-serif;font-size:31px;line-height:1.1;font-weight:800;
+          letter-spacing:-.01em;margin:0 0 8px;
+        }
+        .obsub{margin:0 0 22px;color:var(--ink-soft);font-size:14px;line-height:1.5;max-width:34ch}
+
+        .obinput{
+          width:100%;border:0;background:var(--surface);border-radius:16px;
+          padding:15px 16px;font-size:16px;font-family:inherit;color:var(--ink);
+          box-shadow:var(--sh-s);outline:none;
+        }
+        .obinput:focus{box-shadow:0 0 0 2px var(--deep)}
+
+        .chiprow{display:flex;gap:8px;margin-top:14px;overflow-x:auto;padding-bottom:4px}
+        .chiprow.wrap{flex-wrap:wrap;overflow:visible;margin-top:0}
+        .obchip{
+          flex:none;border:0;background:var(--surface);color:var(--ink-soft);
+          padding:10px 14px;border-radius:99px;font-size:13.5px;font-weight:600;
+          cursor:pointer;box-shadow:var(--sh-s);white-space:nowrap;
+          transition:transform 150ms var(--e);
+        }
+        .obchip:active{transform:scale(.96)}
+        .obchip.on{background:var(--deep);color:#EAF2EC}
+
+        .fields{display:flex;flex-wrap:wrap;gap:12px}
+        .fields label{flex:1 1 140px;display:flex;flex-direction:column;gap:7px}
+        .fields label.wide{flex:1 1 100%}
+        .fields span{font-size:12.5px;font-weight:650;color:var(--ink-soft)}
+        .fields input{
+          border:0;background:var(--surface);border-radius:14px;padding:13px 14px;
+          font-size:15px;font-family:inherit;color:var(--ink);box-shadow:var(--sh-s);
+          outline:none;width:100%;
+        }
+        .fields input:focus{box-shadow:0 0 0 2px var(--deep)}
+
+        .who{display:flex;flex-direction:column;gap:9px;align-items:flex-start}
+        .whorow{display:flex;gap:8px;width:100%;align-items:center}
+        .whorow input{
+          flex:1;min-width:0;border:0;background:var(--surface);border-radius:14px;
+          padding:13px 14px;font-size:15px;font-family:inherit;color:var(--ink);
+          box-shadow:var(--sh-s);outline:none;
+        }
+        .whorow input:focus{box-shadow:0 0 0 2px var(--deep)}
+        .whorow .age{flex:none;width:74px}
+        .whox{
+          flex:none;border:0;background:none;color:var(--ink-soft);font-size:19px;
+          line-height:1;padding:6px 8px;border-radius:9px;cursor:pointer;opacity:.5;
+        }
+        .whox:hover{opacity:1;background:var(--sage)}
+        .addwho{
+          border:0;background:var(--sage);color:var(--ink-soft);font-size:13px;font-weight:650;
+          padding:9px 14px;border-radius:99px;cursor:pointer;margin-top:2px;
+        }
+        .tiny{margin:4px 0 0;font-size:12px;color:var(--ink-faint)}
+
+        .obfoot{display:flex;gap:10px;align-items:center;padding-top:16px;flex:none}
+        .obback{
+          border:0;background:var(--surface);color:var(--ink-soft);font-size:14px;font-weight:600;
+          padding:14px 20px;border-radius:99px;box-shadow:var(--sh-s);cursor:pointer;
+        }
+        .obnext{
+          flex:1;border:0;background:var(--deep);color:#EAF2EC;font-size:15px;font-weight:650;
+          padding:15px 22px;border-radius:99px;box-shadow:var(--sh-m);cursor:pointer;
+          transition:transform 160ms var(--e);
+        }
+        .obnext:active{transform:scale(.985)}
+      `}</style>
+    </div>
+  );
+}
