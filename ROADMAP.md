@@ -281,3 +281,61 @@ includes the full build, unlimited tier-1 edits, and a small number of rebuilds
 - Whether the download is part of the unlock or a separate upsell. It should be
   included: the file is the thing they keep, and holding it back cheapens the
   purchase.
+
+### 7b. Credits, and why they should be priced per tier
+
+> the chat stay free . but the rebuild is by credit . [...] they receive free
+> credit in the beginning . they can see each iteration will cost their credit
+> to reduce. [...] the chat plays an important role of giving good experience
+> but still guarding the valuable so the valuable part needs credit to be
+> produced [...] agent just say I've integrate bla bla bla with good reason,
+> but to view it they need to build it
+>
+> — raffy, 2026-08-31
+
+This is the right shape and it fits the measured costs exactly: free chat is
+RM0.12 a turn, the gated build is RM6.50. He is giving away the cheap thing
+and charging for the expensive one.
+
+**The chat carrying the research verbally is the strongest part of the idea.**
+"I found the Dragon Bridge does fire on weekend evenings, so I have put it on
+Saturday rather than Friday" is satisfying, costs cents, and creates
+appetite for seeing it laid out. Nothing is being withheld dishonestly — they
+get the thinking free and pay for the artifact.
+
+**The thing that makes it work commercially:** price credits **per tier**, not
+per action, using the tiers in item 4.
+
+| Action | Real cost | Credits |
+|---|---|---|
+| Chat turn | RM0.12 | free |
+| Tier 1 edit (move a time, rename, drop an item) | ~RM0.12 | free or 0 |
+| Tier 2 revision (targeted, some research) | est. RM1-2 | 1 |
+| Tier 3 full rebuild | RM6.50, target under RM2 | 5 |
+
+**Pricing and cost then push in the same direction.** A user who wants to spend
+fewer credits makes smaller changes, which is exactly the behaviour that keeps
+his bill down. Flat per-build pricing would teach the opposite.
+
+**The tension to decide: free build plus download is a giveaway.** Most people
+take one trip. If the free credits cover a full build *and* the download, a
+single-trip user never pays. Options:
+
+- **Preview free, download paid.** Cleanest. Seeing it in the browser is the
+  demo; taking it on the plane is the product, and the download is genuinely
+  the thing they keep — offline, live weather, editable times.
+- Free build covers the first two days only.
+- Rely on repeat builds as plans firm up (flights get booked, hotels change).
+  Real, but not reliable enough to price on.
+
+Preview free / download paid is recommended: it matches where the value
+actually is, and it does not require crippling the free experience.
+
+**Credit meter UX.** Show the balance, and show the price *before* the action —
+"Rebuild this trip · 5 credits" on the button itself. That is his explicit
+Build button, with a price tag on it, and it doubles as the cost guard.
+
+**Sizing the free grant.** Enough for one full build and a couple of revisions
+is a complete first experience and costs roughly RM10 today, under RM4 after
+the optimisation work. That is the customer acquisition cost, and it should be
+decided as one, not guessed.
