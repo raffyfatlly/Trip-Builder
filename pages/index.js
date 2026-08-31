@@ -634,9 +634,11 @@ export default function Home() {
                   send();
                 }}
               />
-              <button className="sendbtn" onClick={send} disabled={!draft.trim() && !pending.length}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 12h15M13 6l6 6-6 6" />
+              <button className="sendbtn" onClick={send} aria-label="Send"
+                disabled={!draft.trim() && !pending.length}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20V5M5 12l7-7 7 7" />
                 </svg>
               </button>
             </div>
@@ -923,16 +925,30 @@ export default function Home() {
         .attach svg{width:20px;height:20px}
         textarea{
           flex:1;min-width:0;border:0;outline:0;resize:none;background:none;
-          font-size:16px;line-height:1.45;padding:11px 2px;color:var(--ink);
+          font-size:16px;line-height:1.45;color:var(--ink);
           font-family:inherit;max-height:168px;overflow-y:auto;
+          /* The vertical centring is done by padding rather than by the flex
+             row, so the first line of text sits on the same optical line as
+             the two icons either side of it. */
+          padding:13px 4px 10px;
+          /* The default bar is a heavy grey slab against a white composer.
+             Thin and nearly invisible until it is needed. */
+          scrollbar-width:thin;
+          scrollbar-color:rgba(12,36,27,.18) transparent;
         }
+        textarea::-webkit-scrollbar{width:5px}
+        textarea::-webkit-scrollbar-track{background:transparent}
+        textarea::-webkit-scrollbar-thumb{
+          background:rgba(12,36,27,.16);border-radius:99px;
+        }
+        textarea:hover::-webkit-scrollbar-thumb{background:rgba(12,36,27,.26)}
         textarea::placeholder{color:var(--ink-faint)}
         .sendbtn{
           width:42px;height:42px;flex:none;border:0;border-radius:99px;background:var(--coral);
           color:#fff;display:grid;place-items:center;cursor:pointer;
           transition:transform 160ms var(--e),opacity 160ms;
         }
-        .sendbtn svg{width:20px;height:20px}
+        .sendbtn svg{width:20px;height:20px;display:block}
         .sendbtn:disabled{opacity:.32;cursor:default}
         .sendbtn:not(:disabled):active{transform:scale(.92)}
 
