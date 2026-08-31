@@ -17,6 +17,7 @@ import { SYSTEM } from '../lib/prompt.js';
 import { BUILDER_SYSTEM } from '../lib/builderPrompt.js';
 import { TOOLS } from '../lib/schema.js';
 import { BUILD_TOOL } from '../lib/brief.js';
+import { READ_TOOL, EDIT_TOOL } from '../lib/editTools.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) throw new Error('ANTHROPIC_API_KEY not set');
@@ -51,7 +52,7 @@ const chat = await post('/v1/agents', {
   name: 'Itinerary chat',
   model: MODEL,
   system: SYSTEM,
-  tools: [BUILD_TOOL],
+  tools: [BUILD_TOOL, READ_TOOL, EDIT_TOOL],
 });
 console.log('chat agent   ' + chat.id + '  v' + chat.version);
 

@@ -21,6 +21,7 @@ export default function Home() {
   const [edits, setEdits] = useState([]);
   const [pane, setPane] = useState('preview');   // preview | edit
   const [staleNote, setStaleNote] = useState(0);
+  const [agentEdits, setAgentEdits] = useState([]);
 
   const scroller = useRef(null);
   const inputRef = useRef(null);
@@ -62,6 +63,7 @@ export default function Home() {
         setThinking(!!d.thinking);
         setBuilding(!!d.building);
         if (d.itinerary) setItinerary(d.itinerary);
+        setAgentEdits(d.agentEdits || []);
       } catch (e) { /* transient, next tick retries */ }
       if (alive) timer = setTimeout(tick, POLL_MS);
     };
@@ -71,19 +73,28 @@ export default function Home() {
 
   // The itinerary is read-only (replayed from the event log), so manual edits
   // live alongside it and are applied on top.
+  // Two sources of edits: the chat agent's (replayed from the chat log) and
+  // the traveller's own (localStorage). Ordered by timestamp so whichever
+  // happened last wins, rather than one source always overriding the other.
+  const allEdits = useMemo(() => {
+    const merged = [...agentEdits, ...edits];
+    merged.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    return merged;
+  }, [agentEdits, edits]);
+
   const working = useMemo(
-    () => applyEdits(itinerary, edits), [itinerary, edits]);
+    () => applyEdits(itinerary, allEdits), [itinerary, allEdits]);
 
   // A rebuild can orphan edits that pointed at days which no longer exist.
   // Say so rather than letting them disappear quietly.
   useEffect(() => {
-    if (!itinerary || !edits.length) return;
-    setStaleNote(countStale(itinerary, edits));
-  }, [itinerary, edits]);
+    if (!itinerary || !allEdits.length) return;
+    setStaleNote(countStale(itinerary, allEdits));
+  }, [itinerary, allEdits]);
 
   const applyOp = useCallback((op) => {
     setEdits((prev) => {
-      const next = [...prev, op];
+      const next = [...prev, { ...op, ts: Date.now(), by: 'you' }];
       if (session) saveEdits(session, next);
       return next;
     });
@@ -303,8 +314,8 @@ export default function Home() {
                 onClick={() => setPane('preview')}>Preview</button>
               <button className={pane === 'edit' ? 'on' : ''}
                 onClick={() => setPane('edit')}>Edit</button>
-              {edits.length > 0 && (
-                <span className="count">{edits.length} edit{edits.length > 1 ? 's' : ''}</span>
+              {allEdits.length > 0 && (
+                <span className="count">{allEdits.length} edit{allEdits.length > 1 ? 's' : ''}</span>
               )}
             </div>
           )}
