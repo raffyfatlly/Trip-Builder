@@ -132,7 +132,7 @@ await ctx.close();
   await p2.locator('.panehead .back').click();
   await p2.waitForTimeout(700);
   ok('and it steps aside once seen', await p2.locator('.done').count() === 0);
-  ok('leaving the header button behind', await p2.locator('header button:has-text("Itinerary")').count() === 1);
+  ok('leaving the header button behind', await p2.locator('header .itbtn').count() === 1);
   await c2.close();
 }
 

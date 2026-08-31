@@ -76,7 +76,7 @@ const page = await ctx.newPage();
 page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(B, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1400);
-await page.locator('header button:has-text("Itinerary")').click();
+await page.locator('header .itbtn').click();
 await page.waitForTimeout(700);
 await page.locator('.seg button:has-text("Edit")').click();
 await page.waitForTimeout(500);
@@ -114,7 +114,7 @@ ok('and it can be taken off again', await page.locator('.pics .picrow').first().
 // It has to survive a reload — an edit that vanishes is worse than no edit.
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
-await page.locator('header button:has-text("Itinerary")').click();
+await page.locator('header .itbtn').click();
 await page.waitForTimeout(600);
 await page.locator('.seg button:has-text("Edit")').click();
 await page.waitForTimeout(400);

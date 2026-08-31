@@ -455,11 +455,10 @@ export default function Home() {
         <span className="where">{title || 'Trip builder'}</span>
 
         {ready ? (
-          <button className="itbtn" onClick={openSheet}>
+          <button className="itbtn" onClick={openSheet} aria-label="Itinerary" title="Itinerary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
             </svg>
-            <span className="itlbl">Itinerary</span>
             {unseen && <i className="ping" />}
           </button>
         ) : <span className="spacer" />}
@@ -717,17 +716,19 @@ export default function Home() {
         }
         .spacer{flex:none;width:36px}
 
+        /* An icon, not a word. It sits opposite the burger and reads as its
+           pair, which leaves the whole middle of the bar for the trip's name —
+           the one thing there worth reading. */
         .itbtn{
-          position:relative;flex:none;display:inline-flex;align-items:center;gap:7px;
-          border:0;background:var(--deep);color:#EAF2EC;
-          padding:9px 14px;border-radius:99px;box-shadow:var(--sh-s);
-          font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
-          transition:transform 160ms var(--e);
+          position:relative;flex:none;display:grid;place-items:center;
+          width:36px;height:36px;border:0;border-radius:12px;
+          background:var(--deep);color:#EAF2EC;box-shadow:var(--sh-s);
+          cursor:pointer;transition:transform 150ms var(--e);
         }
-        .itbtn:active{transform:scale(.96)}
-        .itbtn svg{width:15px;height:15px;flex:none}
+        .itbtn:active{transform:scale(.94)}
+        .itbtn svg{width:17px;height:17px}
         .ping{
-          position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:99px;
+          position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:99px;
           background:var(--coral);border:2px solid var(--bg);
         }
 
@@ -934,7 +935,7 @@ export default function Home() {
         .itbtn:active{transform:scale(.96)}
         .itbtn svg{width:15px;height:15px;flex:none}
         .ping{
-          position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:99px;
+          position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:99px;
           background:var(--coral);border:2px solid var(--bg);
         }
 

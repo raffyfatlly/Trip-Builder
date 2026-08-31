@@ -167,17 +167,21 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
   await page.waitForTimeout(400);
   ok('no trip list on a first visit', await page.locator('.drawer .row').count() === 0);
   ok('but New trip is always reachable', await page.locator('.drawer .act:has-text("New trip")').count() === 1);
-  ok('and no itinerary button in the header', await page.locator('header button:has-text("Itinerary")').count() === 0);
+  ok('and no itinerary button in the header', await page.locator('header .itbtn').count() === 0);
   await ctx.close();
 }
 
 // --- the itinerary opens from the header ----------------------------------
 {
   const { ctx, page } = await scenario({ session: 'sesn_OLD', trips: [OLD] });
-  ok('Itinerary button in the header', await page.locator('header button:has-text("Itinerary")').count() === 1);
-  const box = await page.locator('header button:has-text("Itinerary")').boundingBox();
+  ok('Itinerary button in the header', await page.locator('header .itbtn').count() === 1);
+  // Icon only, so it still has to say what it is to anything that cannot see it.
+  ok('the icon still announces itself',
+     (await page.locator('header .itbtn').getAttribute('aria-label')) === 'Itinerary');
+  ok('and carries no label text', (await page.locator('header .itbtn').innerText()).trim() === '');
+  const box = await page.locator('header .itbtn').boundingBox();
   ok('it sits at the top, not over the chat', box.y < 80, 'y=' + Math.round(box.y));
-  await page.locator('header button:has-text("Itinerary")').click();
+  await page.locator('header .itbtn').click();
   await page.waitForTimeout(700);
   ok('it opens the itinerary', await page.locator('.pane.open').count() === 1);
   // The preview itself lives in an iframe, so check the pane's own chrome and
