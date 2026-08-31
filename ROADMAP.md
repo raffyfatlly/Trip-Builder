@@ -147,3 +147,51 @@ honest caption on anything that is the area rather than the thing. A wrong
 photo is worse than no photo.
 
 Resolution matters too: size each image to its source rather than upscaling.
+
+## 6. Scope guard: a travel agent, not an app builder
+
+> another thing to note also is a safeguard to prevent user building whatever
+> they want . minor change is okay , but the strcture of app should look
+> similar.
+>
+> we don't need an agent that can build any app. but travel agent that can
+> build nicely according to the structure we set. so this can reduce its usage
+> too. u know what i mean?
+>
+> — raffy, 2026-08-31
+
+**Half of this is already guaranteed, structurally.** The agent cannot build
+an arbitrary app even if it tried: it has no ability to emit HTML, CSS or
+code. Its only outputs are tool calls that fill a fixed schema, and the
+renderer is a fixed template. Layout, navigation, typography and palette are
+not reachable from the agent side at all. This is the payoff of the
+schema-first decision, and it is worth not accidentally giving away later —
+any future feature that lets the agent emit markup would hand back exactly
+the freedom he is asking to prevent.
+
+**The half that is genuinely open is content and cost, not structure:**
+
+- **Off-topic use.** Nothing stops someone using the chat as a free general
+  assistant. It cannot build them anything, so the structure holds, but it
+  will happily talk — and every turn bills his card. This is what he means by
+  "reduce its usage too": scope discipline and cost control are the same lever.
+- **Implausible trips.** The schema accepts a nonsense destination or joke
+  dates as readily as a real trip, and the builder will then spend a full
+  research pass on it. Cheapest guard is at the chat agent, before
+  `build_itinerary` is ever called.
+
+**What to add:**
+
+1. A topic boundary in the chat prompt: this assistant plans real trips. Off
+   topic gets one short redirect, not an answer, and never a build.
+2. A plausibility check before handing over — a real place, dates that are in
+   the future and in a sane order, at least one identifiable stay.
+3. Keep the turn cap, and consider a per-session build cap, since a build is
+   the expensive call by a wide margin.
+
+**Loose end found while writing this:** `trip.theme` is in the schema with
+`sage | sand | navy`, and **none of it is implemented** — the renderer only
+ever produces the sage palette. Either build the other two token sets (this
+is the "minor change is okay" latitude he is describing, and it is cheap once
+the palette is tokenised) or drop the field so the agent stops filling in
+something with no effect.
