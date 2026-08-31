@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { renderPreview, downloadName } from '../lib/preview.js';
+import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
+import Editor from '../components/Editor.js';
 
 const KEY = 'itin.session.v1';
 const POLL_MS = 2000;
@@ -16,6 +18,9 @@ export default function Home() {
   const [sheet, setSheet] = useState(false);       // itinerary open on mobile
   const [error, setError] = useState('');
   const [booting, setBooting] = useState(true);
+  const [edits, setEdits] = useState([]);
+  const [pane, setPane] = useState('preview');   // preview | edit
+  const [staleNote, setStaleNote] = useState(0);
 
   const scroller = useRef(null);
   const inputRef = useRef(null);
@@ -37,6 +42,10 @@ export default function Home() {
       .catch(() => setError('Could not start. Reload to try again.'))
       .finally(() => setBooting(false));
   }, []);
+
+  useEffect(() => {
+    if (session) setEdits(loadEdits(session));
+  }, [session]);
 
   // --- polling ------------------------------------------------------------
   useEffect(() => {
@@ -60,16 +69,42 @@ export default function Home() {
     return () => { alive = false; clearTimeout(timer); };
   }, [session]);
 
+  // The itinerary is read-only (replayed from the event log), so manual edits
+  // live alongside it and are applied on top.
+  const working = useMemo(
+    () => applyEdits(itinerary, edits), [itinerary, edits]);
+
+  // A rebuild can orphan edits that pointed at days which no longer exist.
+  // Say so rather than letting them disappear quietly.
+  useEffect(() => {
+    if (!itinerary || !edits.length) return;
+    setStaleNote(countStale(itinerary, edits));
+  }, [itinerary, edits]);
+
+  const applyOp = useCallback((op) => {
+    setEdits((prev) => {
+      const next = [...prev, op];
+      if (session) saveEdits(session, next);
+      return next;
+    });
+  }, [session]);
+
+  const undoEdits = useCallback(() => {
+    setEdits([]);
+    if (session) saveEdits(session, []);
+    setStaleNote(0);
+  }, [session]);
+
   // --- render the preview when the itinerary actually changes -------------
   useEffect(() => {
-    if (!itinerary || !itinerary.days || !itinerary.days.length) return;
-    const sig = JSON.stringify(itinerary);
+    if (!working || !working.days || !working.days.length) return;
+    const sig = JSON.stringify(working);
     if (sig === lastItinerary.current) return;
     lastItinerary.current = sig;
-    renderPreview(itinerary)
+    renderPreview(forRender(working))
       .then(setPreview)
       .catch((e) => console.error('preview failed', e));
-  }, [itinerary]);
+  }, [working]);
 
   useEffect(() => {
     const el = scroller.current;
@@ -137,7 +172,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = downloadName(itinerary);
+    a.download = downloadName(working);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -151,8 +186,8 @@ export default function Home() {
 
   // The builder can land save_itinerary before it has written any days, so an
   // itinerary object alone is not enough to show. Wait for a real day.
-  const ready = !!(itinerary && itinerary.days && itinerary.days.length > 0);
-  const title = itinerary && itinerary.trip ? itinerary.trip.title : null;
+  const ready = !!(working && working.days && working.days.length > 0);
+  const title = working && working.trip ? working.trip.title : null;
 
   return (
     <div className="app">
@@ -259,20 +294,46 @@ export default function Home() {
               </svg>
             </button>
             <span>{title || 'Your itinerary'}</span>
-            {preview && <button className="dl" onClick={download}>Download</button>}
+            {ready && <button className="dl" onClick={download}>Download</button>}
           </div>
-          <div className="phone">
-            {preview
-              ? <iframe title="Itinerary preview" srcDoc={preview} />
-              : (
-                <div className="empty">
-                  <div className="ph" />
-                  <p>{building
-                    ? 'Building your itinerary…'
-                    : 'Your itinerary will appear here once there is enough to build.'}</p>
-                </div>
+
+          {ready && (
+            <div className="seg">
+              <button className={pane === 'preview' ? 'on' : ''}
+                onClick={() => setPane('preview')}>Preview</button>
+              <button className={pane === 'edit' ? 'on' : ''}
+                onClick={() => setPane('edit')}>Edit</button>
+              {edits.length > 0 && (
+                <span className="count">{edits.length} edit{edits.length > 1 ? 's' : ''}</span>
               )}
-          </div>
+            </div>
+          )}
+
+          {staleNote > 0 && (
+            <div className="stale">
+              {staleNote} of your edits no longer match the rebuilt itinerary and were skipped.
+              <button onClick={undoEdits}>Clear edits</button>
+            </div>
+          )}
+
+          {ready && pane === 'edit' ? (
+            <div className="editwrap">
+              <Editor itinerary={working} onOp={applyOp} />
+            </div>
+          ) : (
+            <div className="phone">
+              {preview
+                ? <iframe title="Itinerary preview" srcDoc={preview} />
+                : (
+                  <div className="empty">
+                    <div className="ph" />
+                    <p>{building
+                      ? 'Building your itinerary…'
+                      : 'Your itinerary will appear here once there is enough to build.'}</p>
+                  </div>
+                )}
+            </div>
+          )}
         </section>
       </main>
 
@@ -427,6 +488,31 @@ export default function Home() {
           transition:transform 160ms var(--e);
         }
         .dl:active{transform:scale(.95)}
+        .seg{
+          display:flex;align-items:center;gap:6px;flex:none;
+          background:var(--sage);border-radius:99px;padding:4px;margin-bottom:12px;
+          align-self:flex-start;
+        }
+        .seg button{
+          border:0;background:none;border-radius:99px;padding:8px 18px;
+          font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;
+          font-family:inherit;transition:background 160ms,color 160ms;
+        }
+        .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-s)}
+        .seg .count{
+          font-size:12px;color:var(--ink-faint);padding-right:12px;padding-left:2px;
+        }
+        .stale{
+          display:flex;align-items:center;gap:10px;flex:none;
+          background:#FBE6DC;color:#8C3B14;border-radius:16px;padding:11px 14px;
+          font-size:13px;line-height:1.4;margin-bottom:12px;
+        }
+        .stale button{
+          border:0;background:#8C3B14;color:#fff;border-radius:99px;
+          padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;
+          font-family:inherit;flex:none;
+        }
+        .editwrap{flex:1;min-height:0;overflow-y:auto;padding-right:2px}
         .phone{
           flex:1;min-height:0;border-radius:28px;overflow:hidden;background:var(--surface);
           box-shadow:var(--sh-l);
