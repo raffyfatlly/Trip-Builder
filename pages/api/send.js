@@ -11,7 +11,7 @@ import { geoFrom, contextBlock } from '../../lib/context.js';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const { session, text, files, client } = req.body || {};
+  const { session, text, files, client, memory } = req.body || {};
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ error: 'session required' });
   }
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
 
     // Where and when they are, attached to every message so "now" is never
     // stale. Stripped before display — see CTX_MARKER.
-    content.push({ type: 'text', text: contextBlock(geoFrom(req), client) });
+    content.push({ type: 'text', text: contextBlock(geoFrom(req), client, memory) });
 
     await sendUserMessage(session, content);
     res.status(200).json({ ok: true });

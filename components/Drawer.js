@@ -1,5 +1,7 @@
 import { shortDate } from '../lib/trips.js';
 import Account from './Account.js';
+import Memory from './Memory.js';
+import { isEmpty } from '../lib/memory.js';
 
 // The menus, given room to breathe.
 //
@@ -10,7 +12,8 @@ import Account from './Account.js';
 // the left with space to be legible.
 
 export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
-                                accounts, user, onSignedIn, onSignOut }) {
+                                accounts, user, onSignedIn, onSignOut,
+                                memory, onForgetSlot, onForgetAll }) {
   return (
     <>
       <div className={'veil' + (open ? ' on' : '')} onClick={onClose} aria-hidden={!open} />
@@ -33,6 +36,15 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
               <h3>Account</h3>
               <div className="acctwrap">
                 <Account user={user} trips={trips} onSignedIn={onSignedIn} onSignOut={onSignOut} />
+              </div>
+            </>
+          )}
+
+          {!isEmpty(memory) && (
+            <>
+              <h3>What I remember</h3>
+              <div className="memwrap">
+                <Memory memory={memory} onForget={onForgetSlot} onClearAll={onForgetAll} />
               </div>
             </>
           )}
@@ -151,6 +163,7 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
         .act i{font-style:normal;font-size:11.5px;color:var(--ink-soft)}
 
         .acctwrap{margin-bottom:20px}
+        .memwrap{margin-bottom:20px}
         .foot{margin:10px 18px 0;font-size:11px;color:var(--ink-faint)}
 
         @media (prefers-reduced-motion:reduce){

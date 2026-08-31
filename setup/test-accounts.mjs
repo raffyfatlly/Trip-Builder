@@ -70,16 +70,21 @@ await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
 const page = await ctx.newPage();
 page.on('pageerror', (e) => errs.push(e.message));
 
+// This server may or may not have a database configured — the local .env now
+// carries a real service account. So assert the contract that must hold either
+// way, rather than one that only holds when it is switched off.
 const me = await (await ctx.request.get(B + '/api/me')).json();
-ok('/api/me says accounts are off rather than erroring', me.accounts === false && me.user === null);
-const start = await ctx.request.post(B + '/api/auth/signin', { data: { email: 'a@b.co' } });
-ok('signing in is refused cleanly, not with a crash', start.status() === 501);
+ok('/api/me always answers with a shape, never an error',
+   typeof me.accounts === 'boolean' && 'user' in me);
+const bad = await ctx.request.post(B + '/api/auth/signin', { data: { email: 'not-an-email' } });
+ok('a bad email is refused before anything is written', [400, 501].includes(bad.status()));
 
 await page.goto(B, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1300);
 await page.locator('.burger').click();
 await page.waitForTimeout(400);
-ok('no sign-in offered when there is nowhere to store it', await page.locator('.acct').count() === 0);
+ok('the sign-in section matches what the server said',
+   (await page.locator('.acct').count() === 1) === me.accounts);
 ok('and the drawer still works', await page.locator('.drawer .act:has-text("New trip")').count() === 1);
 ok('no page errors', errs.length === 0, errs.join(' / '));
 

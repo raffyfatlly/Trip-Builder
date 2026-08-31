@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview, downloadName } from '../lib/preview.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
-import { loadTrips, rememberTrip, forgetTrip } from '../lib/trips.js';
+import { loadTrips, rememberTrip, forgetTrip, loadMemory, saveMemory } from '../lib/trips.js';
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
 import Onboard from '../components/Onboard.js';
 import Plan from '../components/Plan.js';
 import Drawer from '../components/Drawer.js';
+import { applyMemory } from '../lib/memory.js';
 
 const KEY = 'itin.session.v1';
 const POLL_MS = 2000;
@@ -36,6 +37,7 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [hintOff, setHintOff] = useState(true);
   const [account, setAccount] = useState({ accounts: false, user: null });
+  const [memory, setMemory] = useState(null);
 
   const router = useRouter();
 
@@ -47,6 +49,7 @@ export default function Home() {
   useEffect(() => {
     setTrips(loadTrips());
     try { setHintOff(localStorage.getItem('itin.hint.attach') === 'off'); } catch (e) { setHintOff(false); }
+    setMemory(loadMemory());
 
     // ?s=<session id> opens one specific trip. It is how a trip gets back to
     // you when the browser has lost it — a different phone, cleared storage.
@@ -94,6 +97,9 @@ export default function Home() {
         if (!alive || !d) return;
         setAccount({ accounts: !!d.accounts, user: d.user || null });
         if (d.user && Array.isArray(d.trips)) mergeTrips(d.trips);
+        // The account's profile wins on sign-in: it is the one that has
+        // followed them across devices.
+        if (d.user && d.memory) { saveMemory(d.memory); setMemory(d.memory); }
       })
       .catch(() => { /* anonymous, as before */ });
     return () => { alive = false; };
@@ -137,6 +143,7 @@ export default function Home() {
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
         setPlan(d.plan || {});
+        if ((d.memoryOps || []).length) foldMemory(d.memoryOps);
         setLoaded(true);
       } catch (e) { /* transient, next tick retries */ }
       if (alive) timer = setTimeout(tick, POLL_MS);
@@ -215,7 +222,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          session, text, files,
+          session, text, files, memory,
           // The browser knows its own timezone exactly; the IP lookup only
           // approximates it. No permission prompt for either.
           client: {
@@ -290,6 +297,44 @@ export default function Home() {
     if (id === session) { setMenu(false); return; }
     try { localStorage.setItem(KEY, id); } catch (e) { /* ignore */ }
     location.reload();
+  };
+
+  // The agent's remember/forget calls arrive as ops replayed from the chat
+  // log. Folding them here, rather than storing a profile on the server, keeps
+  // the same stateless shape as the itinerary edits.
+  const seenOps = useRef(new Set());
+  const foldMemory = (ops) => {
+    const fresh = ops.filter((o) => !seenOps.current.has(o.id));
+    if (!fresh.length) return;
+    fresh.forEach((o) => seenOps.current.add(o.id));
+    setMemory((prev) => {
+      const next = fresh.reduce((m, o) => applyMemory(m, o.name, o.input), prev);
+      persistMemory(next);
+      return next;
+    });
+  };
+
+  const persistMemory = (next) => {
+    saveMemory(next);
+    if (account.user) {
+      fetch('/api/me', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ memory: next }),
+      }).catch(() => { /* the local copy still stands */ });
+    }
+  };
+
+  const forgetSlot = (key) => {
+    setMemory((prev) => {
+      const next = applyMemory(prev, 'forget', { fields: [key] });
+      persistMemory(next);
+      return next;
+    });
+  };
+
+  const forgetAll = () => {
+    setMemory(null);
+    persistMemory(null);
   };
 
   // The account's trips and this browser's are both real. Union them, newest
@@ -562,6 +607,9 @@ export default function Home() {
         onNew={startOver}
         onDownload={() => { setMenu(false); download(); }}
         canDownload={ready}
+        memory={memory}
+        onForgetSlot={forgetSlot}
+        onForgetAll={forgetAll}
         accounts={account.accounts}
         user={account.user}
         onSignedIn={onSignedIn}

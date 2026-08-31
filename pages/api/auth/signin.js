@@ -31,6 +31,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       user: { email, phone: (saved && saved.phone) || phone || '' },
       trips: (saved && saved.trips) || merged,
+      memory: (saved && saved.memory) || account.memory || null,
     });
   } catch (err) {
     console.error('signin failed:', err);

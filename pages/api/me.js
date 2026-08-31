@@ -5,7 +5,7 @@
 // as they did before accounts existed.
 
 import { userFrom, normalisePhone } from '../../lib/auth.js';
-import { storeConfigured, getAccount, saveTrips, mergeTripLists, findOrCreate } from '../../lib/db.js';
+import { storeConfigured, getAccount, saveTrips, saveMemory, mergeTripLists, findOrCreate } from '../../lib/db.js';
 
 export default async function handler(req, res) {
   if (!storeConfigured()) return res.status(200).json({ user: null, accounts: false });
@@ -30,6 +30,7 @@ export default async function handler(req, res) {
           id: body.claim.id, label: body.claim.label, at: Date.now(),
         }]));
       }
+      if (body.memory !== undefined) account = await saveMemory(email, body.memory);
       if (typeof body.forget === 'string') {
         account = await saveTrips(email, (account.trips || []).filter((t) => t.id !== body.forget));
       }
@@ -39,6 +40,7 @@ export default async function handler(req, res) {
       accounts: true,
       user: { email: account.email, phone: account.phone || '' },
       trips: account.trips || [],
+      memory: account.memory || null,
     });
   } catch (err) {
     console.error('me failed:', err);
