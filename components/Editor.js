@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { blankItem } from '../lib/edits.js';
+import PhotoPick from './PhotoPick.js';
 
 // Manual editing of the itinerary: add, change, delete, reorder by time, and
 // confirm a stay. Every change is a local operation — no API call, no cost,
@@ -33,7 +34,7 @@ function Field({ label, value, onChange, placeholder, rows }) {
   );
 }
 
-function ItemEditor({ item, onSave, onDelete, onCancel }) {
+function ItemEditor({ item, onSave, onDelete, onCancel, photo, onPhoto, onPhotoClear }) {
   const [draft, setDraft] = useState({ ...item });
   const set = (k) => (v) => setDraft((d) => ({ ...d, [k]: v }));
   const tags = (draft.tags || []).join(', ');
@@ -49,6 +50,13 @@ function ItemEditor({ item, onSave, onDelete, onCancel }) {
           ...d, tags: v.split(',').map((s) => s.trim()).filter(Boolean),
         }))}
         placeholder="Photo spot, Booked" />
+
+      {onPhoto && (
+        <div className="pw">
+          <span className="pl">Photo</span>
+          <PhotoPick current={photo} onSet={onPhoto} onClear={onPhotoClear} />
+        </div>
+      )}
 
       <label className="tog">
         <input type="checkbox" checked={!!draft.out}
@@ -66,6 +74,11 @@ function ItemEditor({ item, onSave, onDelete, onCancel }) {
         .ed{
           background:var(--surface);border-radius:20px;padding:17px;
           box-shadow:var(--sh-m);margin:9px 0;
+        }
+        .pw{margin:2px 0 16px}
+        .pl{
+          display:block;font-size:11px;font-weight:750;letter-spacing:.06em;
+          text-transform:uppercase;color:var(--ink-faint);
         }
         .tog{display:flex;align-items:flex-start;gap:10px;margin:4px 0 16px;cursor:pointer}
         .tog input{width:19px;height:19px;flex:none;margin-top:1px;accent-color:var(--coral)}
@@ -86,6 +99,8 @@ function ItemEditor({ item, onSave, onDelete, onCancel }) {
 }
 
 export default function Editor({ itinerary, onOp }) {
+  const photos = itinerary.photos || {};
+  const srcOf = (o) => (o && o.photo ? photos[o.photo] : '') || '';
   const [day, setDay] = useState(0);
   const [editing, setEditing] = useState(null);   // item index, or 'new'
 
@@ -127,6 +142,10 @@ export default function Editor({ itinerary, onOp }) {
               close();
             }}
             onCancel={close}
+            photo={srcOf(it)}
+            onPhoto={(url, credit) =>
+              onOp({ type: 'photo.set', target: 'item', day, id: it._id, url, credit })}
+            onPhotoClear={() => onOp({ type: 'photo.clear', target: 'item', day, id: it._id })}
           />
         ) : (
           <button key={i} className="card" onClick={() => setEditing(i)}>
@@ -166,6 +185,30 @@ export default function Editor({ itinerary, onOp }) {
         </button>
       )}
 
+      <div className="pics">
+        <h4>Photos</h4>
+
+        <div className="picrow">
+          <div className="picname">Feature card</div>
+          <PhotoPick
+            current={srcOf((itinerary.trip || {}).feature)}
+            onSet={(url, credit) => onOp({ type: 'photo.set', target: 'feature', url, credit })}
+            onClear={() => onOp({ type: 'photo.clear', target: 'feature' })}
+          />
+        </div>
+
+        {(itinerary.stays || []).map((s, i) => (
+          <div className="picrow" key={i}>
+            <div className="picname">{s.n || s.name || 'Stay ' + (i + 1)}</div>
+            <PhotoPick
+              current={srcOf(s)}
+              onSet={(url, credit) => onOp({ type: 'photo.set', target: 'stay', index: i, url, credit })}
+              onClear={() => onOp({ type: 'photo.clear', target: 'stay', index: i })}
+            />
+          </div>
+        ))}
+      </div>
+
       {(itinerary.stays || []).some((s) => s.draft) && (
         <div className="stays">
           <h4>Not booked yet</h4>
@@ -182,6 +225,16 @@ export default function Editor({ itinerary, onOp }) {
 
       <style jsx>{`
         .editor{padding-bottom:26px}
+        .pics{margin-top:22px}
+        .pics h4{
+          margin:0 2px 10px;font-size:11px;font-weight:750;letter-spacing:.07em;
+          text-transform:uppercase;color:var(--ink-faint);
+        }
+        .picrow{
+          background:var(--surface);border-radius:16px;padding:12px 13px;
+          box-shadow:var(--sh-s);margin-bottom:8px;
+        }
+        .picname{font-size:13.5px;font-weight:650}
         .strip{
           display:flex;gap:8px;overflow-x:auto;padding:2px 0 14px;
           scrollbar-width:none;
