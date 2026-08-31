@@ -1,0 +1,6 @@
+.env
+.env.local
+node_modules/
+.next/
+shots/
+setup/test-output.json
