@@ -1,40 +1,44 @@
 // Who is signed in here, and what are their trips.
 //
-// Also the write path: the browser posts a trip it has just named, and it is
-// attached to the account. Anonymous browsers get {user:null} and carry on
-// exactly as they did before accounts existed.
+// Also the write path: the browser posts a trip it has just named, and it
+// joins the account. Anonymous browsers get {user:null} and carry on exactly
+// as they did before accounts existed.
 
-import { userFrom, authConfigured } from '../../lib/auth.js';
-import { configured, getUser, listTrips, claimTrip, dropTrip, setPhone } from '../../lib/db.js';
-import { normalisePhone } from '../../lib/auth.js';
+import { userFrom, normalisePhone } from '../../lib/auth.js';
+import { storeConfigured, getAccount, saveTrips, mergeTripLists, findOrCreate } from '../../lib/db.js';
 
 export default async function handler(req, res) {
-  if (!authConfigured() || !configured()) return res.status(200).json({ user: null, accounts: false });
+  if (!storeConfigured()) return res.status(200).json({ user: null, accounts: false });
 
-  const userId = userFrom(req);
-  if (!userId) return res.status(200).json({ user: null, accounts: true });
+  // The cookie carries the email, which is the account key.
+  const email = userFrom(req);
+  if (!email) return res.status(200).json({ user: null, accounts: true });
 
   try {
-    const user = await getUser(userId);
-    if (!user) return res.status(200).json({ user: null, accounts: true });
+    let account = await getAccount(email);
+    if (!account) return res.status(200).json({ user: null, accounts: true });
 
     if (req.method === 'POST') {
       const body = req.body || {};
       if (body.phone !== undefined) {
         const phone = normalisePhone(body.phone);
         if (phone === null) return res.status(400).json({ error: 'That phone number does not look right.' });
-        await setPhone(userId, phone);
+        account = await findOrCreate({ email, phone });
       }
       if (body.claim && typeof body.claim.id === 'string') {
-        await claimTrip(userId, body.claim.id, String(body.claim.label || '').slice(0, 120));
+        account = await saveTrips(email, mergeTripLists(account.trips, [{
+          id: body.claim.id, label: body.claim.label, at: Date.now(),
+        }]));
       }
-      if (typeof body.forget === 'string') await dropTrip(userId, body.forget);
+      if (typeof body.forget === 'string') {
+        account = await saveTrips(email, (account.trips || []).filter((t) => t.id !== body.forget));
+      }
     }
 
     return res.status(200).json({
       accounts: true,
-      user: { email: user.email, phone: user.phone || '' },
-      trips: await listTrips(userId),
+      user: { email: account.email, phone: account.phone || '' },
+      trips: account.trips || [],
     });
   } catch (err) {
     console.error('me failed:', err);

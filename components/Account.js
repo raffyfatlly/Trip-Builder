@@ -1,49 +1,36 @@
 import { useState } from 'react';
 
-// Signing in, in the drawer, in two steps.
+// Signing in, in the drawer, in one step.
 //
-// Kept as short as it can be: an email, then a code. No password to invent, no
-// provider buttons. Phone is asked for once, optionally, and only because
-// raffy wants it on the record — nothing signs in with it.
+// Kept as short as it can be: an email, and that is the account. No password
+// to invent, no code to wait for, no provider buttons. Phone is asked for
+// once, optionally, and only because raffy wants it on the record — nothing
+// signs in with it.
 //
 // Anonymous is a real state here, not a lapsed one. Someone who never signs in
 // loses nothing they had before; they simply cannot reach their trips from a
 // different phone, and the copy says exactly that rather than nagging.
 
 export default function Account({ user, trips, onSignedIn, onSignOut }) {
-  const [step, setStep] = useState('idle');   // idle | email | code | busy
+  const [step, setStep] = useState('idle');   // idle | form | busy
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
   const [err, setErr] = useState('');
 
-  const start = async () => {
+  const go = async () => {
     setErr(''); setStep('busy');
     try {
-      const r = await fetch('/api/auth/start', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const d = await r.json();
-      if (!r.ok) { setErr(d.error || 'Could not send the code.'); setStep('email'); return; }
-      setStep('code');
-    } catch (e) { setErr('Could not reach the server.'); setStep('email'); }
-  };
-
-  const verify = async () => {
-    setErr(''); setStep('busy');
-    try {
-      const r = await fetch('/api/auth/verify', {
+      const r = await fetch('/api/auth/signin', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         // The trips this browser is holding come along, so signing in after a
         // week of anonymous planning does not look like starting over.
-        body: JSON.stringify({ email, phone, code, trips }),
+        body: JSON.stringify({ email, phone, trips }),
       });
       const d = await r.json();
-      if (!r.ok) { setErr(d.error || 'Could not sign you in.'); setStep('code'); return; }
+      if (!r.ok) { setErr(d.error || 'Could not open your account.'); setStep('form'); return; }
       onSignedIn(d);
-      setStep('idle'); setCode(''); setPhone('');
-    } catch (e) { setErr('Could not reach the server.'); setStep('code'); }
+      setStep('idle'); setPhone('');
+    } catch (e) { setErr('Could not reach the server.'); setStep('form'); }
   };
 
   if (user) {
@@ -65,7 +52,7 @@ export default function Account({ user, trips, onSignedIn, onSignOut }) {
   return (
     <div className="acct">
       {step === 'idle' && (
-        <button className="cta" onClick={() => setStep('email')}>
+        <button className="cta" onClick={() => setStep('form')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 21a8 8 0 1 0-16 0" /><circle cx="12" cy="8" r="4" />
           </svg>
@@ -73,42 +60,30 @@ export default function Account({ user, trips, onSignedIn, onSignOut }) {
         </button>
       )}
 
-      {(step === 'email' || step === 'busy') && step !== 'code' && (
+      {step !== 'idle' && (
         <div className="form">
           <label>Email</label>
           <input
             type="email" inputMode="email" autoFocus value={email} placeholder="you@example.com"
             onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && email) start(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && email) go(); }}
           />
           <label>Phone <span className="opt">optional</span></label>
           <input
             type="tel" inputMode="tel" value={phone} placeholder="+60 12 345 6789"
             onChange={(e) => setPhone(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && email) go(); }}
           />
+          <p className="note">
+            No password and no code — your email is the account. Use the same one
+            on another device and your trips are there.
+          </p>
           {err && <p className="err">{err}</p>}
           <div className="row">
             <button className="ghost" onClick={() => { setStep('idle'); setErr(''); }}>Cancel</button>
-            <button className="go" disabled={!email || step === 'busy'} onClick={start}>
-              {step === 'busy' ? 'Sending…' : 'Send me a code'}
+            <button className="go" disabled={!email || step === 'busy'} onClick={go}>
+              {step === 'busy' ? 'One moment…' : 'Save my trips'}
             </button>
-          </div>
-        </div>
-      )}
-
-      {step === 'code' && (
-        <div className="form">
-          <p className="sent">A six digit code is on its way to <b>{email}</b>.</p>
-          <label>Code</label>
-          <input
-            className="codein" inputMode="numeric" autoFocus value={code} placeholder="000000"
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            onKeyDown={(e) => { if (e.key === 'Enter' && code.length === 6) verify(); }}
-          />
-          {err && <p className="err">{err}</p>}
-          <div className="row">
-            <button className="ghost" onClick={() => { setStep('email'); setErr(''); }}>Back</button>
-            <button className="go" disabled={code.length !== 6} onClick={verify}>Sign in</button>
           </div>
         </div>
       )}
@@ -144,8 +119,7 @@ const css = `
     font-size:15px;font-family:inherit;color:var(--ink);outline:none;
   }
   input:focus{box-shadow:0 0 0 2px var(--deep)}
-  .codein{letter-spacing:.32em;font-family:'Outfit',sans-serif;font-weight:700}
-  .sent{margin:0 0 11px;font-size:12.5px;line-height:1.45;color:var(--ink-soft)}
+  .note{margin:2px 0 11px;font-size:11.5px;line-height:1.45;color:var(--ink-faint)}
   .err{margin:0 0 10px;font-size:12.5px;line-height:1.4;color:#8C3B14}
   .row{display:flex;gap:7px}
   .row button{

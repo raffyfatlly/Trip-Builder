@@ -43,8 +43,21 @@ ok('obvious non-emails are rejected', !A.looksLikeEmail('raffy@') && !A.looksLik
 ok('phone numbers are tidied', A.normalisePhone('+60 12-345 6789') === '+60123456789');
 ok('an empty phone is fine, a bad one is not',
    A.normalisePhone('') === '' && A.normalisePhone('not a phone') === null);
-ok('the schema and the queries live together', DB.SCHEMA.includes('create table if not exists trips'));
-ok('and the schema locks the tables down', DB.SCHEMA.includes('enable row level security'));
+ok('nothing is configured, so accounts are off', DB.backend() === null && !DB.storeConfigured());
+ok('two lists merge rather than one replacing the other',
+   DB.mergeTripLists([{ id: 'x', label: 'Old', at: 100 }, { id: 'y', label: 'Y', at: 300 }],
+                     [{ id: 'x', label: 'New', at: 200 }])
+     .map((t) => t.id + ':' + t.label).join(',') === 'y:Y,x:New');
+ok('a trip missing from one side survives',
+   DB.mergeTripLists([{ id: 'only', label: 'A', at: 1 }], []).length === 1);
+
+const FS = await import('../lib/firestore.js');
+ok('the account key does not depend on how you typed your email',
+   FS._internals.docId('Raffy@Example.com') === FS._internals.docId('raffy@example.com'));
+ok("Firestore's typed values round-trip",
+   JSON.stringify(FS._internals.decFields(FS._internals.encFields(
+     { email: 'a@b.co', phone: '', trips: [{ id: 's1', label: 'Da Nang', at: 123 }] })))
+   === JSON.stringify({ email: 'a@b.co', phone: '', trips: [{ id: 's1', label: 'Da Nang', at: 123 }] }));
 
 // --- with nothing configured, the app is exactly what it was --------------
 const browser = await chromium.launch();
@@ -59,7 +72,7 @@ page.on('pageerror', (e) => errs.push(e.message));
 
 const me = await (await ctx.request.get(B + '/api/me')).json();
 ok('/api/me says accounts are off rather than erroring', me.accounts === false && me.user === null);
-const start = await ctx.request.post(B + '/api/auth/start', { data: { email: 'a@b.co' } });
+const start = await ctx.request.post(B + '/api/auth/signin', { data: { email: 'a@b.co' } });
 ok('signing in is refused cleanly, not with a crash', start.status() === 501);
 
 await page.goto(B, { waitUntil: 'networkidle' });
@@ -79,8 +92,7 @@ ok('no page errors', errs.length === 0, errs.join(' / '));
     transcript: [{ role: 'user', text: 'hi', id: 'u1' }],
     itinerary: null, plan: {}, agentEdits: [], building: false, thinking: false, turns: 1 } }));
   await c2.route('**/api/me', (r) => r.fulfill({ json: { accounts: true, user: null } }));
-  await c2.route('**/api/auth/start', (r) => r.fulfill({ json: { sent: true } }));
-  await c2.route('**/api/auth/verify', (r) => {
+  await c2.route('**/api/auth/signin', (r) => {
     sentTrips = JSON.parse(r.request().postData());
     r.fulfill({ json: {
       user: { email: 'raffy@example.com', phone: '' },
@@ -103,15 +115,11 @@ ok('no page errors', errs.length === 0, errs.join(' / '));
   await p2.waitForTimeout(250);
   await p2.locator('input[type=email]').fill('raffy@example.com');
   await p2.locator('input[type=tel]').fill('+60 12 345 6789');
+  ok('it says plainly there is no code coming',
+     (await p2.locator('.note').innerText()).includes('no code'));
   await p2.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/signin.png' });
-  await p2.locator('button:has-text("Send me a code")').click();
-  await p2.waitForTimeout(400);
-  ok('the code step explains where the code went',
-     (await p2.locator('.sent').innerText()).includes('raffy@example.com'));
-
-  await p2.locator('.codein').fill('123456');
-  await p2.locator('button:has-text("Sign in")').click();
-  await p2.waitForTimeout(600);
+  await p2.locator('button:has-text("Save my trips")').click();
+  await p2.waitForTimeout(700);
 
   ok('the trips this browser had are carried in',
      !!sentTrips && (sentTrips.trips || []).some((t) => t.id === 'sesn_LOCAL'));
