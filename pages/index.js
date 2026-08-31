@@ -34,6 +34,7 @@ export default function Home() {
   const [plan, setPlan] = useState({});
   const [skipOb, setSkipOb] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [hintOff, setHintOff] = useState(true);
 
   const router = useRouter();
 
@@ -44,6 +45,7 @@ export default function Home() {
   // --- session ------------------------------------------------------------
   useEffect(() => {
     setTrips(loadTrips());
+    try { setHintOff(localStorage.getItem('itin.hint.attach') === 'off'); } catch (e) { setHintOff(false); }
 
     // ?s=<session id> opens one specific trip. It is how a trip gets back to
     // you when the browser has lost it — a different phone, cleared storage.
@@ -299,6 +301,18 @@ export default function Home() {
   // three days into planning would be its own small betrayal.
   const onboarding = !booting && loaded && messages.length === 0 && !skipOb;
 
+  // Nobody thinks to send a booking confirmation to a chat box. The paperclip
+  // is right there and still invisible, so say it once, while it is useful —
+  // when flights or a hotel are the thing still missing.
+  const showHint =
+    !hintOff && !onboarding && messages.length > 0 && !ready &&
+    (!plan.flights || !plan.stays);
+
+  const dismissHint = () => {
+    setHintOff(true);
+    try { localStorage.setItem('itin.hint.attach', 'off'); } catch (e) { /* ignore */ }
+  };
+
   return (
     <div className="app">
       <header className="bar">
@@ -388,6 +402,19 @@ export default function Home() {
             <div className="err" onClick={() => setError('')}>{error} <b>Dismiss</b></div>
           )}
 
+          {showHint && (
+            <div className="hint">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5" />
+              </svg>
+              <span>
+                Got a booking confirmation? Send the screenshot, PDF or email —
+                flight times, hotel address, all of it gets read.
+              </span>
+              <button onClick={dismissHint} aria-label="Dismiss">×</button>
+            </div>
+          )}
+
           <div className="composer">
             {pending.length > 0 && (
               <div className="chips">
@@ -410,7 +437,7 @@ export default function Home() {
                 ref={inputRef}
                 rows={1}
                 value={draft}
-                placeholder="Tell me about your trip"
+                placeholder={messages.length ? "Reply, or attach a booking" : "Tell me about your trip"}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
@@ -606,6 +633,20 @@ export default function Home() {
           background:#FBE6DC;color:#8C3B14;padding:11px 15px;border-radius:16px;
           font-size:13.5px;margin:0 0 10px;cursor:pointer;
         }
+
+        .hint{
+          display:flex;align-items:flex-start;gap:9px;margin:0 2px 8px;
+          background:var(--sage);border-radius:14px;padding:10px 11px;
+          font-size:12.5px;line-height:1.45;color:var(--ink-soft);
+          animation:rise 300ms var(--e) both;
+        }
+        .hint svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--deep)}
+        .hint span{flex:1;min-width:0}
+        .hint button{
+          flex:none;border:0;background:none;color:var(--ink-faint);cursor:pointer;
+          font-size:16px;line-height:1;padding:0 2px;opacity:.6;
+        }
+        .hint button:hover{opacity:1}
 
         .composer{flex:none;padding:8px 0 calc(12px + env(safe-area-inset-bottom))}
         .chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px}

@@ -3,7 +3,7 @@
 // conversation carries on normally and typing is always still available.
 
 export default function Block({ block, onChoose, disabled }) {
-  const { kind, title, intro, items, facts, choose } = block;
+  const { kind, title, intro, items, facts, spots, choose, proposal } = block;
 
   return (
     <div className="block">
@@ -21,6 +21,85 @@ export default function Block({ block, onChoose, disabled }) {
               {f.note && <div className="n">{f.note}</div>}
             </div>
           ))}
+        </div>
+      )}
+
+      {kind === 'spots' && (spots || []).map((sp, i) => (
+        <div key={i} className="opt spot">
+          <div className="name">{sp.name}</div>
+          <div className="buzz">{sp.buzz}</div>
+          {sp.meta && <div className="meta">{sp.meta}</div>}
+          {sp.best && (
+            <div className="best">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+              </svg>
+              <span>{sp.best}</span>
+            </div>
+          )}
+          {sp.watch && (
+            <div className="watch">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 9v4M12 17h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+              </svg>
+              <span>{sp.watch}</span>
+            </div>
+          )}
+          {(sp.tags || []).length > 0 && (
+            <div className="tags">{sp.tags.map((t) => <span key={t}>{t}</span>)}</div>
+          )}
+          <div className="acts">
+            <button className="pick" disabled={disabled}
+              onClick={() => onChoose(`Put ${sp.name} in the trip.`)}>
+              Add this
+            </button>
+            <button className="more" disabled={disabled}
+              onClick={() => onChoose(`Tell me more about ${sp.name}.`)}>
+              Tell me more
+            </button>
+            {sp.link && (
+              <a className="link" href={sp.link} target="_blank" rel="noopener noreferrer">Open</a>
+            )}
+          </div>
+        </div>
+      ))}
+
+      {kind === 'proposal' && proposal && (
+        <div className="prop">
+          <p className="psum">{proposal.summary}</p>
+
+          <div className="pdays">
+            {(proposal.days || []).map((d, i) => (
+              <div key={i} className="pday">
+                <span className="pl">{d.label}</span>
+                <span className="pp">{d.plan}</span>
+              </div>
+            ))}
+          </div>
+
+          {(proposal.stays || []).length > 0 && (
+            <div className="prow"><b>Sleeping</b><span>{proposal.stays.join(' → ')}</span></div>
+          )}
+          {proposal.cost && <div className="prow"><b>Cost</b><span>{proposal.cost}</span></div>}
+
+          {(proposal.unsure || []).length > 0 && (
+            <div className="unsure">
+              <b>Still worth checking</b>
+              <ul>{proposal.unsure.map((u, i) => <li key={i}>{u}</li>)}</ul>
+            </div>
+          )}
+
+          <div className="acts">
+            <button className="pick" disabled={disabled}
+              onClick={() => onChoose('That looks right — build it.')}>
+              Build my itinerary
+            </button>
+            <button className="more" disabled={disabled}
+              onClick={() => onChoose('Before you build — I want to change something.')}>
+              Change something
+            </button>
+          </div>
         </div>
       )}
 
@@ -111,7 +190,43 @@ export default function Block({ block, onChoose, disabled }) {
           font-size:11px;font-weight:600;background:var(--sage);color:var(--ink-soft);
           padding:4px 9px;border-radius:99px;
         }
-        .acts{display:flex;align-items:center;gap:7px;margin-top:13px}
+        .spot .buzz{font-size:13.5px;line-height:1.5;margin-top:7px}
+        .spot .best{
+          display:flex;gap:7px;align-items:center;margin-top:9px;
+          font-size:12.5px;color:var(--ink-soft);font-weight:600;
+        }
+        .spot .best svg{width:14px;height:14px;flex:none;color:var(--deep)}
+
+        /* The proposal is the one card that is the whole trip, so it gets the
+           dark treatment — you should be able to tell at a glance that this is
+           the thing you are saying yes to. */
+        .prop{
+          background:var(--deep);color:#E7EFE9;border-radius:22px;
+          padding:17px 17px 15px;box-shadow:var(--sh-m);
+        }
+        .psum{margin:0 0 14px;font-size:13.5px;line-height:1.55;color:#CBDCD0}
+        .pdays{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+        .pday{display:flex;flex-direction:column;gap:2px}
+        .pl{font-size:12px;font-weight:750;color:#8FB39C;letter-spacing:.01em}
+        .pp{font-size:13.5px;line-height:1.45}
+        .prow{
+          display:flex;gap:10px;padding:9px 0;border-top:1px solid rgba(255,255,255,.12);
+          font-size:12.5px;line-height:1.45;
+        }
+        .prow b{flex:none;width:62px;color:#8FB39C;font-weight:700}
+        .prow span{min-width:0;overflow-wrap:anywhere}
+        .unsure{
+          margin-top:12px;background:rgba(255,255,255,.07);border-radius:14px;padding:11px 13px;
+          font-size:12.5px;line-height:1.45;
+        }
+        .unsure b{color:#E9B99B;font-weight:700}
+        .unsure ul{margin:6px 0 0;padding-left:16px}
+        .unsure li{margin:3px 0}
+        .prop .acts{margin-top:14px}
+        .prop .pick{background:#EAF2EC;color:var(--deep)}
+        .prop .more{background:rgba(255,255,255,.13);color:#CBDCD0}
+
+        .acts{display:flex;align-items:center;gap:7px;margin-top:13px;flex-wrap:wrap}
         button,.link{
           border:0;border-radius:99px;padding:9px 15px;font-size:13px;font-weight:600;
           cursor:pointer;font-family:inherit;text-decoration:none;

@@ -18,7 +18,7 @@ import { BUILDER_SYSTEM } from '../lib/builderPrompt.js';
 import { TOOLS } from '../lib/schema.js';
 import { BUILD_TOOL } from '../lib/brief.js';
 import { READ_TOOL, EDIT_TOOL } from '../lib/editTools.js';
-import { PRESENT_TOOL } from '../lib/blocks.js';
+import { PRESENT_TOOL, PROPOSE_TOOL } from '../lib/blocks.js';
 import { FIND_TOOL } from '../lib/photos.js';
 import { NOTE_TOOL } from '../lib/plan.js';
 
@@ -67,7 +67,7 @@ const chat = await post('/v1/agents', {
         { name: 'web_fetch', enabled: true },
       ],
     },
-    BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL, NOTE_TOOL,
+    BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL, PROPOSE_TOOL, NOTE_TOOL,
   ],
 });
 console.log('chat agent   ' + chat.id + '  v' + chat.version);
