@@ -27,6 +27,7 @@ export default function Home() {
   const [agentEdits, setAgentEdits] = useState([]);
   const [trips, setTrips] = useState([]);
   const [tripsOpen, setTripsOpen] = useState(false);
+  const [unseen, setUnseen] = useState(false);
 
   const router = useRouter();
 
@@ -258,10 +259,6 @@ export default function Home() {
     location.reload();
   };
 
-  // Trips other than the one on screen. The menu is for getting back to one of
-  // those, so an empty list is the honest reason to hide it.
-  const others = useMemo(() => trips.filter((t) => t.id !== session), [trips, session]);
-
   const dropTrip = (id) => {
     forgetTrip(id);
     setTrips(loadTrips());
@@ -272,6 +269,20 @@ export default function Home() {
   const ready = !!(working && working.days && working.days.length > 0);
   const title = working && working.trip ? working.trip.title : null;
 
+  // A build runs for minutes, so it almost always lands while they are still
+  // typing. Mark the button rather than interrupting them.
+  //
+  // Must sit below `ready`: the dependency array is evaluated during render,
+  // so referencing it from higher up hits the temporal dead zone and takes the
+  // whole page down.
+  const wasBuilding = useRef(false);
+  useEffect(() => {
+    if (wasBuilding.current && !building && ready) setUnseen(true);
+    wasBuilding.current = building;
+  }, [building, ready]);
+
+  const openSheet = () => { setSheet(true); setUnseen(false); };
+
   return (
     <div className="app">
       <header className="bar">
@@ -280,40 +291,55 @@ export default function Home() {
           <span>Trip builder</span>
         </div>
         <div className="baractions">
-          {others.length > 0 && (
-            <div className="trips">
-              <button
-                className="ghostbtn"
-                onClick={() => setTripsOpen((v) => !v)}
-                aria-expanded={tripsOpen}
-              >
-                My trips
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
-              {tripsOpen && (
-                <>
-                  <div className="scrim" onClick={() => setTripsOpen(false)} />
-                  <div className="menu">
-                    {trips.map((t) => (
-                      <div key={t.id} className={'trip' + (t.id === session ? ' on' : '')}>
-                        <button className="pick" onClick={() => openTrip(t.id)}>
-                          <span className="lbl">{t.label}</span>
-                          <span className="when">{t.id === session ? 'open now' : shortDate(t.at)}</span>
-                        </button>
-                        {t.id !== session && (
-                          <button className="x" title="Remove from this list" onClick={() => dropTrip(t.id)}>×</button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
           {ready && (
-            <button className="ghostbtn" onClick={startOver}>New trip</button>
+            <button className="itbtn" onClick={openSheet}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
+              </svg>
+              Itinerary
+              {unseen && <i className="ping" />}
+            </button>
+          )}
+          {/* The menu holds this browser's trips and the way to start another.
+              On a first visit there is neither, so there is nothing to open. */}
+          {trips.length > 0 && (
+          <div className="trips">
+            <button
+              className="ghostbtn"
+              onClick={() => setTripsOpen((v) => !v)}
+              aria-expanded={tripsOpen}
+            >
+              My trips
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            {tripsOpen && (
+              <>
+                <div className="scrim" onClick={() => setTripsOpen(false)} />
+                <div className="menu">
+                  {trips.map((t) => (
+                    <div key={t.id} className={'trip' + (t.id === session ? ' on' : '')}>
+                      <button className="pick" onClick={() => openTrip(t.id)}>
+                        <span className="lbl">{t.label}</span>
+                        <span className="when">{t.id === session ? 'open now' : shortDate(t.at)}</span>
+                      </button>
+                      {t.id !== session && (
+                        <button className="x" title="Remove from this list" onClick={() => dropTrip(t.id)}>×</button>
+                      )}
+                    </div>
+                  ))}
+                  {trips.length > 0 && <div className="rule" />}
+                  <button className="startnew" onClick={startOver}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    New trip
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           )}
         </div>
       </header>
@@ -458,15 +484,6 @@ export default function Home() {
         </section>
       </main>
 
-      {ready && !sheet && (
-        <button className="fab" onClick={() => setSheet(true)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
-          </svg>
-          View itinerary
-        </button>
-      )}
-
       <style jsx global>{`
         :root{
           --bg:#EDF2EA; --surface:#FFFFFF; --sage:#E2EBDE; --deep:#10362A;
@@ -532,6 +549,14 @@ export default function Home() {
           font-size:17px;line-height:1;padding:6px 9px;border-radius:9px;opacity:.5;
         }
         .x:hover{opacity:1;background:var(--sage)}
+        .rule{height:1px;background:var(--line);margin:5px 8px}
+        .startnew{
+          display:flex;align-items:center;gap:8px;width:100%;
+          border:0;background:none;cursor:pointer;color:var(--ink-soft);
+          font-size:13px;font-weight:650;padding:9px 10px;border-radius:11px;
+        }
+        .startnew svg{width:14px;height:14px}
+        .startnew:hover{background:var(--sage);color:var(--ink)}
 
         .split{flex:1;display:flex;min-height:0;gap:20px;padding:0 16px 0}
 
@@ -679,17 +704,22 @@ export default function Home() {
           background:linear-gradient(160deg,var(--sage),#D5E2D2);
         }
 
-        .fab{
-          /* Centred with auto margins, not translateX(-50%): the rise
-             animation sets transform and would clobber the centering. */
-          display:none;position:fixed;left:0;right:0;margin:0 auto;width:fit-content;
-          bottom:calc(84px + env(safe-area-inset-bottom));
-          align-items:center;gap:9px;border:0;background:var(--deep);color:#EAF2EC;
-          padding:13px 22px;border-radius:99px;box-shadow:var(--sh-l);
-          font-size:14px;font-weight:600;cursor:pointer;z-index:20;
-          animation:rise 300ms var(--e) both;
+        /* The way through to the itinerary lives in the header. It used to
+           float above the composer, where it sat on top of the last thing the
+           agent said — the one part of the screen you are reading. */
+        .itbtn{
+          position:relative;display:inline-flex;align-items:center;gap:7px;
+          border:0;background:var(--deep);color:#EAF2EC;
+          padding:8px 14px;border-radius:99px;box-shadow:var(--sh-s);
+          font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
+          transition:transform 160ms var(--e);
         }
-        .fab svg{width:17px;height:17px}
+        .itbtn:active{transform:scale(.96)}
+        .itbtn svg{width:15px;height:15px;flex:none}
+        .ping{
+          position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:99px;
+          background:var(--coral);border:2px solid var(--bg);
+        }
 
         @media (max-width:860px){
           .split{padding:0 14px}
@@ -700,11 +730,11 @@ export default function Home() {
           }
           .pane.open{transform:none}
           .back{display:block}
-          .fab{display:flex}
           .hidden-m{display:none}
           .intro h1{font-size:30px}
         }
         @media (min-width:861px){
+          .itbtn{display:none}
           .split{max-width:1180px;margin:0 auto;width:100%}
           .chat{max-width:560px}
           .phone{max-width:430px;margin:0 auto;width:100%}

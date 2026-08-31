@@ -86,8 +86,10 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
   await page.evaluate(() => localStorage.setItem('itin.session.v1', 'sesn_OLD'));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
-  ok('New trip button shows once built', await page.locator('button:has-text("New trip")').count() === 1);
-  await page.locator('button:has-text("New trip")').click();
+  await page.locator('button:has-text("My trips")').click();
+  await page.waitForTimeout(250);
+  ok('New trip lives in the menu', await page.locator('.menu button:has-text("New trip")').count() === 1);
+  await page.locator('.menu button:has-text("New trip")').click();
   await page.waitForTimeout(1800);
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('itin.trips.v1') || '[]'));
   ok('old trips survive New trip', kept.some((t) => t.id === 'sesn_OLD') && kept.some((t) => t.id === 'sesn_OLDER'));
@@ -96,6 +98,11 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
   // Straight after New trip, before anything is typed, the way back must be
   // on screen — this is the moment the menu exists for.
   ok('menu still there right after New trip', await page.locator('button:has-text("My trips")').count() === 1);
+
+  // Nothing may float over the conversation. The itinerary is reached from the
+  // header; a button parked above the composer covered the last thing the
+  // agent said, which is the part you are actually reading.
+  ok('no floating button over the chat', await page.locator('.fab').count() === 0);
 
   const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   ok('no horizontal overflow at 390px', over <= 0, 'overflow ' + over + 'px');
@@ -117,11 +124,31 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
   await ctx.close();
 }
 
-// --- nowhere else to go ---------------------------------------------------
+// --- a first visit --------------------------------------------------------
+// Nothing built, nothing remembered: the menu would be empty, so it is not there.
+{
+  const { ctx, page } = await scenario({ session: 'sesn_BLANK', trips: [] });
+  ok('no menu on a first visit', await page.locator('button:has-text("My trips")').count() === 0);
+  ok('and no itinerary button either', await page.locator('button:has-text("Itinerary")').count() === 0);
+  await ctx.close();
+}
+
+// --- the itinerary opens from the header ----------------------------------
 {
   const { ctx, page } = await scenario({ session: 'sesn_OLD', trips: [OLD] });
-  ok('no menu when the only trip is the one on screen',
-     await page.locator('button:has-text("My trips")').count() === 0);
+  ok('Itinerary button in the header', await page.locator('header button:has-text("Itinerary")').count() === 1);
+  const box = await page.locator('header button:has-text("Itinerary")').boundingBox();
+  ok('it sits at the top, not over the chat', box.y < 80, 'y=' + Math.round(box.y));
+  await page.locator('header button:has-text("Itinerary")').click();
+  await page.waitForTimeout(700);
+  ok('it opens the itinerary', await page.locator('.pane.open').count() === 1);
+  // The preview itself lives in an iframe, so check the pane's own chrome and
+  // then the document inside it.
+  ok('the pane is titled with the trip',
+     (await page.locator('.panehead').innerText()).includes('Singapore & Johor Bahru'));
+  await page.waitForTimeout(600);
+  ok('the preview rendered inside',
+     (await page.frameLocator('.phone iframe').locator('body').innerText()).trim().length > 200);
   await ctx.close();
 }
 
