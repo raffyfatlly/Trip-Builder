@@ -382,6 +382,20 @@ export function render(T, templateSrc) {
     "'<div><b>This stay is not booked yet.</b> Everything from here assumes '+esc(s.n)+'. If you book elsewhere nearby most of this still holds.</div></div>'",
     'draft stay note');
 
+  // "Looked at, decided against" was three hardcoded paragraphs about Phu Quoc
+  // that named Seth, Belle and Raes — so every generated trip carried a
+  // stranger's children. It becomes trip.declined, and the box disappears
+  // entirely when there is nothing to put in it, rather than showing an empty
+  // heading on a trip where nothing was ruled out.
+  replaceRegex(
+    /h\+='<div class="skipbox"><h4>Looked at, decided against<\/h4>'\+[\s\S]*?cannot control this month\.<\/p><\/div>';/,
+    "h+=!(T.trip.declined && T.trip.declined.length) ? '' :\n" +
+    "       '<div class=\"skipbox\"><h4>Looked at, decided against</h4>'+\n" +
+    "       T.trip.declined.map(function(d){\n" +
+    "         return '<p><b>'+esc(d.h||'')+'</b> '+esc(d.p||'')+'</p>';\n" +
+    "       }).join('')+'</div>';",
+    'decided-against box');
+
   // --- tolerate optional fields ----------------------------------------------
   // The Phu Quoc data happens to populate `days` and `near` on all 8 ideas, so
   // the renderer dereferences them directly. A generated trip legitimately omits
@@ -433,6 +447,14 @@ export function render(T, templateSrc) {
   const out = lines.join('\n');
 
   const PHU_QUOC = [
+    // The family's names belong here more than any hotel does: a leak of these
+    // puts a stranger's children into someone else's itinerary. The first
+    // version of this list checked the crew caption as one whole string, which
+    // missed the "decided against" box that names Seth, Belle and Raes
+    // individually in prose.
+    'Seth', 'Belle', 'Raes', 'Syahirah', 'Raffy',
+    'Coconut Tree Prison', 'Rach Vem', 'Ham Ninh', 'Ho Quoc', 'Suoi Tranh',
+    'An Thoi', 'Hon Thom', 'Khem', 'Sao Beach', 'Duong Dong', 'Sanato',
     'Hi Raffy', 'Raffy, Syahirah, Seth, Belle and Raes', 'nine nights',
     'Kuala Lumpur', 'La Festa', 'Sunset Town', 'Vinpearl', 'JW Marriott',
     'Meliá', 'Khem Beach', 'Bai Dai', 'Grand World', 'VinWonders',
