@@ -6,7 +6,7 @@
 // does not actually serve an image is dropped rather than rendered broken, and
 // that add_photos lands the key on the right stay/item/feature.
 
-import { findPhotos } from '../lib/photos.js';
+import { findPhotos, mapFor, lookupLink } from '../lib/photos.js';
 import { applyEdit } from '../lib/itinerary.js';
 
 let fail = 0;
@@ -32,12 +32,20 @@ const FLICKR = 'https://live.staticflickr.com/65535/furama-resort.jpg';
 const DEAD = 'https://example.com/gone.jpg';
 const NOTIMAGE = 'https://example.com/page.html';
 
+// Pages the og:image lookup will be pointed at; filled in further down.
+let PAGES = {};
+
 // Only these serve an image; everything else 404s or serves HTML.
 const SERVES = { [WIKI]: 'image/jpeg', [FLICKR]: 'image/jpeg', 'https://mine.example/hotel.jpg': 'image/jpeg' };
 
 global.fetch = async (url, opts = {}) => {
   const method = opts.method || 'GET';
   const u = String(url);
+
+  if (PAGES[u] !== undefined) {
+    return { ok: true, headers: new Headers({ 'content-type': 'text/html' }), text: async () => PAGES[u] };
+  }
+  if (u.startsWith('https://gone.example')) return { ok: false, status: 404, headers: new Headers() };
 
   if (u.startsWith('https://commons.wikimedia.org')) {
     const term = decodeURIComponent(new URL(u).searchParams.get('gsrsearch'));
@@ -92,6 +100,37 @@ check('licence carried through', text.includes('CC BY-SA 4.0') && text.includes(
 check('empty result says so', text.includes('nothing usable found'));
 check('both sources failing is reported', text.includes('lookup failed'));
 check('never invents a URL for a miss', (text.match(/https:\/\//g) || []).length === 3);
+
+// --- the hotel's own website, which is the only reliable hotel photo -------
+const HOTELIMG = 'https://cdn.furama.example/hero.jpg';
+PAGES = {
+  'https://furama.example/': `<html><head><title>Furama Resort Da Nang</title>
+     <meta property="og:image" content="${HOTELIMG}"></head><body>…</body></html>`,
+  'https://nometa.example/': '<html><head><title>Nothing here</title></head><body>x</body></html>',
+  'https://relative.example/': '<html><head><meta property="og:image" content="/img/pool.jpg"></head></html>',
+};
+SERVES[HOTELIMG] = 'image/jpeg';
+SERVES['https://relative.example/img/pool.jpg'] = 'image/jpeg';
+
+const page = await findPhotos([
+  { key: 'hotel', search: 'Furama Resort Da Nang', page: 'https://furama.example/' },
+  { key: 'nometa', page: 'https://nometa.example/' },
+  { key: 'rel', page: 'https://relative.example/' },
+  { key: 'dead', page: 'https://gone.example/', search: 'Dragon Bridge Da Nang' },
+]);
+check("a hotel's own photo is found from its site", page.includes(HOTELIMG));
+check('and credited to the site it came from', page.includes('furama.example'));
+check('a page with no image says so', page.includes('no usable main image'));
+check('a relative image URL is resolved', page.includes('https://relative.example/img/pool.jpg'));
+check('an unreachable page falls back to the search', page.includes(WIKI));
+check('the page beats the search when both work', page.indexOf(HOTELIMG) < page.indexOf('nometa'));
+
+// --- and when there is no photograph at all -------------------------------
+check('a map stands in for a missing photo',
+  mapFor(16.0544, 108.2022) === 'https://maps.wikimedia.org/img/osm-intl,15,16.0544,108.2022,640x360.png');
+check('but never invented without coordinates', mapFor(null, undefined) === null && mapFor('a', 'b') === null);
+check('and there is always somewhere to go and look',
+  lookupLink('Furama Resort', 'Da Nang') === 'https://www.google.com/maps/search/Furama%20Resort%20Da%20Nang');
 
 // The other half: does a found photo actually reach the itinerary?
 const base = applyEdit(null, 'save_itinerary', {

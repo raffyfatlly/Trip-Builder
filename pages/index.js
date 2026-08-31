@@ -8,6 +8,7 @@ import Block from '../components/Blocks.js';
 import Onboard from '../components/Onboard.js';
 import Plan from '../components/Plan.js';
 import Drawer from '../components/Drawer.js';
+import Rich from '../components/Rich.js';
 import { applyMemory } from '../lib/memory.js';
 
 const KEY = 'itin.session.v1';
@@ -198,15 +199,34 @@ export default function Home() {
       .catch((e) => console.error('preview failed', e));
   }, [working]);
 
+  // Follow the conversation down, but only while they are actually at the
+  // bottom. The poll fires every two seconds, and unconditionally scrolling on
+  // each one made reading back through the chat impossible on a phone — you
+  // scrolled up and were yanked to the end again a moment later.
+  const pinned = useRef(true);
+  const onScroll = useCallback(() => {
+    const el = scroller.current;
+    if (!el) return;
+    // A little slack: "near the bottom" counts as at it, so momentum scrolling
+    // and rubber-banding do not unpin you by a pixel.
+    pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
+
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
   }, [messages, thinking, building]);
+
+  // Sending is the one moment to override that: their own message should
+  // always bring them back to the bottom.
+  const stickToBottom = () => { pinned.current = true; };
 
   // --- sending ------------------------------------------------------------
   const send = useCallback(async (override) => {
     const text = typeof override === 'string' ? override : draft.trim();
     if ((!text && !pending.length) || !session) return;
+
+    stickToBottom();
 
     // Optimistic: the poll will replace this with the real transcript.
     const label = [pending.map((f) => '📎 ' + f.name).join('\n'), text]
@@ -444,7 +464,7 @@ export default function Home() {
             building={building}
             onBuild={() => send('Build it now with what you have.')}
           />
-          <div className="scroll" ref={scroller}>
+          <div className="scroll" ref={scroller} onScroll={onScroll}>
             {booting && <div className="sys">Starting…</div>}
 
             {!booting && messages.length === 0 && skipOb && (
@@ -472,7 +492,9 @@ export default function Home() {
                 <Block key={m.id} block={m} disabled={thinking} onChoose={(t) => send(t)} />
               ) : (
                 <div key={m.id} className={'msg ' + m.role}>
-                  {m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                  {m.role === 'assistant'
+                    ? <Rich text={m.text} />
+                    : m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
                 </div>
               )
             ))}
@@ -732,6 +754,18 @@ export default function Home() {
           background:#FBE6DC;color:#8C3B14;padding:11px 15px;border-radius:16px;
           font-size:13.5px;margin:0 0 10px;cursor:pointer;
         }
+
+        /* What the agent's messages are allowed to look like. A price gets
+           weight because it is the thing people scan for; everything else
+           stays quiet. */
+        .msg :global(strong){font-weight:700}
+        .msg :global(.cost){
+          font-family:'Outfit',sans-serif;font-weight:700;font-size:14.5px;
+          color:var(--coral-text,#AE4715);
+        }
+        .msg.user :global(.cost){color:#F4C4A8}
+        .msg :global(a){color:inherit;text-decoration:underline;text-underline-offset:2px}
+        .msg :global(a):hover{text-decoration-thickness:2px}
 
         .hint{
           display:flex;align-items:flex-start;gap:9px;margin:0 2px 8px;
