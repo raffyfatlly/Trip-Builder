@@ -78,6 +78,39 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
   ok('current trip marked open now', (await page.locator('.drawer .row.on .when').innerText()).includes('Open now'));
   await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/trips-menu.png' });
 
+  // Removing asks first now, so check the guard before using the switch below.
+  await page.locator('.drawer .row:not(.on) .x').click();
+  await page.waitForTimeout(300);
+  ok('removing a trip asks first', await page.locator('.drawer .row.confirm').count() === 1);
+  ok('and names the one it would remove',
+     (await page.locator('.drawer .row.confirm .ask').innerText()).includes('Da Nang'));
+  ok('and says what it does not do',
+     (await page.locator('.drawer .row.confirm .ask').innerText()).toLowerCase().includes('not deleted'));
+  const before = await page.locator('.drawer .row').count();
+  await page.locator('.drawer .row.confirm .keep').click();
+  await page.waitForTimeout(250);
+  ok('backing out changes nothing',
+     await page.locator('.drawer .row').count() === before && await page.locator('.drawer .row.confirm').count() === 0);
+
+  await page.locator('.drawer .row:not(.on) .x').click();
+  await page.waitForTimeout(250);
+  await page.locator('.drawer .row.confirm .go').click();
+  await page.waitForTimeout(350);
+  ok('confirming removes it', await page.locator('.drawer .row').count() === before - 1);
+  ok('and it stays gone',
+     !(await page.evaluate(() => JSON.parse(localStorage.getItem('itin.trips.v1') || '[]').map((t) => t.id)))
+       .includes('sesn_OLDER'));
+
+  // Put it back for the switching check below.
+  await page.evaluate(() => {
+    const l = JSON.parse(localStorage.getItem('itin.trips.v1') || '[]');
+    l.push({ id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 86400000 });
+    localStorage.setItem('itin.trips.v1', JSON.stringify(l));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+  await page.locator('.burger').click();
+  await page.waitForTimeout(400);
   await page.locator('.drawer .row:not(.on) .pick').click();
   await page.waitForTimeout(1200);
   ok('switching sets the session', await page.evaluate(() => localStorage.getItem('itin.session.v1')) === 'sesn_OLDER');

@@ -107,6 +107,13 @@ await ctx.close();
   await p3.waitForTimeout(1300);
 
   ok('the checklist shows progress', (await p3.locator('.ptext').innerText()).includes('4 of 7'));
+  // The destination names the trip long before anything is built — a sentence
+  // they typed is not a name.
+  ok('the trip is named by its destination, not the first thing typed',
+     (await p3.locator('header .where').innerText()).trim() === 'Da Nang, Vietnam');
+  ok('and that is what the trip list stores',
+     (await p3.evaluate(() => JSON.parse(localStorage.getItem('itin.trips.v1') || '[]')))
+       .some((t) => t.label === 'Da Nang, Vietnam'));
   ok('it does not float over the chat', await p3.locator('.plan').evaluate((el) => getComputedStyle(el).position) === 'static');
   await p3.locator('.planbar').click();
   await p3.waitForTimeout(250);

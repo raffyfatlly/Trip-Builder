@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { shortDate } from '../lib/trips.js';
 import Account from './Account.js';
 import Memory from './Memory.js';
@@ -14,6 +15,15 @@ import { isEmpty } from '../lib/memory.js';
 export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onForgetSlot, onForgetAll }) {
+  // Which trip is being removed, if any. Inline rather than a dialog: the row
+  // is where the mistake would happen, so that is where the second look
+  // belongs — and it keeps the trip's name in front of you while you decide.
+  const [confirming, setConfirming] = useState(null);
+
+  // Closing the drawer abandons the question rather than leaving it armed for
+  // whenever it is opened again.
+  useEffect(() => { if (!open) setConfirming(null); }, [open]);
+
   return (
     <>
       <div className={'veil' + (open ? ' on' : '')} onClick={onClose} aria-hidden={!open} />
@@ -54,19 +64,35 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
               <h3>Your trips</h3>
               <div className="list">
                 {trips.map((t) => (
-                  <div key={t.id} className={'row' + (t.id === session ? ' on' : '')}>
-                    <button className="pick" onClick={() => onOpenTrip(t.id)}>
-                      <span className="lbl">{t.label}</span>
-                      <span className="when">{t.id === session ? 'Open now' : shortDate(t.at)}</span>
-                    </button>
-                    {t.id !== session && (
-                      <button className="x" aria-label={'Remove ' + t.label} onClick={() => onDrop(t.id)}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                          <path d="M18 6 6 18M6 6l12 12" />
-                        </svg>
+                  confirming === t.id ? (
+                    <div key={t.id} className="row confirm">
+                      <div className="ask">
+                        <b>Remove {t.label}?</b>
+                        <span>It comes off this list. The trip itself is not deleted.</span>
+                      </div>
+                      <div className="askrow">
+                        <button className="keep" onClick={() => setConfirming(null)}>Keep it</button>
+                        <button
+                          className="go"
+                          onClick={() => { onDrop(t.id); setConfirming(null); }}
+                        >Remove</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={t.id} className={'row' + (t.id === session ? ' on' : '')}>
+                      <button className="pick" onClick={() => onOpenTrip(t.id)}>
+                        <span className="lbl">{t.label}</span>
+                        <span className="when">{t.id === session ? 'Open now' : shortDate(t.at)}</span>
                       </button>
-                    )}
-                  </div>
+                      {t.id !== session && (
+                        <button className="x" aria-label={'Remove ' + t.label} onClick={() => setConfirming(t.id)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )
                 ))}
               </div>
             </>
@@ -148,6 +174,23 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
         }
         .x svg{width:13px;height:13px}
         .x:hover{opacity:1;background:var(--surface)}
+
+        .row.confirm{
+          flex-direction:column;align-items:stretch;gap:10px;
+          background:var(--surface);box-shadow:var(--sh-s);padding:12px;
+          animation:rise 200ms var(--e) both;
+        }
+        .ask{display:flex;flex-direction:column;gap:3px}
+        .ask b{font-size:13.5px;font-weight:650;line-height:1.3}
+        .ask span{font-size:11.5px;line-height:1.4;color:var(--ink-soft)}
+        .askrow{display:flex;gap:7px}
+        .askrow button{
+          flex:1;border:0;border-radius:99px;padding:9px 12px;font-size:12.5px;
+          font-weight:650;cursor:pointer;font-family:inherit;
+        }
+        .keep{background:var(--sage);color:var(--ink-soft)}
+        .go{background:#8C3B14;color:#FBE6DC}
+        @keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
         .act{
           display:flex;align-items:center;gap:12px;width:100%;margin-bottom:6px;

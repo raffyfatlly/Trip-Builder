@@ -106,26 +106,7 @@ export default function Home() {
     return () => { alive = false; };
   }, []);
 
-  // Keep this browser's trip list current. The label is the destination once
-  // the itinerary exists, and before that the first thing they typed — an
-  // unbuilt trip is still worth being able to get back to.
-  const lastLabel = useRef('');
-  useEffect(() => {
-    if (!session || !messages.length) return;
-    const t = itinerary && itinerary.trip && itinerary.trip.title;
-    const first = messages.find((m) => m.role === 'user');
-    const label = t || (first ? first.text.replace(/\s+/g, ' ').slice(0, 42) : '');
-    if (!label || label === lastLabel.current) return;
-    lastLabel.current = label;
-    rememberTrip(session, label);
-    setTrips(loadTrips());
-    if (account.user) {
-      fetch('/api/me', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ claim: { id: session, label } }),
-      }).catch(() => { /* the local list is still right */ });
-    }
-  }, [session, itinerary, messages, account.user]);
+
 
   // --- polling ------------------------------------------------------------
   useEffect(() => {
@@ -166,6 +147,41 @@ export default function Home() {
 
   const working = useMemo(
     () => applyEdits(itinerary, allEdits), [itinerary, allEdits]);
+
+  // What to call this trip, in one place. The destination is known from the
+  // moment the agent notes it, long before anything is built — and it must be
+  // declared here, above every use: a const referenced from a hook's
+  // dependency array higher up hits the temporal dead zone and takes the whole
+  // page down.
+  const tripName =
+    (working && working.trip && working.trip.title)
+    || (plan && plan.destination)
+    || '';
+
+  // Keep this browser's trip list current. The label is the destination once
+  // the itinerary exists, and before that the first thing they typed — an
+  // unbuilt trip is still worth being able to get back to.
+  const lastLabel = useRef('');
+  useEffect(() => {
+    if (!session || !messages.length) return;
+    // Best name available, in order: what the built itinerary calls itself,
+    // then the destination the agent has settled on. The first line they typed
+    // is the last resort — "We're going to Da Nang, 10 September 2026 to 14
+    // September" is a sentence, not a name, and it reads badly in a list.
+    const label = tripName
+      || (messages.find((m) => m.role === 'user') || {}).text?.replace(/\s+/g, ' ').slice(0, 42)
+      || '';
+    if (!label || label === lastLabel.current) return;
+    lastLabel.current = label;
+    rememberTrip(session, label);
+    setTrips(loadTrips());
+    if (account.user) {
+      fetch('/api/me', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ claim: { id: session, label } }),
+      }).catch(() => { /* the local list is still right */ });
+    }
+  }, [session, tripName, messages, account.user]);
 
   // A rebuild can orphan edits that pointed at days which no longer exist.
   // Say so rather than letting them disappear quietly.
@@ -389,7 +405,7 @@ export default function Home() {
   // The builder can land save_itinerary before it has written any days, so an
   // itinerary object alone is not enough to show. Wait for a real day.
   const ready = !!(working && working.days && working.days.length > 0);
-  const title = working && working.trip ? working.trip.title : null;
+  const title = tripName || null;
 
   // A build runs for minutes, so it almost always lands while they are still
   // typing. Mark the button rather than interrupting them.
