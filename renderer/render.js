@@ -212,6 +212,42 @@ export function render(T, templateSrc) {
       img.remove();
     }, true);
 
+    // Booking status written as prose.
+    //
+    // The app already shows whether a stay is booked, from the stay's own
+    // draft flag, and that updates the moment someone confirms. But the
+    // builder ALSO writes the same fact into free text — a "Not booked yet"
+    // tag on the check-in, a caveat in the notes — and that text has no idea
+    // the booking has since been made. Confirming used to clear the badge and
+    // leave three sentences behind still calling it a guess.
+    //
+    // The builder is told not to do this any more. This heals the trips that
+    // already exist: a phrase list narrow enough to only catch booking status,
+    // applied only where the stay it refers to is confirmed.
+    // Not every trip is a flight. A countdown that says "until you fly" to
+    // someone driving to Johor Bahru is a small lie the whole app is judged
+    // by. (raffy, 2026-08-31: "the countdown hardcoded fly. but some trips are
+    // by car right".)
+    function leaveVerb(){
+      return (T.trip.flights && T.trip.flights.length) ? 'fly' : 'set off';
+    }
+    function leaveToday(){
+      return (T.trip.flights && T.trip.flights.length) ? 'You fly today' : 'You leave today';
+    }
+
+    // \\b, not \b: this lives inside a template literal, where \b is a
+    // backspace character rather than a word boundary. It silently compiled
+    // to a regex that could never match anything.
+    var STALE = /\\b(not booked|not confirmed|unconfirmed|still deciding|to be confirmed|provisional)\\b/i;
+    function anyDraft(){
+      return (T.stays || []).some(function(x){ return x.draft; });
+    }
+    function staleTag(t, stayIdx){
+      if(!STALE.test(String(t))) return false;
+      var st = T.stays && T.stays[stayIdx];
+      return st ? !st.draft : !anyDraft();
+    }
+
     function renderShell(){
       var tr = T.trip, el;
 
@@ -269,7 +305,11 @@ export function render(T, templateSrc) {
       // rather than staying stuck on screen — this re-runs every time the
       // preview redraws, including right after "Confirm" in the editor.
       var notes = (tr.notes || []).filter(function(n){
-        return !(n.stay != null && T.stays[n.stay] && !T.stays[n.stay].draft);
+        if(n.stay != null && T.stays[n.stay]) return !!T.stays[n.stay].draft;
+        // Untagged, from a trip built before notes carried a stay index: drop
+        // it only once nothing is a draft any more, so it cannot hide a
+        // caveat that is still true.
+        return !(STALE.test(String(n.h) + ' ' + String(n.p)) && !anyDraft());
       });
       if(el){
         el.hidden = !notes.length && !tr.credits;
@@ -374,7 +414,7 @@ export function render(T, templateSrc) {
 
   replaceOnce(
     "'<div class=\"lsub\">until you fly out of <b>Kuala Lumpur</b>. Nine nights, four hotels, two coasts.</div>'",
-    "'<div class=\"lsub\">until you fly out'+(T.trip.flights&&T.trip.flights[0]?' of <b>'+esc(T.trip.flights[0].from)+'</b>':'')+'. '+esc(T.trip.titleSub||'')+', '+STAYS.length+(STAYS.length===1?' stay':' stays')+'.</div>'",
+    "'<div class=\"lsub\">until you '+leaveVerb()+(T.trip.flights&&T.trip.flights[0]?' out of <b>'+esc(T.trip.flights[0].from)+'</b>':'')+'. '+esc(T.trip.titleSub||'')+', '+STAYS.length+(STAYS.length===1?' stay':' stays')+'.</div>'",
     'countdown subtitle');
 
   // Five separate places render the month as the literal "Aug". Each sits in a
@@ -416,6 +456,25 @@ export function render(T, templateSrc) {
     /var h='<div class="note" style="margin-top:14px">'\+I\.info\+\s*\n\s*'<div><b>One thing about August\.[\s\S]*?<\/div><\/div>';/,
     "var h=!T.trip.seasonNote?'':'<div class=\"note\" style=\"margin-top:14px\">'+I.info+\n      '<div>'+esc(T.trip.seasonNote)+'</div></div>';",
     'season note');
+
+  // A "Not booked yet" tag on the check-in is the same stale prose as the
+  // notes: the app knows the booking status from the stay's own flag, so once
+  // that flips the tag is simply wrong. Dropped here rather than left to
+  // contradict the badge two lines above it.
+  replaceOnce(
+    "        if(r.it.tags) r.it.tags.forEach(function(t){",
+    "        if(r.it.tags) r.it.tags.filter(function(t){ return !staleTag(t, DAYS[i].stay); }).forEach(function(t){",
+    'stale booking tags');
+
+  // Same for the countdown's own wording and the two badges beside it.
+  replaceOnce(
+    "      if(cd) cd.textContent=dd>0?(dd+(dd===1?' day':' days')+' until you fly'):'You fly today';",
+    "      if(cd) cd.textContent=dd>0?(dd+(dd===1?' day':' days')+' until you '+leaveVerb()):leaveToday();",
+    'countdown verb');
+  replaceOnce(
+    "      badge(dd>0?(dd+(dd===1?' day':' days')+' to go'):'You fly today');",
+    "      badge(dd>0?(dd+(dd===1?' day':' days')+' to go'):leaveToday());",
+    'countdown badge verb');
 
   // The draft-stay warning named La Festa outright. Use the stay's own name.
   replaceOnce(
