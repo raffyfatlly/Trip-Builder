@@ -339,3 +339,74 @@ Build button, with a price tag on it, and it doubles as the cost guard.
 is a complete first experience and costs roughly RM10 today, under RM4 after
 the optimisation work. That is the customer acquisition cost, and it should be
 decided as one, not guessed.
+
+### 7c. The draft layer, and fixed credits over metered
+
+> if a small change cost a rebuild thats not good [...] maybe we need to build
+> another layer of like document style itenary , then cost of rebuild and
+> modification can be done when they are completely sure to spend their
+> credits . i think 1 credit RM 1 . thats my target.
+>
+> or should i just let the credit runs itself as api token consumed?
+>
+> — raffy, 2026-08-31
+
+**The draft layer is the best idea in this thread, and it is a cost lever as
+much as a UX one.**
+
+Today the builder does research AND structuring in one expensive pass, and any
+change repeats both. Split them:
+
+1. Chat researches once and produces a **plain-text draft** of the trip.
+2. They iterate on the draft freely — move things, drop things, add a day — at
+   chat prices, roughly RM0.12 a turn.
+3. When they are happy, **Build** converts the draft into the structured app.
+
+**The build then needs no research at all**, because the research already sits
+in the draft. It becomes a formatting pass — read this text, emit this JSON —
+which is a fraction of the 115k output tokens the current build spends
+thinking. This plausibly does more for the bill than the effort setting.
+
+It also gives a clean free tier: the draft is free, the app is paid. That is
+honest positioning rather than a crippled trial — anyone can get a text
+itinerary out of a chatbot; the differentiator is the thing you actually use
+on the trip, with live weather, real times and offline access.
+
+### Fixed credits, not metered tokens
+
+**Recommendation: fixed price per action.** Metered is simpler to build and
+worse to use.
+
+- **Predictability.** "Rebuild · 5 credits" lets someone decide. A meter
+  running while they think does not.
+- **Variance is the business's to absorb**, not the customer's. Some builds
+  cost RM4, some RM9. Averaged across customers that is fine; to one customer
+  an unlucky expensive build feels like being cheated.
+- **Fixed pricing keeps the gains from optimisation.** Cutting build cost from
+  RM6.50 to RM2 is margin under fixed pricing. Metered hands that saving
+  straight to the customer and removes the reason to do the work.
+- Customers do not want to think in tokens.
+
+The one thing metering gets right is fairness on outliers — a 21-day trip
+genuinely costs more than a 3-day one. Solve that with **tiers by trip length**
+(5 credits up to a week, 8 up to a fortnight), which stays predictable.
+
+### On RM1 per credit
+
+Good as a unit. But **do not price for 10x per action — price for 10x on the
+average customer.**
+
+A build at 5 credits is RM5 against a target cost of RM2. That is 2.5x on that
+one action, which looks thin. It is the wrong frame. Sell credits in packs:
+
+- Pack of 30 credits, RM30.
+- Typical customer: one build (5) plus three revisions (3) = 8 credits.
+- Real cost to serve: roughly RM4.
+
+That is about 7x on the customer, not 2.5x, because **most people never spend
+the pack**. Unused credits are the margin — that is how every credit system
+works, and it is why packs beat pay-per-action.
+
+Two consequences worth being deliberate about: do not expire credits
+aggressively (it reads as a trick and the breakage is already in your favour),
+and size the free grant knowing it is customer acquisition cost.
