@@ -258,6 +258,10 @@ export default function Home() {
     location.reload();
   };
 
+  // Trips other than the one on screen. The menu is for getting back to one of
+  // those, so an empty list is the honest reason to hide it.
+  const others = useMemo(() => trips.filter((t) => t.id !== session), [trips, session]);
+
   const dropTrip = (id) => {
     forgetTrip(id);
     setTrips(loadTrips());
@@ -276,7 +280,7 @@ export default function Home() {
           <span>Trip builder</span>
         </div>
         <div className="baractions">
-          {trips.length > 1 && (
+          {others.length > 0 && (
             <div className="trips">
               <button
                 className="ghostbtn"
