@@ -6,11 +6,12 @@
 
 import { sendUserMessage, listEvents } from '../../lib/managedAgents.js';
 import { MAX_TURNS_PER_SESSION } from '../../lib/config.js';
+import { geoFrom, contextBlock } from '../../lib/context.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const { session, text, files } = req.body || {};
+  const { session, text, files, client } = req.body || {};
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ error: 'session required' });
   }
@@ -35,6 +36,10 @@ export default async function handler(req, res) {
         : { type: 'document', source: { type: 'file', file_id: f.file_id }, title: f.name || 'file' });
     }
     if (text && text.trim()) content.push({ type: 'text', text: text.trim() });
+
+    // Where and when they are, attached to every message so "now" is never
+    // stale. Stripped before display — see CTX_MARKER.
+    content.push({ type: 'text', text: contextBlock(geoFrom(req), client) });
 
     await sendUserMessage(session, content);
     res.status(200).json({ ok: true });

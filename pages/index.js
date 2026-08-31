@@ -141,7 +141,18 @@ export default function Home() {
       const r = await fetch('/api/send', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ session, text, files }),
+        body: JSON.stringify({
+          session, text, files,
+          // The browser knows its own timezone exactly; the IP lookup only
+          // approximates it. No permission prompt for either.
+          client: {
+            tz: (() => {
+              try { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+              catch (e) { return null; }
+            })(),
+            lang: typeof navigator !== 'undefined' ? navigator.language : null,
+          },
+        }),
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
