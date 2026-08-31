@@ -167,6 +167,47 @@ await ctx.close();
   await c3.close();
 }
 
+// --- what looked fine here and wrong on his phone ------------------------
+{
+  const c4 = await browser.newContext({
+    viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+  });
+  await c4.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_L' } }));
+  await c4.route('**/api/me', (r) => r.fulfill({ json: { accounts: true, user: null } }));
+  await c4.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: TRANSCRIPT, itinerary: null, plan: {}, agentEdits: [], memoryOps: [],
+    building: false, thinking: false, turns: 1 } }));
+  const p4 = await c4.newPage();
+  p4.on('pageerror', (e) => errs.push(e.message));
+  await p4.goto(B, { waitUntil: 'networkidle' });
+  await p4.waitForTimeout(1600);
+
+  const svg = await p4.locator('.sendbtn svg').boundingBox();
+  const btn = await p4.locator('.sendbtn').boundingBox();
+  ok('the arrow is centred in its circle',
+     Math.abs((svg.x + svg.width / 2) - (btn.x + btn.width / 2)) < 0.6
+     && Math.abs((svg.y + svg.height / 2) - (btn.y + btn.height / 2)) < 0.6);
+
+  const at = await p4.locator('.attach').boundingBox();
+  ok('and level with the paperclip',
+     Math.abs((at.y + at.height / 2) - (btn.y + btn.height / 2)) < 0.6);
+  ok('the scrollbar is gone, not thinned',
+     (await p4.locator('textarea').evaluate((n) => getComputedStyle(n).scrollbarWidth)) === 'none');
+
+  // A global line-height reset for the buttons collapsed these two lines onto
+  // each other in the drawer. Never again without a check.
+  await p4.locator('.burger').click();
+  await p4.waitForTimeout(500);
+  for (const [sel, name] of [['.acct .cta', 'Save your trips'], ['.drawer .act', 'New trip']]) {
+    const row = p4.locator(sel).first();
+    const b1 = await row.locator('b').boundingBox();
+    const i1 = await row.locator('i').boundingBox();
+    ok('drawer "' + name + '" does not overlap its own subtitle', (b1.y + b1.height) <= i1.y + 0.5,
+       'label ends ' + (b1.y + b1.height).toFixed(1) + ', subtitle starts ' + i1.y.toFixed(1));
+  }
+  await c4.close();
+}
+
 ok('no page errors', errs.length === 0, errs.join(' / '));
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');

@@ -93,6 +93,13 @@ export default function Account({ user, trips, onSignedIn, onSignOut }) {
   );
 }
 
+// Scoped to .acct by hand.
+//
+// styled-jsx can only scope a static template literal. This one is a variable
+// — `<style jsx>{css}</style>` — so it cannot be transformed, and every bare
+// element selector in here goes GLOBAL. A plain `label{margin:0 0 5px}` was
+// landing on the composer's paperclip label two components away and pushing it
+// 2.5px off centre against the send button.
 const css = `
   .acct{margin-bottom:6px}
   .cta{
@@ -108,17 +115,17 @@ const css = `
   .cta i{font-style:normal;font-size:11.5px;color:var(--ink-soft)}
 
   .form{background:var(--surface);border-radius:14px;padding:13px;box-shadow:var(--sh-s)}
-  label{
+  .acct label{
     display:block;font-size:11px;font-weight:750;letter-spacing:.06em;
     text-transform:uppercase;color:var(--ink-faint);margin:0 0 5px;
   }
-  label + input{margin-bottom:11px}
+  .acct label + input{margin-bottom:11px}
   .opt{text-transform:none;letter-spacing:0;font-weight:600;opacity:.75}
-  input{
+  .acct input{
     width:100%;border:0;background:var(--bg);border-radius:11px;padding:11px 12px;
     font-size:15px;font-family:inherit;color:var(--ink);outline:none;
   }
-  input:focus{box-shadow:0 0 0 2px var(--deep)}
+  .acct input:focus{box-shadow:0 0 0 2px var(--deep)}
   .note{margin:2px 0 11px;font-size:11.5px;line-height:1.45;color:var(--ink-faint)}
   .err{margin:0 0 10px;font-size:12.5px;line-height:1.4;color:#8C3B14}
   .row{display:flex;gap:7px}

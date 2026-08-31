@@ -261,6 +261,26 @@ export default function Home() {
 
   useEffect(() => { grow(); }, [draft, grow]);
 
+  // The height was measured once at mount and then only when they typed. The
+  // conversation loading in above it, a font finishing its swap, the keyboard
+  // opening — none of those change `draft`, so none of them re-measured, and
+  // a stale height just sat there through all of it.
+  useEffect(() => {
+    grow();
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    window.addEventListener('resize', grow);
+    if (vv) vv.addEventListener('resize', grow);
+    if (typeof document !== 'undefined' && document.fonts) {
+      Promise.resolve(document.fonts.ready).then(grow).catch(() => {});
+    }
+    return () => {
+      window.removeEventListener('resize', grow);
+      if (vv) vv.removeEventListener('resize', grow);
+    };
+  }, [grow]);
+
+  useEffect(() => { grow(); }, [messages.length, grow]);
+
   // On a phone there is no shift key, so Enter cannot mean "send" — it has to
   // mean a new line, or you can never write a second paragraph. With a real
   // keyboard Enter still sends and shift+Enter breaks the line, which is what
@@ -900,7 +920,7 @@ export default function Home() {
         }
         .chip button{border:0;background:none;font-size:16px;line-height:1;color:var(--ink-faint);cursor:pointer;padding:0 3px}
         .row{
-          display:flex;align-items:flex-end;gap:8px;background:var(--surface);
+          display:flex;align-items:center;gap:8px;background:var(--surface);
           border-radius:26px;padding:7px 7px 7px 6px;box-shadow:var(--sh-m);
         }
 
@@ -916,39 +936,47 @@ export default function Home() {
         .row.tall textarea{grid-area:text;padding:9px 6px 2px}
         .row.tall .attach{grid-area:attach;justify-self:start}
         .row.tall .sendbtn{grid-area:send}
+        /* Explicit flex centring, not place-items. The grid shorthand is the
+           kind of thing that resolves fine in one engine and drifts by a
+           pixel or two in another, and this is a 42px circle where a pixel
+           shows. */
         .attach{
-          width:42px;height:42px;flex:none;display:grid;place-items:center;cursor:pointer;
+          width:42px;height:42px;flex:none;padding:0;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
           color:var(--ink-faint);border-radius:99px;transition:background 160ms;
         }
         .attach:hover{background:var(--sage)}
         .attach input{display:none}
-        .attach svg{width:20px;height:20px}
+        .attach svg{width:19px;height:19px;display:block;flex:none}
         textarea{
           flex:1;min-width:0;border:0;outline:0;resize:none;background:none;
           font-size:16px;line-height:1.45;color:var(--ink);
           font-family:inherit;max-height:168px;overflow-y:auto;
-          /* The vertical centring is done by padding rather than by the flex
-             row, so the first line of text sits on the same optical line as
-             the two icons either side of it. */
-          padding:13px 4px 10px;
-          /* The default bar is a heavy grey slab against a white composer.
-             Thin and nearly invisible until it is needed. */
-          scrollbar-width:thin;
-          scrollbar-color:rgba(12,36,27,.18) transparent;
+          -webkit-appearance:none;appearance:none;
+          /* Even padding, and the row centres it against the buttons with
+             flex. Padding hand-matched to one line-height number only ever
+             held on the machine it was measured on. */
+          padding:11px 4px;
+          /* Gone rather than thinned. "thin" is a suggestion the phone is
+             free to ignore, and it was still a slab on his. Nothing here
+             needs a visible track — it scrolls by touch. */
+          scrollbar-width:none;
+          -ms-overflow-style:none;
         }
-        textarea::-webkit-scrollbar{width:5px}
-        textarea::-webkit-scrollbar-track{background:transparent}
-        textarea::-webkit-scrollbar-thumb{
-          background:rgba(12,36,27,.16);border-radius:99px;
-        }
-        textarea:hover::-webkit-scrollbar-thumb{background:rgba(12,36,27,.26)}
+        textarea::-webkit-scrollbar{display:none;width:0;height:0}
         textarea::placeholder{color:var(--ink-faint)}
+        /* padding:0 and appearance:none here rather than on every button:
+           an unstyled control keeps the browser's own padding until it is
+           told not to, and border-box then takes that out of the 42px
+           unevenly. Scoped to this button so nothing else inherits it. */
         .sendbtn{
-          width:42px;height:42px;flex:none;border:0;border-radius:99px;background:var(--coral);
-          color:#fff;display:grid;place-items:center;cursor:pointer;
+          width:42px;height:42px;flex:none;border:0;padding:0;border-radius:99px;
+          background:var(--coral);color:#fff;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;
+          -webkit-appearance:none;appearance:none;
           transition:transform 160ms var(--e),opacity 160ms;
         }
-        .sendbtn svg{width:20px;height:20px;display:block}
+        .sendbtn svg{width:19px;height:19px;display:block;flex:none}
         .sendbtn:disabled{opacity:.32;cursor:default}
         .sendbtn:not(:disabled):active{transform:scale(.92)}
 
