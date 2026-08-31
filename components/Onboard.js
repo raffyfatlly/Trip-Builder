@@ -145,7 +145,7 @@ export default function Onboard({ onStart, onSkip }) {
       <style jsx>{`
         .ob{
           flex:1;display:flex;flex-direction:column;min-height:0;
-          padding:0 4px calc(18px + env(safe-area-inset-bottom));
+          padding:0 2px calc(18px + env(safe-area-inset-bottom));
         }
         .obtop{display:flex;align-items:center;justify-content:space-between;padding:2px 0 22px}
         .pips{display:flex;gap:6px}
@@ -157,7 +157,14 @@ export default function Onboard({ onStart, onSkip }) {
         }
         .skipall:hover{color:var(--ink)}
 
-        .obbody{flex:1;min-height:0;overflow-y:auto;animation:rise 280ms var(--e) both}
+        /* overflow-y:auto also clips horizontally, which was shaving the focus
+           ring off both edges of the inputs. The padding gives the ring room
+           inside the scroll box; the negative margin keeps the text aligned
+           with everything else. */
+        .obbody{
+          flex:1;min-height:0;overflow-y:auto;animation:rise 280ms var(--e) both;
+          padding:0 4px;margin:0 -4px;
+        }
         h1{
           font-family:'Outfit',sans-serif;font-size:31px;line-height:1.1;font-weight:800;
           letter-spacing:-.01em;margin:0 0 8px;
@@ -171,10 +178,12 @@ export default function Onboard({ onStart, onSkip }) {
         }
         .obinput:focus{box-shadow:0 0 0 2px var(--deep)}
 
-        .chiprow{display:flex;gap:8px;margin-top:14px;overflow-x:auto;padding-bottom:4px}
-        .chiprow.wrap{flex-wrap:wrap;overflow:visible;margin-top:0}
+        /* Wrapped, not scrolled. A row that runs off the edge looks broken
+           rather than scrollable, and there is plenty of room down the page. */
+        .chiprow{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+        .chiprow.wrap{margin-top:0}
         .obchip{
-          flex:none;border:0;background:var(--surface);color:var(--ink-soft);
+          flex:0 0 auto;max-width:100%;border:0;background:var(--surface);color:var(--ink-soft);
           padding:10px 14px;border-radius:99px;font-size:13.5px;font-weight:600;
           cursor:pointer;box-shadow:var(--sh-s);white-space:nowrap;
           transition:transform 150ms var(--e);

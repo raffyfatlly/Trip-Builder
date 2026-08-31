@@ -71,14 +71,14 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
 {
   const { ctx, page } = await scenario({ session: 'sesn_OLD', trips: [OLD, OLDER] });
 
-  ok('My trips button shows', await page.locator('button:has-text("My trips")').count() === 1);
-  await page.locator('button:has-text("My trips")').click();
-  await page.waitForTimeout(250);
-  ok('menu lists both trips', await page.locator('.menu .trip').count() === 2);
-  ok('current trip marked open now', (await page.locator('.menu .trip.on .when').innerText()).includes('open now'));
+  await page.locator('.burger').click();
+  await page.waitForTimeout(400);
+  ok('the drawer opens', await page.locator('.drawer.on').count() === 1);
+  ok('it lists both trips', await page.locator('.drawer .row').count() === 2);
+  ok('current trip marked open now', (await page.locator('.drawer .row.on .when').innerText()).includes('Open now'));
   await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/trips-menu.png' });
 
-  await page.locator('.menu .trip:not(.on) .pick').click();
+  await page.locator('.drawer .row:not(.on) .pick').click();
   await page.waitForTimeout(1200);
   ok('switching sets the session', await page.evaluate(() => localStorage.getItem('itin.session.v1')) === 'sesn_OLDER');
 
@@ -86,10 +86,10 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
   await page.evaluate(() => localStorage.setItem('itin.session.v1', 'sesn_OLD'));
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
-  await page.locator('button:has-text("My trips")').click();
-  await page.waitForTimeout(250);
-  ok('New trip lives in the menu', await page.locator('.menu button:has-text("New trip")').count() === 1);
-  await page.locator('.menu button:has-text("New trip")').click();
+  await page.locator('.burger').click();
+  await page.waitForTimeout(400);
+  ok('New trip lives in the drawer', await page.locator('.drawer .act:has-text("New trip")').count() === 1);
+  await page.locator('.drawer .act:has-text("New trip")').click();
   await page.waitForTimeout(1800);
   const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('itin.trips.v1') || '[]'));
   ok('old trips survive New trip', kept.some((t) => t.id === 'sesn_OLD') && kept.some((t) => t.id === 'sesn_OLDER'));
@@ -97,7 +97,11 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
 
   // Straight after New trip, before anything is typed, the way back must be
   // on screen — this is the moment the menu exists for.
-  ok('menu still there right after New trip', await page.locator('button:has-text("My trips")').count() === 1);
+  await page.locator('.burger').click();
+  await page.waitForTimeout(400);
+  ok('the trip you came from is still there', await page.locator('.drawer .row').count() >= 1);
+  await page.locator('.drawer .close').click();
+  await page.waitForTimeout(350);
 
   // Nothing may float over the conversation. The itinerary is reached from the
   // header; a button parked above the composer covered the last thing the
@@ -115,12 +119,10 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
 // exists for, leaving no way back at all.
 {
   const { ctx, page } = await scenario({ session: 'sesn_BLANK', trips: [OLD] });
-  ok('menu shows with one saved trip and a blank session',
-     await page.locator('button:has-text("My trips")').count() === 1);
-  await page.locator('button:has-text("My trips")').click();
-  await page.waitForTimeout(250);
-  ok('it offers the trip you came from', await page.locator('.menu .trip').count() === 1);
-  ok('the blank session did not litter the list', !(await page.locator('.menu .trip.on').count()));
+  await page.locator('.burger').click();
+  await page.waitForTimeout(400);
+  ok('it offers the trip you came from', await page.locator('.drawer .row').count() === 1);
+  ok('the blank session did not litter the list', !(await page.locator('.drawer .row.on').count()));
   await ctx.close();
 }
 
@@ -128,8 +130,11 @@ const OLDER = { id: 'sesn_OLDER', label: 'Da Nang', at: Date.now() - 3 * 8640000
 // Nothing built, nothing remembered: the menu would be empty, so it is not there.
 {
   const { ctx, page } = await scenario({ session: 'sesn_BLANK', trips: [] });
-  ok('no menu on a first visit', await page.locator('button:has-text("My trips")').count() === 0);
-  ok('and no itinerary button either', await page.locator('button:has-text("Itinerary")').count() === 0);
+  await page.locator('.burger').click();
+  await page.waitForTimeout(400);
+  ok('no trip list on a first visit', await page.locator('.drawer .row').count() === 0);
+  ok('but New trip is always reachable', await page.locator('.drawer .act:has-text("New trip")').count() === 1);
+  ok('and no itinerary button in the header', await page.locator('header button:has-text("Itinerary")').count() === 0);
   await ctx.close();
 }
 

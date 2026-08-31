@@ -2,11 +2,12 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview, downloadName } from '../lib/preview.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
-import { loadTrips, rememberTrip, forgetTrip, shortDate } from '../lib/trips.js';
+import { loadTrips, rememberTrip, forgetTrip } from '../lib/trips.js';
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
 import Onboard from '../components/Onboard.js';
 import Plan from '../components/Plan.js';
+import Drawer from '../components/Drawer.js';
 
 const KEY = 'itin.session.v1';
 const POLL_MS = 2000;
@@ -28,7 +29,7 @@ export default function Home() {
   const [staleNote, setStaleNote] = useState(0);
   const [agentEdits, setAgentEdits] = useState([]);
   const [trips, setTrips] = useState([]);
-  const [tripsOpen, setTripsOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [unseen, setUnseen] = useState(false);
   const [plan, setPlan] = useState({});
   const [skipOb, setSkipOb] = useState(false);
@@ -252,7 +253,7 @@ export default function Home() {
   // Starting a new trip must never lose the last one. The id stays in the
   // trip list; only the pointer to the current one is cleared.
   const startOver = () => {
-    setTripsOpen(false);
+    setMenu(false);
     try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
     location.reload();
   };
@@ -261,7 +262,7 @@ export default function Home() {
   // this page hangs off the session id, and a reload is the one way to be sure
   // none of the old trip is left behind.
   const openTrip = (id) => {
-    if (id === session) { setTripsOpen(false); return; }
+    if (id === session) { setMenu(false); return; }
     try { localStorage.setItem(KEY, id); } catch (e) { /* ignore */ }
     location.reload();
   };
@@ -301,62 +302,25 @@ export default function Home() {
   return (
     <div className="app">
       <header className="bar">
-        <div className="brand">
-          <span className="dot" />
-          <span>Trip builder</span>
-        </div>
-        <div className="baractions">
-          {ready && (
-            <button className="itbtn" onClick={openSheet}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
-              </svg>
-              Itinerary
-              {unseen && <i className="ping" />}
-            </button>
-          )}
-          {/* The menu holds this browser's trips and the way to start another.
-              On a first visit there is neither, so there is nothing to open. */}
-          {trips.length > 0 && (
-          <div className="trips">
-            <button
-              className="ghostbtn"
-              onClick={() => setTripsOpen((v) => !v)}
-              aria-expanded={tripsOpen}
-            >
-              My trips
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            {tripsOpen && (
-              <>
-                <div className="scrim" onClick={() => setTripsOpen(false)} />
-                <div className="menu">
-                  {trips.map((t) => (
-                    <div key={t.id} className={'trip' + (t.id === session ? ' on' : '')}>
-                      <button className="pick" onClick={() => openTrip(t.id)}>
-                        <span className="lbl">{t.label}</span>
-                        <span className="when">{t.id === session ? 'open now' : shortDate(t.at)}</span>
-                      </button>
-                      {t.id !== session && (
-                        <button className="x" title="Remove from this list" onClick={() => dropTrip(t.id)}>×</button>
-                      )}
-                    </div>
-                  ))}
-                  {trips.length > 0 && <div className="rule" />}
-                  <button className="startnew" onClick={startOver}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
-                    New trip
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-          )}
-        </div>
+        <button className="burger" onClick={() => setMenu(true)} aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M4 7h16M4 12h16M4 17h11" />
+          </svg>
+        </button>
+
+        {/* The trip's own name once it has one. A wordmark tells you nothing
+            you did not already know; the destination tells you which trip. */}
+        <span className="where">{title || 'Trip builder'}</span>
+
+        {ready ? (
+          <button className="itbtn" onClick={openSheet}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
+            </svg>
+            <span className="itlbl">Itinerary</span>
+            {unseen && <i className="ping" />}
+          </button>
+        ) : <span className="spacer" />}
       </header>
 
       <main className="split">
@@ -514,6 +478,18 @@ export default function Home() {
         </section>
       </main>
 
+      <Drawer
+        open={menu}
+        onClose={() => setMenu(false)}
+        trips={trips}
+        session={session}
+        onOpenTrip={openTrip}
+        onDrop={dropTrip}
+        onNew={startOver}
+        onDownload={() => { setMenu(false); download(); }}
+        canDownload={ready}
+      />
+
       <style jsx global>{`
         :root{
           --bg:#EDF2EA; --surface:#FFFFFF; --sage:#E2EBDE; --deep:#10362A;
@@ -537,56 +513,40 @@ export default function Home() {
       <style jsx>{`
         .app{display:flex;flex-direction:column;height:100%}
         .bar{
-          display:flex;align-items:center;justify-content:space-between;
-          padding:calc(12px + env(safe-area-inset-top)) 18px 12px;
+          display:flex;align-items:center;gap:10px;
+          padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
           flex:none;
         }
-        .brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px}
-        .dot{width:11px;height:11px;border-radius:99px;background:var(--coral);flex:none}
-        .ghostbtn{
-          border:0;background:var(--surface);color:var(--ink-soft);font-size:13px;font-weight:600;
-          padding:8px 14px;border-radius:99px;box-shadow:var(--sh-s);cursor:pointer;
+
+        .burger{
+          flex:none;border:0;background:var(--surface);color:var(--ink);cursor:pointer;
+          width:36px;height:36px;border-radius:12px;display:grid;place-items:center;
+          box-shadow:var(--sh-s);transition:transform 150ms var(--e);
+        }
+        .burger:active{transform:scale(.94)}
+        .burger svg{width:17px;height:17px}
+
+        /* The title takes whatever is left and truncates. Nothing in this row
+           may push the row wider than the screen. */
+        .where{
+          flex:1;min-width:0;text-align:center;font-weight:700;font-size:15px;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;
+        }
+        .spacer{flex:none;width:36px}
+
+        .itbtn{
+          position:relative;flex:none;display:inline-flex;align-items:center;gap:7px;
+          border:0;background:var(--deep);color:#EAF2EC;
+          padding:9px 14px;border-radius:99px;box-shadow:var(--sh-s);
+          font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;
           transition:transform 160ms var(--e);
         }
-        .ghostbtn:active{transform:scale(.96)}
-
-        .baractions{display:flex;align-items:center;gap:8px}
-        .ghostbtn svg{width:13px;height:13px;margin-left:5px;vertical-align:-2px}
-
-        .trips{position:relative}
-        .scrim{position:fixed;inset:0;z-index:40}
-        .menu{
-          position:absolute;top:calc(100% + 8px);right:0;z-index:41;
-          width:min(80vw,268px);padding:6px;
-          background:var(--surface);border-radius:16px;box-shadow:var(--sh-l);
-          max-height:min(60vh,420px);overflow-y:auto;
+        .itbtn:active{transform:scale(.96)}
+        .itbtn svg{width:15px;height:15px;flex:none}
+        .ping{
+          position:absolute;top:-2px;right:-2px;width:9px;height:9px;border-radius:99px;
+          background:var(--coral);border:2px solid var(--bg);
         }
-        .trip{display:flex;align-items:center}
-        .pick{
-          flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;
-          border:0;background:none;cursor:pointer;text-align:left;
-          padding:9px 10px;border-radius:11px;color:inherit;
-        }
-        .pick:hover{background:var(--sage)}
-        .trip.on .pick{background:var(--sage)}
-        .lbl{
-          font-size:13.5px;font-weight:650;line-height:1.25;
-          max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-        }
-        .when{font-size:11px;color:var(--ink-soft);font-weight:600}
-        .x{
-          flex:none;border:0;background:none;color:var(--ink-soft);cursor:pointer;
-          font-size:17px;line-height:1;padding:6px 9px;border-radius:9px;opacity:.5;
-        }
-        .x:hover{opacity:1;background:var(--sage)}
-        .rule{height:1px;background:var(--line);margin:5px 8px}
-        .startnew{
-          display:flex;align-items:center;gap:8px;width:100%;
-          border:0;background:none;cursor:pointer;color:var(--ink-soft);
-          font-size:13px;font-weight:650;padding:9px 10px;border-radius:11px;
-        }
-        .startnew svg{width:14px;height:14px}
-        .startnew:hover{background:var(--sage);color:var(--ink)}
 
         .split{flex:1;display:flex;min-height:0;gap:20px;padding:0 16px 0}
 
@@ -765,6 +725,7 @@ export default function Home() {
         }
         @media (min-width:861px){
           .itbtn{display:none}
+          .spacer{display:none}
           .split{max-width:1180px;margin:0 auto;width:100%}
           .chat{max-width:560px}
           .phone{max-width:430px;margin:0 auto;width:100%}
