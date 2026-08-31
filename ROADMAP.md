@@ -195,3 +195,89 @@ ever produces the sage palette. Either build the other two token sets (this
 is the "minor change is okay" latitude he is describing, and it is cheap once
 the palette is tokenised) or drop the field so the agent stops filling in
 something with no effect.
+
+## 7. Commercial model, and the cost work it depends on
+
+> at this rate ill go bankrupt [...] i want at least charfge 10x from what it
+> cost me., so my goal is to drive the cost really low, while customer paying
+> something that worth the money for the purpose.
+>
+> — raffy, 2026-08-31
+
+### Measured cost, 2026-08-31
+
+From `session.usage` events via `setup/cost.js`, on `claude-sonnet-5`:
+
+| | model requests | output tokens | cache read | cost |
+|---|---|---|---|---|
+| One build | 4-5 | ~115,000 | 1.3-1.9M | **$1.40-1.57 (RM6.20-6.90)** |
+| One chat turn | 2 | ~2,600 | ~3,900 | **$0.027 (RM0.12)** |
+
+**A build costs about fifty times a chat turn.** That single ratio should drive
+every product decision here.
+
+### The finding that matters
+
+**115,000 output tokens to produce an itinerary whose JSON is roughly 10,000
+tokens.** Output is ~80% of the bill. The gap is thinking tokens: Sonnet 5 runs
+adaptive thinking and bills it as output, and a research task with seven web
+searches thinks a great deal.
+
+Levers, largest first:
+
+1. **`output_config.effort`.** Default is `high`. Dropping the builder to
+   `medium` is the single biggest saving available and is a config change, not
+   a rewrite. Needs testing against output quality — worth a side-by-side on
+   the same brief. (`create-agent.js` printing `model [object Object]` suggests
+   the agent's model field takes an object, so effort is likely settable
+   per-agent; confirm before assuming.)
+2. **Fewer tool round trips.** Each one re-reads the accumulated context:
+   1.3-1.9M cache-read tokens across 4-5 requests, about $0.30 a build. A
+   builder told to emit one complete `save_itinerary` rather than a stream of
+   `update_day` calls cuts most of that.
+3. **Tier-1 edits (roadmap item 4).** Turns an RM6.50 edit into an RM0.12 one.
+   This is the difference between viable and not.
+4. **Haiku 4.5 for the chat agent.** Chat is already cheap, so this saves
+   little in absolute terms, but it is close to free to do.
+5. **Cap web searches per build.** Seven per build, billed separately.
+
+Together these plausibly take a build from RM6.50 to under RM2. At RM50 that
+is 25x, comfortably past his 10x goal.
+
+### The pricing shape
+
+His own instinct — chat freely, explicit Build button, lock, then limited
+edits — is right, and the cost data says why: chat is nearly free, builds are
+not. Making the expensive action **deliberate and visible** is both the cost
+control and the better UX.
+
+**The tension to solve:** showing a real preview before payment means eating a
+build for every tyre-kicker. Charging before they see anything is a hard sell
+at RM50.
+
+**The way through, and it maps exactly onto the cost structure:**
+
+- **The Trip tab is cheap** — hero, stays, flights, the feature card. These are
+  facts from the brief, no research. The chat agent could fill them directly
+  for almost nothing.
+- **The Days are expensive** — that is where the research, the prose and the
+  115k output tokens live.
+
+So: **free tier is the Trip tab, the paid product is the Days.** They see their
+own destination, their own dates, their family's names, the shape of their
+trip — and the day-by-day is behind the paywall. The free half costs cents and
+is genuinely persuasive because it is already personal.
+
+**Charge one-off per trip, not a subscription.** People take one to three trips
+a year; a monthly fee is the wrong shape for that. RM39-59 for one trip, which
+includes the full build, unlimited tier-1 edits, and a small number of rebuilds
+(three is generous given the measured cost).
+
+### What still needs deciding
+
+- Payment provider. Stripe is the obvious one but check Malaysian card and FPX
+  support; local options may convert better.
+- Whether an unlock is per trip or a small credit pack.
+- Whether the download is part of the unlock or a separate upsell. It should be
+  included: the file is the thing they keep, and holding it back cheapens the
+  purchase.
