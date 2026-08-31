@@ -14,6 +14,7 @@ import { TOOLS } from '../lib/schema.js';
 import { BUILD_TOOL } from '../lib/brief.js';
 import { READ_TOOL, EDIT_TOOL } from '../lib/editTools.js';
 import { PRESENT_TOOL } from '../lib/blocks.js';
+import { FIND_TOOL } from '../lib/photos.js';
 import { CHAT_AGENT_ID, BUILDER_AGENT_ID } from '../lib/config.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
@@ -72,6 +73,7 @@ if (which === 'builder' || which === 'both') {
           { name: 'web_fetch', enabled: true },
         ],
       },
+      FIND_TOOL,
       ...TOOLS,
     ],
   });

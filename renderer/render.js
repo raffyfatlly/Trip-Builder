@@ -189,6 +189,29 @@ export function render(T, templateSrc) {
         ' to ' + b.getDate() + ' ' + MO[b.getMonth()] + ' ' + b.getFullYear();
     }
 
+
+    // A remote photo can 404, be blocked, or have its URL rotate. Rather than
+    // an onerror attribute on every img — which has to survive three layers of
+    // string quoting and broke the page when it did not — one capture-phase
+    // listener handles every image, including ones rendered later.
+    document.addEventListener('error', function(e){
+      var img = e.target;
+      if(!img || img.tagName !== 'IMG') return;
+      var fig = img.closest && img.closest('figure.evshot');
+      if(fig){ fig.remove(); return; }                       // drop the whole figure
+      var card = img.closest && img.closest('.staycard');
+      if(card){ img.outerHTML = '<div class="ph"></div>'; return; }   // gradient instead
+      var feat = img.closest && img.closest('.feature');
+      if(feat){
+        img.remove();
+        feat.className = 'feature nophoto';
+        var v = feat.querySelector('.veil');
+        if(v) v.remove();
+        return;
+      }
+      img.remove();
+    }, true);
+
     function renderShell(){
       var tr = T.trip, el;
 
@@ -282,6 +305,7 @@ export function render(T, templateSrc) {
     "<figcaption class=\"cr\">'+creditOf(r.it)+'</figcaption>",
     'item photo credit');
 
+
   // --- trip-scoped constants -------------------------------------------------
 
   replaceOnce('var PQ_OFF=7*60;', 'var PQ_OFF=T.trip.tzOffsetMin;', 'timezone offset');
@@ -313,7 +337,18 @@ export function render(T, templateSrc) {
 
   replaceOnce('  .feature .badge{position:absolute;top:16px;left:16px}',
     '  .feature .badge{position:absolute;top:16px;left:16px}\n' +
-    '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#0C2A20);padding-top:18px}\n' +
+    // With a photo AND long prose the card overflowed: .fc is anchored to the
+  // bottom of a fixed 290px image, so taller content grew upwards over the
+  // badge and off the top. Making the card a flex column with the image
+  // absolutely behind it means it grows with its content instead. Short
+  // content still sits at the bottom of a 290px box, so nothing changes for
+  // a trip whose feature text is brief.
+  '  .feature{display:flex;flex-direction:column;justify-content:flex-end;min-height:290px}\n' +
+  '  .feature img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}\n' +
+  '  .feature .veil{z-index:1}\n' +
+  '  .feature .fc{position:relative;z-index:2;padding:54px 20px 20px}\n' +
+  '  .feature .badge{z-index:3}\n' +
+  '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#0C2A20);padding-top:18px;min-height:0}\n' +
     '  .feature.nophoto .fc{position:static;padding:16px 20px 20px}\n' +
     '  .feature.nophoto .badge{position:static;display:inline-flex;margin-left:20px}\n' +
     '  .staycard .ph{width:100%;height:100%;background:linear-gradient(160deg,var(--deep),#0C2A20)}\n' +

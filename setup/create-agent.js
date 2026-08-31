@@ -19,6 +19,7 @@ import { TOOLS } from '../lib/schema.js';
 import { BUILD_TOOL } from '../lib/brief.js';
 import { READ_TOOL, EDIT_TOOL } from '../lib/editTools.js';
 import { PRESENT_TOOL } from '../lib/blocks.js';
+import { FIND_TOOL } from '../lib/photos.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) throw new Error('ANTHROPIC_API_KEY not set');
@@ -86,6 +87,7 @@ const builder = await post('/v1/agents', {
         { name: 'web_fetch', enabled: true },
       ],
     },
+    FIND_TOOL,
     ...TOOLS,
   ],
 });
