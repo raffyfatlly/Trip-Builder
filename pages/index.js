@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/router';
 import { renderPreview, downloadName } from '../lib/preview.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
+import { loadTrips, rememberTrip, forgetTrip, shortDate } from '../lib/trips.js';
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
 
@@ -23,6 +25,10 @@ export default function Home() {
   const [pane, setPane] = useState('preview');   // preview | edit
   const [staleNote, setStaleNote] = useState(0);
   const [agentEdits, setAgentEdits] = useState([]);
+  const [trips, setTrips] = useState([]);
+  const [tripsOpen, setTripsOpen] = useState(false);
+
+  const router = useRouter();
 
   const scroller = useRef(null);
   const inputRef = useRef(null);
@@ -30,12 +36,30 @@ export default function Home() {
 
   // --- session ------------------------------------------------------------
   useEffect(() => {
+    setTrips(loadTrips());
+
+    // ?s=<session id> opens one specific trip. It is how a trip gets back to
+    // you when the browser has lost it — a different phone, cleared storage.
     let id = null;
-    try { id = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+    let q = null;
+    try { q = new URLSearchParams(location.search).get('s'); } catch (e) { /* ignore */ }
+    if (q) {
+      id = q;
+      try { localStorage.setItem(KEY, q); } catch (e) { /* private mode */ }
+      // Through the router, not history.replaceState: Next rewrites the URL
+      // from its own history state during hydration, so a raw replaceState is
+      // undone a moment later and ?s= stays put — which would make "New trip"
+      // reopen the same trip forever.
+      router.replace('/', undefined, { shallow: true });
+    }
+
+    if (!id) {
+      try { id = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
+    }
     if (id) { setSession(id); setBooting(false); return; }
 
     fetch('/api/session', { method: 'POST' })
-      .then((r) => r.json())
+      .then((d0) => d0.json())
       .then((d) => {
         if (!d.session) throw new Error(d.error || 'no session');
         try { localStorage.setItem(KEY, d.session); } catch (e) { /* ignore */ }
@@ -48,6 +72,21 @@ export default function Home() {
   useEffect(() => {
     if (session) setEdits(loadEdits(session));
   }, [session]);
+
+  // Keep this browser's trip list current. The label is the destination once
+  // the itinerary exists, and before that the first thing they typed — an
+  // unbuilt trip is still worth being able to get back to.
+  const lastLabel = useRef('');
+  useEffect(() => {
+    if (!session || !messages.length) return;
+    const t = itinerary && itinerary.trip && itinerary.trip.title;
+    const first = messages.find((m) => m.role === 'user');
+    const label = t || (first ? first.text.replace(/\s+/g, ' ').slice(0, 42) : '');
+    if (!label || label === lastLabel.current) return;
+    lastLabel.current = label;
+    rememberTrip(session, label);
+    setTrips(loadTrips());
+  }, [session, itinerary, messages]);
 
   // --- polling ------------------------------------------------------------
   useEffect(() => {
@@ -202,9 +241,26 @@ export default function Home() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  // Starting a new trip must never lose the last one. The id stays in the
+  // trip list; only the pointer to the current one is cleared.
   const startOver = () => {
+    setTripsOpen(false);
     try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
     location.reload();
+  };
+
+  // Switching trips reloads rather than swapping state in place: everything on
+  // this page hangs off the session id, and a reload is the one way to be sure
+  // none of the old trip is left behind.
+  const openTrip = (id) => {
+    if (id === session) { setTripsOpen(false); return; }
+    try { localStorage.setItem(KEY, id); } catch (e) { /* ignore */ }
+    location.reload();
+  };
+
+  const dropTrip = (id) => {
+    forgetTrip(id);
+    setTrips(loadTrips());
   };
 
   // The builder can land save_itinerary before it has written any days, so an
@@ -219,9 +275,43 @@ export default function Home() {
           <span className="dot" />
           <span>Trip builder</span>
         </div>
-        {ready && (
-          <button className="ghostbtn" onClick={startOver}>New trip</button>
-        )}
+        <div className="baractions">
+          {trips.length > 1 && (
+            <div className="trips">
+              <button
+                className="ghostbtn"
+                onClick={() => setTripsOpen((v) => !v)}
+                aria-expanded={tripsOpen}
+              >
+                My trips
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+              {tripsOpen && (
+                <>
+                  <div className="scrim" onClick={() => setTripsOpen(false)} />
+                  <div className="menu">
+                    {trips.map((t) => (
+                      <div key={t.id} className={'trip' + (t.id === session ? ' on' : '')}>
+                        <button className="pick" onClick={() => openTrip(t.id)}>
+                          <span className="lbl">{t.label}</span>
+                          <span className="when">{t.id === session ? 'open now' : shortDate(t.at)}</span>
+                        </button>
+                        {t.id !== session && (
+                          <button className="x" title="Remove from this list" onClick={() => dropTrip(t.id)}>×</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {ready && (
+            <button className="ghostbtn" onClick={startOver}>New trip</button>
+          )}
+        </div>
       </header>
 
       <main className="split">
@@ -408,6 +498,36 @@ export default function Home() {
           transition:transform 160ms var(--e);
         }
         .ghostbtn:active{transform:scale(.96)}
+
+        .baractions{display:flex;align-items:center;gap:8px}
+        .ghostbtn svg{width:13px;height:13px;margin-left:5px;vertical-align:-2px}
+
+        .trips{position:relative}
+        .scrim{position:fixed;inset:0;z-index:40}
+        .menu{
+          position:absolute;top:calc(100% + 8px);right:0;z-index:41;
+          width:min(80vw,268px);padding:6px;
+          background:var(--surface);border-radius:16px;box-shadow:var(--sh-l);
+          max-height:min(60vh,420px);overflow-y:auto;
+        }
+        .trip{display:flex;align-items:center}
+        .pick{
+          flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+          border:0;background:none;cursor:pointer;text-align:left;
+          padding:9px 10px;border-radius:11px;color:inherit;
+        }
+        .pick:hover{background:var(--sage)}
+        .trip.on .pick{background:var(--sage)}
+        .lbl{
+          font-size:13.5px;font-weight:650;line-height:1.25;
+          max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        }
+        .when{font-size:11px;color:var(--ink-soft);font-weight:600}
+        .x{
+          flex:none;border:0;background:none;color:var(--ink-soft);cursor:pointer;
+          font-size:17px;line-height:1;padding:6px 9px;border-radius:9px;opacity:.5;
+        }
+        .x:hover{opacity:1;background:var(--sage)}
 
         .split{flex:1;display:flex;min-height:0;gap:20px;padding:0 16px 0}
 
