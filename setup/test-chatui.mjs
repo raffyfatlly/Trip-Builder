@@ -77,7 +77,9 @@ ok('sending returns you to the conversation',
    await el.evaluate((n) => n.scrollHeight - n.scrollTop - n.clientHeight < 120));
 
 // --- the message itself --------------------------------------------------
-const rich = page.locator('.msg.assistant').last();
+// Not .last(): the typing bubble is also .msg.assistant, and it is on screen
+// for a moment after sending.
+const rich = page.locator('.msg.assistant:not(.typing)').last();
 ok('bold is bold', await rich.locator('strong:has-text("Furama Resort")').count() === 1);
 ok('a list is a list', await rich.locator('li').count() === 3);
 ok('a price stands out', await rich.locator('.cost').count() >= 1);
@@ -93,6 +95,47 @@ await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/rich
 
 ok('no horizontal overflow at 390px',
    (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+await ctx.close();
+
+// --- the moment a build finishes -----------------------------------------
+// It takes minutes, so it lands while they are reading something else. The
+// way in has to be where they are looking, not only in the header.
+{
+  const fs = await import('fs');
+  const REAL = JSON.parse(fs.readFileSync('/home/user/claude/tools/itinerary-generator/trips/danang.json', 'utf8'));
+  const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  let phase = { itinerary: null, building: true };
+  await c2.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_B' } }));
+  await c2.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  await c2.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: [{ role: 'user', text: 'build it', id: 'u1' }],
+    itinerary: phase.itinerary, plan: {}, agentEdits: [], memoryOps: [],
+    building: phase.building, thinking: false, turns: 2 } }));
+  const p2 = await c2.newPage();
+  p2.on('pageerror', (e) => errs.push(e.message));
+  await p2.goto(B, { waitUntil: 'networkidle' });
+  await p2.waitForTimeout(1400);
+
+  ok('while building, no ready card', await p2.locator('.done').count() === 0);
+  ok('it says it is working instead', await p2.locator('.working').count() === 1);
+
+  phase = { itinerary: REAL, building: false };
+  await p2.waitForTimeout(2600);
+  ok('when it finishes, the way in is in the conversation', await p2.locator('.done').count() === 1);
+  ok('and it names the trip', (await p2.locator('.done').innerText()).includes('Da Nang'));
+  await p2.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/ready.png' });
+
+  await p2.locator('.done button').click();
+  await p2.waitForTimeout(800);
+  ok('the button opens the itinerary', await p2.locator('.pane.open').count() === 1);
+
+  await p2.locator('.panehead .back').click();
+  await p2.waitForTimeout(700);
+  ok('and it steps aside once seen', await p2.locator('.done').count() === 0);
+  ok('leaving the header button behind', await p2.locator('header button:has-text("Itinerary")').count() === 1);
+  await c2.close();
+}
+
 ok('no page errors', errs.length === 0, errs.join(' / '));
 
 await browser.close();

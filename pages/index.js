@@ -510,6 +510,25 @@ export default function Home() {
                 Researching and building your itinerary. This takes a couple of minutes.
               </div>
             )}
+
+            {/* A build takes minutes, so it lands while they are looking at
+                something else. Saying "it's done" in the header dot is easy to
+                miss — this puts the way in at the end of the conversation,
+                where they are already reading, and goes away once opened. */}
+            {ready && unseen && !building && (
+              <div className="done">
+                <div className="donetext">
+                  <b>{title ? title + ' is ready' : 'Your itinerary is ready'}</b>
+                  <span>Day by day, with times, weather and everything you can edit.</span>
+                </div>
+                <button onClick={openSheet}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
+                  </svg>
+                  Open it
+                </button>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -766,6 +785,24 @@ export default function Home() {
         .msg.user :global(.cost){color:#F4C4A8}
         .msg :global(a){color:inherit;text-decoration:underline;text-underline-offset:2px}
         .msg :global(a):hover{text-decoration-thickness:2px}
+
+        .done{
+          display:flex;flex-direction:column;gap:11px;align-items:flex-start;
+          margin:10px 0;padding:15px 16px;max-width:min(92%,44ch);
+          background:var(--deep);color:#E7EFE9;border-radius:20px;
+          box-shadow:var(--sh-m);animation:rise 320ms var(--e) both;
+        }
+        .donetext{display:flex;flex-direction:column;gap:4px}
+        .donetext b{font-size:15px;font-weight:700;font-family:'Outfit',sans-serif}
+        .donetext span{font-size:12.5px;line-height:1.45;color:#B9CFC1}
+        .done button{
+          display:inline-flex;align-items:center;gap:8px;border:0;
+          background:#EAF2EC;color:var(--deep);font-family:inherit;
+          font-size:13.5px;font-weight:650;padding:10px 16px;border-radius:99px;
+          cursor:pointer;transition:transform 150ms var(--e);
+        }
+        .done button:active{transform:scale(.96)}
+        .done button svg{width:15px;height:15px}
 
         .hint{
           display:flex;align-items:flex-start;gap:9px;margin:0 2px 8px;
