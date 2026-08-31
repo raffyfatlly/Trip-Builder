@@ -1,4 +1,5 @@
 import { shortDate } from '../lib/trips.js';
+import Account from './Account.js';
 
 // The menus, given room to breathe.
 //
@@ -8,7 +9,8 @@ import { shortDate } from '../lib/trips.js';
 // header now carries one control and a title; everything else slides in from
 // the left with space to be legible.
 
-export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload }) {
+export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
+                                accounts, user, onSignedIn, onSignOut }) {
   return (
     <>
       <div className={'veil' + (open ? ' on' : '')} onClick={onClose} aria-hidden={!open} />
@@ -26,6 +28,15 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
         </div>
 
         <div className="dscroll">
+          {accounts && (
+            <>
+              <h3>Account</h3>
+              <div className="acctwrap">
+                <Account user={user} trips={trips} onSignedIn={onSignedIn} onSignOut={onSignOut} />
+              </div>
+            </>
+          )}
+
           {trips.length > 0 && (
             <>
               <h3>Your trips</h3>
@@ -67,7 +78,9 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
           )}
         </div>
 
-        <p className="foot">Trips are kept on this device.</p>
+        <p className="foot">
+          {user ? 'Signed in — your trips follow you.' : 'Trips are kept on this device.'}
+        </p>
       </aside>
 
       <style jsx>{`
@@ -137,6 +150,7 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
         .act b{font-size:14px;font-weight:650}
         .act i{font-style:normal;font-size:11.5px;color:var(--ink-soft)}
 
+        .acctwrap{margin-bottom:20px}
         .foot{margin:10px 18px 0;font-size:11px;color:var(--ink-faint)}
 
         @media (prefers-reduced-motion:reduce){

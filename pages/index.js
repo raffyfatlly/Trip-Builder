@@ -35,6 +35,7 @@ export default function Home() {
   const [skipOb, setSkipOb] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [hintOff, setHintOff] = useState(true);
+  const [account, setAccount] = useState({ accounts: false, user: null });
 
   const router = useRouter();
 
@@ -82,6 +83,22 @@ export default function Home() {
     if (session) setEdits(loadEdits(session));
   }, [session]);
 
+  // Who is signed in, and what does their account already hold. Runs once, and
+  // failing is fine: no account simply means the browser's own list stands, the
+  // way it did before accounts existed.
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/me')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !d) return;
+        setAccount({ accounts: !!d.accounts, user: d.user || null });
+        if (d.user && Array.isArray(d.trips)) mergeTrips(d.trips);
+      })
+      .catch(() => { /* anonymous, as before */ });
+    return () => { alive = false; };
+  }, []);
+
   // Keep this browser's trip list current. The label is the destination once
   // the itinerary exists, and before that the first thing they typed — an
   // unbuilt trip is still worth being able to get back to.
@@ -95,7 +112,13 @@ export default function Home() {
     lastLabel.current = label;
     rememberTrip(session, label);
     setTrips(loadTrips());
-  }, [session, itinerary, messages]);
+    if (account.user) {
+      fetch('/api/me', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ claim: { id: session, label } }),
+      }).catch(() => { /* the local list is still right */ });
+    }
+  }, [session, itinerary, messages, account.user]);
 
   // --- polling ------------------------------------------------------------
   useEffect(() => {
@@ -269,9 +292,33 @@ export default function Home() {
     location.reload();
   };
 
+  // The account's trips and this browser's are both real. Union them, newest
+  // label wins, so signing in never hides work and signing out never loses it.
+  const mergeTrips = (remote) => {
+    for (const t of remote) rememberTrip(t.id, t.label);
+    setTrips(loadTrips());
+  };
+
+  const onSignedIn = (d) => {
+    setAccount({ accounts: true, user: d.user || null });
+    if (Array.isArray(d.trips)) mergeTrips(d.trips);
+  };
+
+  const onSignOut = async () => {
+    try { await fetch('/api/auth/signout', { method: 'POST' }); } catch (e) { /* ignore */ }
+    // The local list stays. Signing out is not "delete my trips".
+    setAccount((a) => ({ ...a, user: null }));
+  };
+
   const dropTrip = (id) => {
     forgetTrip(id);
     setTrips(loadTrips());
+    if (account.user) {
+      fetch('/api/me', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ forget: id }),
+      }).catch(() => { /* ignore */ });
+    }
   };
 
   // The builder can land save_itinerary before it has written any days, so an
@@ -515,6 +562,10 @@ export default function Home() {
         onNew={startOver}
         onDownload={() => { setMenu(false); download(); }}
         canDownload={ready}
+        accounts={account.accounts}
+        user={account.user}
+        onSignedIn={onSignedIn}
+        onSignOut={onSignOut}
       />
 
       <style jsx global>{`
