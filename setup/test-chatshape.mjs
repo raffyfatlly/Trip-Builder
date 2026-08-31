@@ -167,6 +167,54 @@ await ctx.close();
   await c3.close();
 }
 
+// --- real phones, not devtools: UA chrome and post-load stability --------
+// raffy on a real device: "arrow in button a big not centered. placeholder
+// not aligned." then "it first nicely then after it loads the convo it
+// didn't stay put nicely." Chromium in a 390px viewport never showed this —
+// an unstyled <button> keeps its UA padding/appearance until reset, and a
+// height computed once at mount goes stale the moment anything reflows after
+// it (the transcript arriving, a font finishing its swap, the keyboard).
+{
+  const c4 = await browser.newContext({
+    viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+  });
+  let live = [{ role: 'user', text: 'hi', id: 'u0' }];
+  await c4.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_L' } }));
+  await c4.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  await c4.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: live, itinerary: null, plan: {}, agentEdits: [], memoryOps: [],
+    building: false, thinking: false, turns: live.length } }));
+  const p4 = await c4.newPage();
+  p4.on('pageerror', (e) => errs.push(e.message));
+  await p4.goto(B, { waitUntil: 'domcontentloaded' });
+  await p4.waitForTimeout(1300);
+
+  const mid = async (sel) => { const b = await p4.locator(sel).boundingBox(); return b.y + b.height / 2; };
+  const before = { attach: await mid('.attach'), send: await mid('.sendbtn') };
+
+  // The transcript grows, same as a real poll picking up the agent's reply.
+  live = [...live, { role: 'assistant', text: 'Good dates, shoulder season.', id: 'a1' }];
+  await p4.waitForTimeout(2600);
+
+  ok('the icons stay put once the conversation loads in',
+     Math.abs((await mid('.attach')) - before.attach) < 1
+     && Math.abs((await mid('.sendbtn')) - before.send) < 1);
+  ok('attach and send stay level with each other',
+     Math.abs((await mid('.attach')) - (await mid('.sendbtn'))) < 1);
+
+  const svg = await p4.locator('.sendbtn svg').boundingBox();
+  const btn = await p4.locator('.sendbtn').boundingBox();
+  ok('the arrow sits dead centre in its circle — no UA button chrome leaking through',
+     Math.abs((svg.x + svg.width / 2) - (btn.x + btn.width / 2)) < 0.5
+     && Math.abs((svg.y + svg.height / 2) - (btn.y + btn.height / 2)) < 0.5);
+
+  // A stand-in for the keyboard opening and resizing the viewport.
+  await p4.evaluate(() => window.dispatchEvent(new Event('resize')));
+  await p4.waitForTimeout(300);
+  ok('and after a resize', Math.abs((await mid('.sendbtn')) - before.send) < 1);
+  await c4.close();
+}
+
 ok('no page errors', errs.length === 0, errs.join(' / '));
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
