@@ -34,6 +34,15 @@ const TRIPS = {
   'two continents': [stay('Kuala Lumpur', 3.1390, 101.6869), stay('Rome', 41.9028, 12.4964)],
 };
 
+
+// Served from a real origin, not setContent. The map is requested as a
+// relative /api/map, and a document at about:blank has no base to resolve it
+// against — every image would fail for a reason the app will never hit.
+const ORIGIN = 'https://itinerary.test';
+const serve = async (ctx, html) => {
+  await ctx.route(ORIGIN + '/', (r) => r.fulfill({ contentType: 'text/html', body: html }));
+};
+
 const browser = await chromium.launch();
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 
@@ -44,17 +53,18 @@ for (const [label, stays] of Object.entries(TRIPS)) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(e.message));
   const asked = [];
-  await page.route('**basemaps.cartocdn.com**', (r) => {
+  await page.route('**/api/map**', (r) => {
     asked.push(r.request().url());
     r.fulfill({ contentType: 'image/png', body: PNG });
   });
-  await page.setContent(html, { waitUntil: 'domcontentloaded' });
+  await serve(ctx, html);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
   await page.locator('#nav button[data-view="map"]').click();
   await page.waitForTimeout(400);
 
   const pins = await page.locator('#routemap svg g').count();
-  const tiles = await page.locator('#routemap img.tile').count();
+  const tiles = await page.locator('#routemap img.ground').count();
   const box = await page.locator('#routemap .rmap').boundingBox();
   // Every pin has to land inside the picture, which is the thing that breaks
   // when the zoom is wrong.
@@ -69,13 +79,14 @@ for (const [label, stays] of Object.entries(TRIPS)) {
       return x > 8 && y > 8 && x < vb.width - 8 && y < vb.height - 8;
     });
   });
-  const url = asked.find((u) => u.includes('cartocdn')) || '';
-  const zoom = (/light_all\/(\d+)\//.exec(url) || [])[1];
+  const url = asked.find((u) => u.includes('/api/map')) || '';
+  const zoom = (/[?&]z=(\d+)/.exec(url) || [])[1];
 
   console.log('\n  — ' + label + ' (' + stays.length + ' stays, zoom ' + zoom + ')');
   ok('no page errors', errs.length === 0, errs.join(' / '));
-  ok('map tiles are requested', !!url);
-  ok('and enough of them to cover the frame', tiles >= 6, tiles + ' tiles');
+  ok('a styled map is requested from our own endpoint', !!url);
+  ok('and the Google key is not in the page', !url.includes('key=') && !html.includes('AIza'));
+  ok('exactly one ground image', tiles === 1);
   ok('one pin per stay', pins === stays.length, pins + ' pins');
   ok('every pin is inside the frame', inside === true);
   ok('the map has real size', !!box && box.width > 200 && box.height > 100,
@@ -94,11 +105,12 @@ const zoomOf = async (stays) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
   const page = await ctx.newPage();
   let z = null;
-  await page.route('**basemaps.cartocdn.com**', (r) => {
-    z = (/light_all\/(\d+)\//.exec(r.request().url()) || [])[1];
+  await page.route('**/api/map**', (r) => {
+    z = (/[?&]z=(\d+)/.exec(r.request().url()) || [])[1];
     r.fulfill({ contentType: 'image/png', body: PNG });
   });
-  await page.setContent(html, { waitUntil: 'domcontentloaded' });
+  await serve(ctx, html);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(600);
   await page.locator('#nav button[data-view="map"]').click();
   await page.waitForTimeout(400);
@@ -118,16 +130,39 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   const { html } = render({ ...REAL, stays: TRIPS['two cities'] }, tpl);
   const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
   const page = await ctx.newPage();
-  await page.route('**basemaps.cartocdn.com**', (r) => r.abort());
-  await page.setContent(html, { waitUntil: 'domcontentloaded' });
+  await page.route('**/api/map**', (r) => r.abort());
+  await serve(ctx, html);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
   await page.locator('#nav button[data-view="map"]').click();
   await page.waitForTimeout(500);
   const box = await page.locator('#routemap .rmap').boundingBox();
   console.log('');
-  ok('a dead tile does not collapse the map', !!box && box.height > 120,
+  ok('a dead map does not collapse the card', !!box && box.height > 120,
      box ? Math.round(box.width) + '×' + Math.round(box.height) : 'zero height');
   ok('the pins survive it', (await page.locator('#routemap svg g').count()) === 2);
+}
+
+// Tapping a stop opens that stay.
+{
+  const { html } = render({ ...REAL, stays: TRIPS['two cities'] }, tpl);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+  await serve(ctx, html);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.waitForTimeout(400);
+  ok('pins are marked up as buttons',
+     (await page.locator('#routemap svg g.pin[role="button"]').count()) === 2);
+  await page.locator('#routemap svg g.pin').nth(1).click();
+  await page.waitForTimeout(500);
+  const sheet = await page.locator('#sheet').innerText();
+  ok('tapping the second pin opens the second stay', /Hoi An/.test(sheet), sheet.split('\n')[0]);
+  ok('no page errors', errs.length === 0, errs.join(' / '));
   await page.screenshot({ path: 'shots/routemap-no-tile.png' });
   await ctx.close();
 }
