@@ -833,7 +833,14 @@ export default function Home() {
 
           {ready && pane === 'edit' ? (
             <div className="editwrap">
-              <Editor itinerary={working} onOp={applyOp} />
+              <Editor
+                itinerary={working}
+                onOp={applyOp}
+                // Asking goes back to the chat, because that is where the
+                // answer appears. Staying on the edit pane after asking left
+                // you looking at a form while the reply happened offscreen.
+                onAsk={(text) => { setPane('preview'); setSheet(false); send(text); }}
+              />
             </div>
           ) : (
             <div className="phone">

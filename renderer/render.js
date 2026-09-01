@@ -620,20 +620,29 @@ export function render(T, templateSrc) {
     '  .bkrow{display:flex;gap:13px;align-items:flex-start}',
     '  .bkicon{width:52px;height:52px;border-radius:15px;flex:none;display:grid;place-items:center;background:var(--sage);color:var(--deep)}',
     '  .bkicon svg{width:21px;height:21px}',
+    '  .bkicon.soft{background:var(--wash,#F1EEE7);color:var(--ink-faint)}',
     '  .bkbody{flex:1;min-width:0}',
-    '  .bkbody b{display:block;font-family:\'Outfit\',sans-serif;font-size:16.5px;font-weight:700;letter-spacing:-.01em}',
+    '  .bkbody b{display:block;font-family:\'Outfit\',sans-serif;font-size:16.5px;font-weight:700;letter-spacing:-.01em;line-height:1.25}',
     '  .bkmeta{font-size:12.5px;color:var(--ink-faint);margin-top:3px;line-height:1.45}',
     '  .bktag{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:4px 9px;border-radius:var(--r-pill);font-size:10.5px;font-weight:750;letter-spacing:.03em;text-transform:uppercase}',
     '  .bktag.ok{background:#DCEBE1;color:#155C3C}',
     '  .bktag.no{background:#FCE6D8;color:var(--coral-text)}',
-    '  .bkref{display:flex;align-items:center;gap:9px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}',
+    // The reference is the only thing on this screen with a job to do at a
+    // counter, so it is the only thing you can press. Copy, not select-and-
+    // fumble, at 6am with a bag on your shoulder.
+    '  .bkref{display:flex;align-items:center;gap:10px;width:100%;margin-top:13px;padding:11px 0 0;border:0;border-top:1px solid var(--line);background:none;font:inherit;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}',
     '  .bkref .k{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}',
-    '  .bkref .v{font-family:\'Outfit\',sans-serif;font-size:15px;font-weight:700;letter-spacing:.02em}',
+    '  .bkref .v{font-family:\'Outfit\',sans-serif;font-size:16px;font-weight:700;letter-spacing:.04em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '  .bkref .cp{font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--deep);flex:none}',
+    '  .bkref:active{opacity:.55}',
+    '  .bkref.done .cp{color:#155C3C}',
+    '  .bknote{margin-top:11px;padding:10px 12px;border-radius:12px;background:var(--sage);font-size:12.5px;line-height:1.5;color:var(--deep)}',
     '  .bkempty{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:22px 18px;text-align:center}',
     '  .bkempty .ico{width:44px;height:44px;border-radius:14px;background:var(--sage);color:var(--deep);display:grid;place-items:center;margin:0 auto 12px}',
     '  .bkempty .ico svg{width:20px;height:20px}',
     '  .bkempty b{display:block;font-family:\'Outfit\',sans-serif;font-size:17px;font-weight:700}',
     '  .bkempty p{margin:7px 0 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}',
+    '  .bkask{margin-top:12px;font-size:12.5px;line-height:1.55;color:var(--ink-faint);padding:0 2px}',
     '  .bksum{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:16px 17px 14px;margin-top:14px}',
     '  .bksum .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}',
     '  .bksum .top b{font-family:\'Outfit\',sans-serif;font-size:16.5px;font-weight:700}',
@@ -678,49 +687,122 @@ export function render(T, templateSrc) {
 
   // Rendered from the trip itself. A stay with `draft` set is one they have not
   // committed to, which is exactly the thing this tab exists to surface.
-  insertBefore('  function reduce(){', [
+  // A wallet holds what you were given, not a summary of what you intend.
+  //
+  // raffy, 2026-09-01: "im not happy with the booking tab .feels superficial
+  // especially like its an app."
+  //
+  // He was right, and the reason was structural rather than cosmetic. The first
+  // version drew the same stays the Trip tab draws, with a badge added. It held
+  // nothing you could not already see, so there was never a reason to open it —
+  // a table of contents wearing a wallet's clothes.
+  //
+  // What makes it real is holding the actual confirmation: the reference you
+  // read out at a counter, the terminal, the baggage line, the cancel-by date.
+  // So T.bookings — records the traveller filed, by forwarding an email or just
+  // saying it in chat — is now the content, and what the itinerary merely
+  // implies is demoted to what is still outstanding.
+  const BOOKINGS_JS = [
+    '  function bkIcon(k){',
+    '    if(k==="flight") return SHELLI.plane;',
+    '    if(k==="stay") return \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9l9-5 9 5v11"/><path d="M9 20v-6h6v6"/></svg>\';',
+    '    if(k==="transfer") return \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14"/><path d="M6.5 17l-1-5 2-4h9l2 4-1 5"/><circle cx="8.5" cy="17" r="1.5"/><circle cx="15.5" cy="17" r="1.5"/></svg>\';',
+    '    if(k==="activity") return \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V7h16v2a2 2 0 0 0 0 6v2H4v-2a2 2 0 0 0 0-6z"/><path d="M14 7v10"/></svg>\';',
+    '    return \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M10 12h6M10 16h4"/></svg>\';',
+    '  }',
+    '',
+    '  function bkCard(b){',
+    '    var meta=[b.when,b.where].filter(Boolean).join(" \\u00b7 ");',
+    '    var h=\'<div class="card" style="margin-bottom:9px"><div class="bkrow">\'+',
+    '      \'<span class="bkicon">\'+bkIcon(b.kind)+\'</span><div class="bkbody"><b>\'+esc(b.title||"")+\'</b>\';',
+    '    if(meta) h+=\'<div class="bkmeta">\'+esc(meta)+\'</div>\';',
+    '    if(b.who) h+=\'<div class="bkmeta">\'+esc(b.who)+\'</div>\';',
+    '    h+=\'</div></div>\';',
+    '    if(b.ref) h+=\'<button class="bkref" type="button" data-copy="\'+esc(b.ref)+\'">\'+',
+    '      \'<span class="k">Ref</span><span class="v">\'+esc(b.ref)+\'</span><span class="cp">Copy</span></button>\';',
+    '    if(b.note) h+=\'<div class="bknote">\'+esc(b.note)+\'</div>\';',
+    '    return h+\'</div>\';',
+    '  }',
+    '',
     '  function renderBookings(){',
     '    var el=document.getElementById("bookings"); if(!el) return;',
-    '    var F=(T.trip.flights||[]), S=(T.stays||[]);',
-    '    var booked=S.filter(function(s){return !s.draft;}).length + (F.length?1:0);',
-    '    var total=S.length + 1;',
-    '    var bars=""; for(var i=0;i<total;i++) bars+=\'<i class="\'+(i<booked?"on":"")+\'"></i>\';',
-    '    var h=\'<div class="bksum"><div class="top"><b>\'+booked+\' of \'+total+\' sorted</b>\'+',
-    '      \'<span>\'+(total-booked)+\' left</span></div><div class="bkbar">\'+bars+\'</div></div>\';',
+    '    var B=(T.bookings||[]).slice(), F=(T.trip.flights||[]), S=(T.stays||[]);',
+    '    B.sort(function(a,b){ return (a.at||0)-(b.at||0); });',
     '',
-    '    h+=\'<div class="sect"><h2>Flights</h2>\'+(F.length?\'\':\'<span class="note">Not booked</span>\')+\'</div>\';',
-    '    if(F.length){',
-    '      h+=F.map(function(f){',
-    '        return \'<div class="card" style="margin-bottom:9px"><div class="bkrow">\'+',
-    '          \'<span class="bkicon">\'+SHELLI.plane+\'</span><div class="bkbody"><b>\'+',
-    '          esc(f.from||"")+\' \\u2192 \'+esc(f.to||"")+\'</b><div class="bkmeta">\'+',
-    '          esc([f.date,f.dep,f.code].filter(Boolean).join(" \\u00b7 "))+\'</div>\'+',
-    '          \'<span class="bktag ok">Booked</span></div></div>\'+',
-    '          (f.ref?\'<div class="bkref"><span class="k">Ref</span><span class="v">\'+esc(f.ref)+\'</span></div>\':\'\')+',
-    '          \'</div>\';',
+    // A flight the traveller told us about is already a record, so it belongs in
+    // the wallet — unless they have since filed the real confirmation for it, in
+    // which case the filed one wins and this would be the same flight twice.
+    '    var filed=B.map(function(b){ return ((b.title||"")+" "+(b.ref||"")).toLowerCase(); });',
+    '    var loose=F.filter(function(f){',
+    '      if(!f.code) return true;',
+    '      var c=String(f.code).toLowerCase().replace(/\\s+/g,"");',
+    '      return !filed.some(function(t){ return t.replace(/\\s+/g,"").indexOf(c)>=0; });',
+    '    });',
+    '',
+    '    var stayFiled={};',
+    '    B.forEach(function(b){ if(typeof b.stay==="number") stayFiled[b.stay]=1; });',
+    '    var open=S.map(function(s,i){ return {s:s,i:i}; })',
+    '      .filter(function(x){ return !stayFiled[x.i]; });',
+    '',
+    '    var need=S.length+1, done=(S.length-open.length)+((B.length>loose.length||F.length)?1:0);',
+    '    if(done>need) done=need;',
+    '    var bars=""; for(var i=0;i<need;i++) bars+=\'<i class="\'+(i<done?"on":"")+\'"></i>\';',
+    '    var h=\'<div class="bksum"><div class="top"><b>\'+done+\' of \'+need+\' sorted</b>\'+',
+    '      \'<span>\'+(need-done)+\' left</span></div><div class="bkbar">\'+bars+\'</div></div>\';',
+    '',
+    '    if(B.length||loose.length){',
+    '      h+=\'<div class="sect"><h2>Confirmed</h2></div>\';',
+    '      h+=B.map(bkCard).join("");',
+    '      h+=loose.map(function(f){',
+    '        return bkCard({kind:"flight",',
+    '          title:(f.from||"")+" \\u2192 "+(f.to||""),',
+    '          when:[f.date,f.dep].filter(Boolean).join(", "),',
+    '          where:f.code||"", ref:f.ref||""});',
     '      }).join("");',
     '    } else {',
-    '      h+=\'<div class="bkempty"><span class="ico">\'+SHELLI.plane+\'</span>\'+',
-    '        \'<b>No flights yet</b><p>Send me the confirmation in the chat \\u2014 a screenshot, \'+',
-    '        \'the PDF or a forwarded email. I will read the times off it and rebuild the days \'+',
-    '        \'around your real arrival.</p></div>\';',
+    '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
+    '        \'<b>Nothing filed yet</b><p>Forward me a confirmation in the chat \\u2014 an email, \'+',
+    '        \'a screenshot, a PDF, or just the reference typed out. I will read it, keep it here, \'+',
+    '        \'and fit the days around the real times.</p></div>\';',
     '    }',
     '',
-    '    h+=\'<div class="sect"><h2>\'+(S.length===1?"Stay":"Stays")+\'</h2></div>\';',
-    '    h+=S.map(function(s){',
-    '      return \'<div class="card" style="margin-bottom:9px"><div class="bkrow">\'+',
-    '        \'<span class="bkicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" \'+',
-    '        \'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9l9-5 9 5v11"/>\'+',
-    '        \'<path d="M9 20v-6h6v6"/></svg></span><div class="bkbody"><b>\'+esc(s.n||"")+\'</b>\'+',
-    '        \'<div class="bkmeta">\'+esc([s.dates,s.nights,(s.ci?"check in "+s.ci:"")].filter(Boolean).join(" \\u00b7 "))+\'</div>\'+',
-    '        \'<span class="bktag \'+(s.draft?"no":"ok")+\'">\'+(s.draft?"Not booked":"Booked")+\'</span>\'+',
-    '        \'</div></div></div>\';',
-    '    }).join("");',
+    '    if(open.length){',
+    '      h+=\'<div class="sect"><h2>Still to sort</h2></div>\';',
+    '      h+=open.map(function(x){',
+    '        var s=x.s;',
+    '        var m=[s.dates,s.nights].filter(Boolean).join(" \\u00b7 ");',
+    '        return \'<div class="card" style="margin-bottom:9px"><div class="bkrow">\'+',
+    '          \'<span class="bkicon soft">\'+bkIcon("stay")+\'</span><div class="bkbody"><b>\'+',
+    '          esc(s.n||"")+\'</b>\'+(m?\'<div class="bkmeta">\'+esc(m)+\'</div>\':"")+',
+    '          \'<span class="bktag \'+(s.draft?"no":"ok")+\'">\'+',
+    '          (s.draft?"Not booked":"No confirmation filed")+\'</span></div></div></div>\';',
+    '      }).join("");',
+    '      h+=\'<p class="bkask">Booked one of these? Send it to me in the chat and it moves up there.</p>\';',
+    '    }',
     '    el.innerHTML=h;',
     '  }',
+    '',
+    // Copy is the point of the reference, so it says so afterwards rather than
+    // leaving you wondering whether the tap did anything.
+    '  document.addEventListener("click",function(e){',
+    '    var b=e.target.closest && e.target.closest(".bkref"); if(!b) return;',
+    '    var v=b.getAttribute("data-copy")||"";',
+    '    var say=function(){ var c=b.querySelector(".cp"); if(!c) return;',
+    '      c.textContent="Copied"; b.classList.add("done");',
+    '      setTimeout(function(){ c.textContent="Copy"; b.classList.remove("done"); },1600); };',
+    '    if(navigator.clipboard && navigator.clipboard.writeText){',
+    '      navigator.clipboard.writeText(v).then(say,function(){});',
+    '    } else {',
+    '      var t=document.createElement("textarea"); t.value=v; document.body.appendChild(t);',
+    '      t.select(); try{ document.execCommand("copy"); say(); }catch(err){} t.remove();',
+    '    }',
+    '  });',
+    '',
     '  renderBookings();',
     '',
-  ].join('\n'), 'bookings renderer');
+  ].join('\n');
+
+  insertBefore('  function reduce(){', BOOKINGS_JS, 'bookings renderer');
 
 
   // --- the route map ---------------------------------------------------------
