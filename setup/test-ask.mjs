@@ -117,6 +117,67 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 
+
+// --- telling it you have booked something, from the list itself -------------
+//
+// raffy, 2026-09-01: "the only way is for user to confirm via chat, so user
+// need to navigate back to chat on different page (in mobile ) and have to keep
+// referring to the still to do section right."
+//
+// The loop was: read the row, leave for the chat, lose the row, describe it
+// from memory, come back to check. The row is where you say so now.
+{
+  const ctx = await browser.newContext({ viewport: { width: 900, height: 900 } });
+  const sent2 = [];
+  await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_B' } }));
+  await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: [{ role: 'user', text: 'hi', id: 'u1' }],
+    itinerary: REAL, plan: {}, agentEdits: [], memoryOps: [],
+    building: false, thinking: false, turns: 1 } }));
+  await ctx.route('**/api/send', (r) => { sent2.push(JSON.parse(r.request().postData() || '{}')); r.fulfill({ json: { ok: true } }); });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('itin.session.v1', 'sesn_B'));
+  await page.goto(B, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  const frame = page.frameLocator('iframe[title="Itinerary preview"]');
+  await frame.locator('#nav button[data-view="book"]').click();
+  await page.waitForTimeout(500);
+
+  console.log('');
+  const done = frame.locator('.tddone');
+  ok('every outstanding row can be ticked off', (await done.count()) > 0, (await done.count()) + ' rows');
+  ok('and it says what it does', (await done.first().innerText()).trim() === 'Done it');
+
+  await done.first().click();
+  await page.waitForTimeout(400);
+  ok('it opens over the list, not in another page', (await page.locator('.dock').count()) === 1);
+  ok('the trip is still on screen', await page.locator('.phone iframe').isVisible());
+  // The label is an instruction until it is done, at which point its verb is
+  // in the way: "Booked: Book the flights" reads like a stutter.
+  const bl = await page.locator('.dock .dwhat b').innerText();
+  ok('and it names what you booked', /^Booked: /.test(bl), bl);
+  ok('without stuttering the verb', !/^Booked: (Book|Confirm) /i.test(bl), bl);
+  ok('asking for the reference, not requiring it',
+     /reference|confirmation/i.test(await page.locator('.dock textarea').getAttribute('placeholder')));
+
+  // "I have booked it" is already a complete instruction, so an empty send is
+  // allowed here — unlike "change this", which is a question with no question.
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  ok('sending with nothing typed still works', sent2.length === 1, JSON.stringify(sent2.map((x) => x.text)));
+  ok('and asks for both halves of the job',
+     /booked this/i.test((sent2[0] || {}).text || '') && /tick it off/i.test((sent2[0] || {}).text || ''),
+     (sent2[0] || {}).text);
+  ok('naming the thing, not the instruction',
+     !/booked this: (Book|Confirm) /i.test((sent2[0] || {}).text || ''), (sent2[0] || {}).text);
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

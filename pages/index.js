@@ -290,11 +290,16 @@ export default function Home() {
       // Bouncing to the chat to type one sentence loses the thing you were
       // looking at, which is the whole context of the change. The composer
       // comes to the trip instead, as a dock over the bottom of it.
-      setDock({ what: ask.what, when: ask.when || '', sending: false });
+      setDock({ what: ask.what, when: ask.when || '', kind: ask.kind || 'change', sending: false });
     };
     window.addEventListener('message', onAsk);
     return () => window.removeEventListener('message', onAsk);
   }, []);
+
+  // Task labels start with a verb because they are instructions to do
+  // something. Once it is done, the verb is in the way: "Booked: Book the
+  // flights" reads like a stutter.
+  const thing = (what) => String(what || '').replace(/^(book|confirm|sort|apply for)\s+/i, '');
 
   const dockRef = useRef(null);
   // What the agent last said, trimmed to something that fits a dock. The point
@@ -886,13 +891,26 @@ export default function Home() {
 
         <section className={'pane' + (sheet ? ' open' : '')}>
           <div className="panehead">
-            <button className="back" onClick={() => setSheet(false)} aria-label="Back to chat">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 6l-6 6 6 6" />
+            {/* Both say where they go, not which direction they point. A
+                chevron means "back" and leaves you to remember back to what;
+                the bubble is the conversation you came from and the one you
+                return to when something needs changing. */}
+            <button className="back" onClick={() => setSheet(false)} aria-label="Back to the chat" title="Back to the chat">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H7l-4 3v-6.6A8.5 8.5 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8.5z" />
               </svg>
             </button>
             <span>{title || 'Your itinerary'}</span>
-            {ready && <button className="dl" onClick={download}>Download</button>}
+            {ready && (
+              <button className="dl" onClick={download} aria-label="Save this trip to your phone"
+                title="Save this trip to your phone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5" /><path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* The Preview/Edit toggle is gone. Changing something is a button on
@@ -939,7 +957,7 @@ export default function Home() {
                       starts empty, so an unfinished ask cannot be sent. */}
                   {!dock.sending && (
                     <div className="dwhat">
-                      <b>{dock.what}</b>
+                      <b>{dock.kind === 'booked' ? 'Booked: ' + thing(dock.what) : dock.what}</b>
                       {dock.when && <span>{dock.when}</span>}
                     </div>
                   )}
@@ -958,11 +976,21 @@ export default function Home() {
                       onSubmit={(e) => {
                         e.preventDefault();
                         const t = (dockRef.current ? dockRef.current.value : '').trim();
-                        // Nothing to say, nothing to send. The agent cannot act
-                        // on "change this" with no change in it.
-                        if (!t) return;
-                        send('Change "' + dock.what + '"'
-                          + (dock.when ? ' on ' + dock.when : '') + ': ' + t);
+                        if (dock.kind === 'booked') {
+                          // "I have booked it" is already a complete
+                          // instruction, so this one can send with nothing
+                          // typed. A reference, a date or a pasted email just
+                          // makes the record better.
+                          send('I have booked this: ' + thing(dock.what) + '.'
+                            + (t ? ' ' + t : '')
+                            + ' File it and tick it off my list.');
+                        } else {
+                          // "Change this" with no change in it is not something
+                          // the agent can act on.
+                          if (!t) return;
+                          send('Change "' + dock.what + '"'
+                            + (dock.when ? ' on ' + dock.when : '') + ': ' + t);
+                        }
                         setDock({ ...dock, sending: true });
                       }}
                     >
@@ -970,7 +998,9 @@ export default function Home() {
                         ref={dockRef}
                         rows={2}
                         autoFocus
-                        placeholder="Make it later? Somewhere else? Drop it?"
+                        placeholder={dock.kind === 'booked'
+                          ? 'Paste the reference or the confirmation email — or just send.'
+                          : 'Make it later? Somewhere else? Drop it?'}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
@@ -1357,14 +1387,19 @@ export default function Home() {
           font-weight:700;font-size:14.5px;flex:none;
         }
         .panehead span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .back{display:none;border:0;background:none;padding:6px;cursor:pointer;color:var(--ink)}
-        .back svg{width:22px;height:22px;display:block}
-        .dl{
-          border:0;background:var(--deep);color:#EAF2EC;font-size:13px;font-weight:600;
-          padding:9px 16px;border-radius:99px;cursor:pointer;flex:none;
-          transition:transform 160ms var(--e);
+        /* Both header buttons are the same object: a round tap target with an
+           icon in it, one on each end of the title. Matching them stops the
+           header reading as a control and a shouty call to action. */
+        .back, .dl{
+          display:grid;place-items:center;flex:none;width:38px;height:38px;
+          border:0;border-radius:50%;cursor:pointer;
+          transition:transform 160ms var(--e), background 160ms;
         }
-        .dl:active{transform:scale(.95)}
+        .back{display:none;background:var(--sage);color:var(--deep)}
+        .dl{background:var(--sage);color:var(--deep)}
+        .back svg, .dl svg{width:19px;height:19px;display:block}
+        .back:active, .dl:active{transform:scale(.92)}
+        .dl:hover{background:var(--deep);color:#EAF2EC}
         .seg{
           display:flex;align-items:center;gap:6px;flex:none;
           background:var(--sage);border-radius:99px;padding:4px;margin-bottom:12px;
@@ -1424,7 +1459,7 @@ export default function Home() {
             transform:translateY(100%);transition:transform 320ms var(--e);
           }
           .pane.open{transform:none}
-          .back{display:block}
+          .back{display:grid}
           .hidden-m{display:none}
           .done .new{
           margin-left:8px;font-style:normal;font-size:10px;font-weight:800;
