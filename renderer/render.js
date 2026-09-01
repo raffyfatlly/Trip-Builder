@@ -897,6 +897,41 @@ export function render(T, templateSrc) {
     '',
   ].join('\n'), 'route map renderer');
 
+
+  // --- no idea gets silently dropped -----------------------------------------
+  //
+  // raffy, 2026-09-01: "the ideas nearby tab, has nothing under ideas nearby.
+  // maybe there we can put all the ideas to explore of the trip."
+  //
+  // The template renders ideas strictly inside AREAS.forEach, matching each
+  // idea to an area key. Phu Quoc has four hand-written areas so every idea
+  // found a home. A generated trip often has none — his Italy trip has two
+  // ideas and zero areas — and the loop then produces nothing at all. The best
+  // research the agent does, rendered as an empty heading.
+  //
+  // So: keep the grouping when areas exist, and sweep up everything they
+  // missed underneath. A list that quietly drops its contents is worse than
+  // one with an ugly heading.
+  // Inserted before the decided-against box, matching it AFTER the renderer has
+  // rewritten it — the original Phu Quoc markup no longer exists by this point.
+  insertBefore("    h+=!(T.trip.declined && T.trip.declined.length)", [
+    "    (function(){",
+    "      var shown={};",
+    "      AREAS.forEach(function(a){",
+    "        IDEAS.forEach(function(d,i){ if(d.area===a.k) shown[i]=1; });",
+    "      });",
+    "      var rest=IDEAS.map(function(d,i){return i;}).filter(function(i){ return !shown[i]; });",
+    "      if(!rest.length) return;",
+    "      // Only call it 'more' when something was grouped above it.",
+    "      var any=Object.keys(shown).length;",
+    "      h+='<div class=\"arearow\"><h3>'+(any?'More to explore':'Worth a look')+",
+    "        '</h3><span class=\"ln\"></span><span class=\"near\">'+rest.length+' idea'+",
+    "        (rest.length===1?'':'s')+'</span></div>';",
+    "      rest.forEach(function(i){ h+=ideaCard(i); });",
+    "    })();",
+    '',
+  ].join('\n'), 'ungrouped ideas');
+
   // --- boot ------------------------------------------------------------------
 
   replaceOnce('  function reduce(){', '  renderShell();\n\n  function reduce(){', 'renderShell boot call');
