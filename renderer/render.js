@@ -564,6 +564,159 @@ export function render(T, templateSrc) {
     replaceOnce('<span>Map</span>', '<span>Ideas</span>', 'relabel map tab as Ideas');
   }
 
+  // Adding to the app, rather than doing surgery on it.
+  //
+  // Every helper above CHANGES something that is already there — find this
+  // markup, swap it. That is hopeless for adding a whole section: there is no
+  // Phu Quoc bookings tab to find and replace.
+  //
+  // So: insert at structural markers (</style>, </nav>, the tag that closes the
+  // view stack) rather than at content. Those are the load-bearing bones of any
+  // version of this template, unlike the prose the splices above match on.
+  //
+  // Everything here runs LAST, after every line-range replacement is done —
+  // those still address absolute line numbers, and inserting a single line
+  // above them silently shifts every block beneath. Late insertion sidesteps
+  // that entirely rather than trying to make 47 splices position-independent.
+  //
+  // Decided 2026-09-01, over rebuilding the app as composed parts: composition
+  // buys one property — cheap section-adding — for the price of dismantling
+  // 117k characters of finished design and rewriting all 47 splices. This buys
+  // the same property in an afternoon.
+  function insertBefore(find, html, label) {
+    const src = lines.join('\n');
+    const n = src.split(find).length - 1;
+    if (n !== 1) fail(label + ': marker ' + JSON.stringify(find) + ' found ' + n + ' times, expected 1');
+    lines = src.replace(find, html + find).split('\n');
+    applied++;
+  }
+
+  function insertAfter(find, html, label) {
+    const src = lines.join('\n');
+    const n = src.split(find).length - 1;
+    if (n !== 1) fail(label + ': marker ' + JSON.stringify(find) + ' found ' + n + ' times, expected 1');
+    lines = src.replace(find, find + html).split('\n');
+    applied++;
+  }
+
+
+  // --- the Bookings tab ------------------------------------------------------
+  //
+  // raffy, 2026-09-01: "it misses the handling the booking part... we need app
+  // that keep their flight bookings , hotel bookings etc. so they just open the
+  // app and everything is kept nicely for them in there."
+  //
+  // Nothing new is stored yet. This re-presents what the trip already knows —
+  // flights, stays, and which of them are still drafts — as the one place you
+  // look on the morning you travel. It is the tab that has to work offline, at
+  // a counter, at 6am.
+
+  insertBefore('</style>', [
+    '  .bk h2{font-size:23px;font-weight:700}',
+    '  .bkhead{padding:calc(14px + env(safe-area-inset-top)) 0 4px}',
+    '  .bksub{margin:9px 0 0;font-size:14.5px;color:var(--ink-soft);max-width:34ch}',
+    '  .bkrow{display:flex;gap:13px;align-items:flex-start}',
+    '  .bkicon{width:52px;height:52px;border-radius:15px;flex:none;display:grid;place-items:center;background:var(--sage);color:var(--deep)}',
+    '  .bkicon svg{width:21px;height:21px}',
+    '  .bkbody{flex:1;min-width:0}',
+    '  .bkbody b{display:block;font-family:\'Outfit\',sans-serif;font-size:16.5px;font-weight:700;letter-spacing:-.01em}',
+    '  .bkmeta{font-size:12.5px;color:var(--ink-faint);margin-top:3px;line-height:1.45}',
+    '  .bktag{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:4px 9px;border-radius:var(--r-pill);font-size:10.5px;font-weight:750;letter-spacing:.03em;text-transform:uppercase}',
+    '  .bktag.ok{background:#DCEBE1;color:#155C3C}',
+    '  .bktag.no{background:#FCE6D8;color:var(--coral-text)}',
+    '  .bkref{display:flex;align-items:center;gap:9px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line)}',
+    '  .bkref .k{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint)}',
+    '  .bkref .v{font-family:\'Outfit\',sans-serif;font-size:15px;font-weight:700;letter-spacing:.02em}',
+    '  .bkempty{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:22px 18px;text-align:center}',
+    '  .bkempty .ico{width:44px;height:44px;border-radius:14px;background:var(--sage);color:var(--deep);display:grid;place-items:center;margin:0 auto 12px}',
+    '  .bkempty .ico svg{width:20px;height:20px}',
+    '  .bkempty b{display:block;font-family:\'Outfit\',sans-serif;font-size:17px;font-weight:700}',
+    '  .bkempty p{margin:7px 0 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}',
+    '  .bksum{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:16px 17px 14px;margin-top:14px}',
+    '  .bksum .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}',
+    '  .bksum .top b{font-family:\'Outfit\',sans-serif;font-size:16.5px;font-weight:700}',
+    '  .bksum .top span{font-size:12.5px;color:var(--ink-faint);font-weight:600}',
+    '  .bkbar{display:flex;gap:3px;margin-top:12px}',
+    '  .bkbar i{height:5px;flex:1;border-radius:99px;background:var(--sage)}',
+    '  .bkbar i.on{background:var(--deep)}',
+    '',
+  ].join('\n'), 'bookings css');
+
+  // After the </section> that closes the day view, not before it — the first
+  // version of this marker swallowed the closing tag and nested Bookings inside
+  // Days, so it inherited [hidden] and rendered at zero height while insisting
+  // it was visible.
+  insertBefore('\n</div>\n\n<nav class="nav"', [
+    '',
+    '  <!-- ================= BOOKINGS ================= -->',
+    '  <section class="view bk" id="v-book" hidden>',
+    '    <div class="bkhead">',
+    '      <span class="eyebrow">Bookings</span>',
+    '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">Everything in one place</h1>',
+    '      <p class="bksub">References and times, and what is still outstanding.</p>',
+    '    </div>',
+    '    <div id="bookings"></div>',
+    '  </section>',
+    '',
+  ].join('\n'), 'bookings view');
+
+  insertBefore('</nav>', [
+    '  <button data-view="book" aria-selected="false">',
+    '    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>',
+    '    <span>Bookings</span>',
+    '  </button>',
+    '',
+  ].join('\n'), 'bookings nav button');
+
+  insertAfter("var views={trip:document.getElementById('v-trip'),map:document.getElementById('v-map'),days:document.getElementById('v-days')};",
+    "\n  views.book=document.getElementById('v-book');", 'register bookings view');
+
+  // Rendered from the trip itself. A stay with `draft` set is one they have not
+  // committed to, which is exactly the thing this tab exists to surface.
+  insertBefore('  function reduce(){', [
+    '  function renderBookings(){',
+    '    var el=document.getElementById("bookings"); if(!el) return;',
+    '    var F=(T.trip.flights||[]), S=(T.stays||[]);',
+    '    var booked=S.filter(function(s){return !s.draft;}).length + (F.length?1:0);',
+    '    var total=S.length + 1;',
+    '    var bars=""; for(var i=0;i<total;i++) bars+=\'<i class="\'+(i<booked?"on":"")+\'"></i>\';',
+    '    var h=\'<div class="bksum"><div class="top"><b>\'+booked+\' of \'+total+\' sorted</b>\'+',
+    '      \'<span>\'+(total-booked)+\' left</span></div><div class="bkbar">\'+bars+\'</div></div>\';',
+    '',
+    '    h+=\'<div class="sect"><h2>Flights</h2>\'+(F.length?\'\':\'<span class="note">Not booked</span>\')+\'</div>\';',
+    '    if(F.length){',
+    '      h+=F.map(function(f){',
+    '        return \'<div class="card" style="margin-bottom:9px"><div class="bkrow">\'+',
+    '          \'<span class="bkicon">\'+SHELLI.plane+\'</span><div class="bkbody"><b>\'+',
+    '          esc(f.from||"")+\' \\u2192 \'+esc(f.to||"")+\'</b><div class="bkmeta">\'+',
+    '          esc([f.date,f.dep,f.code].filter(Boolean).join(" \\u00b7 "))+\'</div>\'+',
+    '          \'<span class="bktag ok">Booked</span></div></div>\'+',
+    '          (f.ref?\'<div class="bkref"><span class="k">Ref</span><span class="v">\'+esc(f.ref)+\'</span></div>\':\'\')+',
+    '          \'</div>\';',
+    '      }).join("");',
+    '    } else {',
+    '      h+=\'<div class="bkempty"><span class="ico">\'+SHELLI.plane+\'</span>\'+',
+    '        \'<b>No flights yet</b><p>Send me the confirmation in the chat \\u2014 a screenshot, \'+',
+    '        \'the PDF or a forwarded email. I will read the times off it and rebuild the days \'+',
+    '        \'around your real arrival.</p></div>\';',
+    '    }',
+    '',
+    '    h+=\'<div class="sect"><h2>\'+(S.length===1?"Stay":"Stays")+\'</h2></div>\';',
+    '    h+=S.map(function(s){',
+    '      return \'<div class="card" style="margin-bottom:9px"><div class="bkrow">\'+',
+    '        \'<span class="bkicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" \'+',
+    '        \'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9l9-5 9 5v11"/>\'+',
+    '        \'<path d="M9 20v-6h6v6"/></svg></span><div class="bkbody"><b>\'+esc(s.n||"")+\'</b>\'+',
+    '        \'<div class="bkmeta">\'+esc([s.dates,s.nights,(s.ci?"check in "+s.ci:"")].filter(Boolean).join(" \\u00b7 "))+\'</div>\'+',
+    '        \'<span class="bktag \'+(s.draft?"no":"ok")+\'">\'+(s.draft?"Not booked":"Booked")+\'</span>\'+',
+    '        \'</div></div></div>\';',
+    '    }).join("");',
+    '    el.innerHTML=h;',
+    '  }',
+    '  renderBookings();',
+    '',
+  ].join('\n'), 'bookings renderer');
+
   // --- boot ------------------------------------------------------------------
 
   replaceOnce('  function reduce(){', '  renderShell();\n\n  function reduce(){', 'renderShell boot call');
