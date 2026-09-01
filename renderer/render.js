@@ -763,8 +763,11 @@ export function render(T, templateSrc) {
     '  .rmap svg{position:absolute;inset:0;width:100%;height:100%}',
     '  .rmap svg g.pin{cursor:pointer}',
     '  .rmap svg g.pin:active{opacity:.7}',
-    '  .rmap .rcap{position:absolute;left:12px;bottom:11px;font-size:11px;font-weight:600;',
-    '    color:var(--ink-soft);background:rgba(255,255,255,.88);padding:5px 10px;border-radius:var(--r-pill)}',
+    // Top-left, not bottom-left. Google bakes its logo into the bottom-left of
+    // every static map and their terms require it stay visible — the caption
+    // was sitting straight on top of it.
+    '  .rmap .rcap{position:absolute;left:11px;top:10px;font-size:10.5px;font-weight:650;',
+    '    color:var(--ink-soft);background:rgba(255,255,255,.86);padding:4px 9px;border-radius:var(--r-pill)}',
     '  .rmap .hint{position:absolute;right:10px;top:10px;font-size:10.5px;font-weight:650;',
     '    color:var(--ink-soft);background:rgba(255,255,255,.86);padding:4px 9px;border-radius:var(--r-pill)}',
     '  .rlegend{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}',
