@@ -89,6 +89,72 @@ await ctx.close();
   await c2.close();
 }
 
+// --- who's coming, when the profile already knows -------------------------
+//
+// raffy, 2026-09-01: "if profile have been saved can give the option from the
+// saved info for easy click so no need to fill if same info."
+{
+  const c4 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  let sent4 = null;
+  await c4.addInitScript(() => {
+    localStorage.setItem('itin.memory.v1', JSON.stringify({
+      v: 1, at: Date.now(), name: 'Aisyah',
+      people: [
+        { name: 'Aisyah' },
+        { name: 'Adam', bornAbout: 2020 },
+        { name: 'Nur', bornAbout: 2023 },
+      ],
+    }));
+  });
+  await c4.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_MEM' } }));
+  await c4.route('**/api/state**', (r) => r.fulfill({ json: state }));
+  await c4.route('**/api/send', (r) => { sent4 = JSON.parse(r.request().postData()); r.fulfill({ json: { ok: true } }); });
+  const p4 = await c4.newPage();
+  p4.on('pageerror', (e) => errs.push(e.message));
+  await p4.goto(B, { waitUntil: 'networkidle' });
+  await p4.waitForTimeout(1300);
+
+  await p4.locator('.obchip:has-text("Da Nang")').click();
+  await p4.locator('.obnext').click();
+  await p4.waitForTimeout(250);
+  await p4.locator('.obnext').click();          // dates: skipped
+  await p4.waitForTimeout(300);
+
+  console.log('');
+  ok('the saved crew is offered', (await p4.locator('.obchip.person').count()) === 3);
+  ok('and nobody has to be typed in', (await p4.locator('.whorow').count()) === 0);
+  ok('everyone starts included', (await p4.locator('.obchip.person.on').count()) === 3);
+  // The age is stored as a birth year, so it moves on its own.
+  ok('ages are counted forward, not remembered stale',
+     (await p4.locator('.obchip.person:has-text("Adam")').innerText()).includes(String(new Date().getUTCFullYear() - 2020)));
+  await p4.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/onboard-saved.png' });
+
+  // One tap is enough to leave someone at home.
+  await p4.locator('.obchip.person:has-text("Nur")').click();
+  await p4.waitForTimeout(150);
+  ok('tapping one takes them off', (await p4.locator('.obchip.person.on').count()) === 2);
+  ok('and they are still offered back', (await p4.locator('.obchip.person').count()) === 3);
+  await p4.locator('.obchip.person:has-text("Nur")').click();
+  await p4.waitForTimeout(150);
+  ok('tapping again puts them back', (await p4.locator('.obchip.person.on').count()) === 3);
+  await p4.locator('.obchip.person:has-text("Nur")').click();
+  await p4.waitForTimeout(150);
+
+  // Someone new still works alongside the saved ones.
+  await p4.locator('.addwho').click();
+  await p4.waitForTimeout(150);
+  await p4.locator('.whorow input').first().fill('Mak');
+  await p4.locator('.obnext').click();
+  await p4.waitForTimeout(250);
+  await p4.locator('.obnext').click();
+  await p4.waitForTimeout(700);
+
+  const t4 = (sent4 || {}).text || '';
+  ok('the seed names who is actually coming', /Aisyah, Adam \(\d+\), Mak/.test(t4), t4);
+  ok('and leaves out who is not', !t4.includes('Nur'), t4);
+  await c4.close();
+}
+
 // --- the checklist ---------------------------------------------------------
 {
   const c3 = await browser.newContext({ viewport: { width: 390, height: 844 } });

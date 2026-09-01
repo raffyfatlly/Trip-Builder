@@ -641,6 +641,7 @@ export default function Home() {
         <section className={'chat' + (sheet ? ' hidden-m' : '')}>
           {onboarding ? (
             <Onboard
+              memory={memory}
               onStart={(seed) => { setSkipOb(true); send(seed); }}
               onSkip={() => { setSkipOb(true); setTimeout(() => inputRef.current?.focus(), 0); }}
             />

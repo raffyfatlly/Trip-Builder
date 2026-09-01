@@ -56,10 +56,19 @@ export default async function handler(req, res) {
   const q = new URLSearchParams({
     center: lat + ',' + lon,
     zoom: String(zoom),
-    // 640x480. Must match MW/MH and the .rmap aspect-ratio in
-    // renderer/render.js — the pins are drawn in this coordinate space, so a
-    // tile of a different shape puts every one of them in the wrong place.
-    size: '640x480',
+    // Portrait, because a phone is. raffy, 2026-09-01: "i want the map bigger
+    // like phu quoc style . looks nicer" — and the Phu Quoc map is a tall card
+    // that fills the screen, not a letterbox.
+    //
+    // 512 wide rather than 640 because Static Maps caps `size` at 640 in both
+    // directions, so height is the scarce one: 512x640 is the tallest shape
+    // available. scale=2 still delivers 1024x1280 real pixels into a ~354px
+    // card, which is more than sharp enough.
+    //
+    // Must match MW/MH and the .rmap aspect-ratio in renderer/render.js — the
+    // pins are drawn in this coordinate space, so a tile of a different shape
+    // puts every one of them in the wrong place.
+    size: '512x640',
     scale: '2',
     maptype: 'roadmap',
     key,

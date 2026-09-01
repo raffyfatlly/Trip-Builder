@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { STEPS, seedMessage } from '../lib/onboarding.js';
+import { ageNow } from '../lib/memory.js';
 
 // The few taps before the conversation starts.
 //
@@ -9,9 +10,45 @@ import { STEPS, seedMessage } from '../lib/onboarding.js';
 
 const blank = { destination: '', when: { start: '', end: '', rough: '' }, who: { list: [{ name: '', age: '' }] }, about: [] };
 
-export default function Onboard({ onStart, onSkip }) {
+export default function Onboard({ onStart, onSkip, memory }) {
   const [i, setI] = useState(0);
   const [a, setA] = useState(blank);
+
+  // Who they travelled with last time.
+  //
+  // raffy, 2026-09-01: "if profile have been saved can give the option from the
+  // saved info for easy click so no need to fill if same info."
+  //
+  // The profile already knows this and the ages move on their own, so typing
+  // the same four names again is work the app is asking for and not using. It
+  // is the same point memory.js opens with: the second trip should not start by
+  // asking who is coming, it should start by asking whether it is the same four
+  // of you. Everyone is on by default — the common case is one tap to nothing.
+  const saved = useMemo(() => (memory && memory.people ? memory.people : []).map((p) => {
+    const yrs = ageNow(p);
+    return { name: p.name, age: yrs == null ? '' : String(yrs), saved: true };
+  }).filter((p) => p.name), [memory]);
+
+  // Seeded once, and only while they have not touched the step — memory can
+  // arrive after this mounts, and re-seeding would undo their taps.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !saved.length) return;
+    seeded.current = true;
+    setA((p) => {
+      const list = p.who.list || [];
+      const blankOnly = list.length <= 1 && !(list[0] || {}).name && !(list[0] || {}).age;
+      return blankOnly ? { ...p, who: { ...p.who, list: saved.map((x) => ({ ...x })) } } : p;
+    });
+  }, [saved]);
+
+  const isOn = (name) => (a.who.list || []).some((p) => p.saved && p.name === name);
+  const toggle = (person) => set('who', {
+    ...a.who,
+    list: isOn(person.name)
+      ? a.who.list.filter((p) => !(p.saved && p.name === person.name))
+      : [...a.who.list, { ...person }],
+  });
   const step = STEPS[i];
   const last = i === STEPS.length - 1;
 
@@ -37,7 +74,11 @@ export default function Onboard({ onStart, onSkip }) {
 
       <div className="obbody" key={step.key}>
         <h1>{step.title}</h1>
-        <p className="obsub">{step.sub}</p>
+        <p className="obsub">
+          {step.key === 'who' && saved.length
+            ? 'Same as last time? Everyone is already in — take off anyone who is not coming.'
+            : step.sub}
+        </p>
 
         {step.type === 'text' && (
           <>
@@ -84,7 +125,25 @@ export default function Onboard({ onStart, onSkip }) {
 
         {step.type === 'who' && (
           <div className="who">
-            {(a.who.list || []).map((p, n) => (
+            {saved.length > 0 && (
+              <div className="saved">
+                <span className="savedlab">From your profile</span>
+                <div className="chiprow wrap">
+                  {saved.map((p) => (
+                    <button
+                      key={p.name}
+                      className={'obchip person' + (isOn(p.name) ? ' on' : '')}
+                      onClick={() => toggle(p)}
+                    >
+                      {p.name}{p.age ? <em>{p.age}</em> : null}
+                    </button>
+                  ))}
+                </div>
+                <p className="tiny">Tap anyone who isn't coming this time. Ages are counted forward, so correct one if it's off.</p>
+              </div>
+            )}
+
+            {(a.who.list || []).map((p, n) => p.saved ? null : (
               <div className="whorow" key={n}>
                 <input
                   placeholder={n === 0 ? 'Your name' : 'Name'}
@@ -116,7 +175,9 @@ export default function Onboard({ onStart, onSkip }) {
               onClick={() => set('who', { ...a.who, list: [...a.who.list, { name: '', age: '' }] })}>
               + Add someone
             </button>
-            <p className="tiny">Leave the age blank for adults.</p>
+            {(a.who.list || []).some((p) => !p.saved) && (
+              <p className="tiny">Leave the age blank for adults.</p>
+            )}
           </div>
         )}
 
@@ -190,6 +251,24 @@ export default function Onboard({ onStart, onSkip }) {
         }
         .obchip:active{transform:scale(.96)}
         .obchip.on{background:var(--deep);color:#EAF2EC}
+
+        /* A saved person is a chip with their age on it, so the whole step can
+           be read at a glance and answered without the keyboard opening. */
+        .saved{margin-bottom:18px}
+        .savedlab{
+          display:block;font-size:11px;font-weight:750;letter-spacing:.07em;
+          text-transform:uppercase;color:var(--ink-faint);margin-bottom:9px;
+        }
+        .obchip.person{display:inline-flex;align-items:center;gap:7px;padding:9px 13px}
+        .obchip.person em{
+          font-style:normal;font-size:11.5px;font-weight:750;line-height:1;
+          background:var(--sage);color:var(--deep);padding:4px 7px;border-radius:99px;
+        }
+        .obchip.person.on em{background:rgba(255,255,255,.17);color:#EAF2EC}
+        /* Off reads as taken off, not as never offered. */
+        .obchip.person:not(.on){opacity:.5;box-shadow:none;background:transparent;
+          outline:1.5px dashed var(--line);outline-offset:-1.5px}
+        .saved .tiny{margin-top:10px}
 
         .fields{display:flex;flex-wrap:wrap;gap:12px}
         .fields label{flex:1 1 140px;display:flex;flex-direction:column;gap:7px}

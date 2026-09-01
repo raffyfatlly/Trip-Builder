@@ -148,6 +148,60 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   ok('the pins survive it', (await page.locator('#routemap svg g').count()) === 2);
 }
 
+// A stay with a photo shows the photo, the way the Phu Quoc map does.
+//
+// raffy, 2026-09-01: "also possible to make map closer to how my phu quoc look?
+// like the no 1 and 2 is the image of the hotel .if possible."
+{
+  const withPics = {
+    ...REAL,
+    photos: { h1: 'https://pics.test/1.jpg', h2: 'https://pics.test/2.jpg' },
+    // One with a photo, one without: the second must keep the plain marker
+    // rather than showing a grey hole where a picture should be.
+    stays: [
+      { ...stay('Furama', 16.0296, 108.2497), photo: 'h1' },
+      { ...stay('Hoi An', 15.8801, 108.3380) },
+    ],
+  };
+  const { html } = render(withPics, tpl);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+  await page.route('https://pics.test/**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+  await serve(ctx, html);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.waitForTimeout(500);
+
+  console.log('');
+  ok('a stay with a photo is drawn as the photo',
+     (await page.locator('#routemap svg image').count()) === 1);
+  ok('and it is the stay photo, not a map tile',
+     (await page.locator('#routemap svg image').getAttribute('href')) === 'https://pics.test/1.jpg');
+  ok('it is round, not a square stuck on the map',
+     (await page.locator('#routemap svg clipPath circle').count()) === 1);
+  ok('a stay with no photo keeps its marker',
+     (await page.locator('#routemap svg g.pin').count()) === 2);
+  ok('both are still tappable', (await page.locator('#routemap svg g.pin[role=button]').count()) === 2);
+  // The frame has to make room for them, or the first stay sits half outside it.
+  const inside2 = await page.evaluate(() => {
+    const svg = document.querySelector('#routemap svg');
+    const vb = svg.viewBox.baseVal;
+    return Array.from(svg.querySelectorAll('g.pin')).every((g) => {
+      const m = /translate\(([-\d.]+),([-\d.]+)\)/.exec(g.getAttribute('transform') || '');
+      const x = +m[1], y = +m[2];
+      return x > 40 && y > 40 && x < vb.width - 40 && y < vb.height - 40;
+    });
+  });
+  ok('and keeps them clear of the edges', inside2 === true);
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  await page.screenshot({ path: 'shots/routemap-photos.png' });
+  await ctx.close();
+}
+
 // Tapping a stop opens that stay.
 {
   const { html } = render({ ...REAL, stays: TRIPS['two cities'] }, tpl);

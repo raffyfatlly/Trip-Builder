@@ -845,10 +845,13 @@ export function render(T, templateSrc) {
     // must never collapse the map — that looked exactly like the feature was
     // missing, and cost an evening.
     '  .rmap{position:relative;border-radius:var(--r-card);overflow:hidden;box-shadow:var(--sh-s);',
-    '    background:var(--sage);aspect-ratio:640/480}',
+    '    background:var(--sage);aspect-ratio:512/640}',
     '  .rmap img.ground{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}',
     '  .rmap svg{position:absolute;inset:0;width:100%;height:100%}',
     '  .rmap svg g.pin{cursor:pointer}',
+    // Lifts the markers off the ground the way the Phu Quoc map does — without
+    // it a photo circle reads as a hole cut in the map rather than a pin on it.
+    '  .rmap svg g.pin{filter:drop-shadow(0 2px 5px rgba(12,36,27,.28))}',
     '  .rmap svg g.pin:active{opacity:.7}',
     // The map carried two floating captions, "In order" and "Tap a stop".
     // raffy, 2026-09-01: "remove tap a stop and in order from map. make the map
@@ -865,7 +868,7 @@ export function render(T, templateSrc) {
 
   insertBefore('  function reduce(){', [
     '  // Web Mercator, so a pin lands where the tiles actually put the place.',
-    '  var TILE=256, MW=640, MH=480;',   // matches size= in pages/api/map.js
+    '  var TILE=256, MW=512, MH=640;',   // matches size= in pages/api/map.js
     '  function merc(lat,lon,z){',
     '    var s=TILE*Math.pow(2,z), sl=Math.sin(lat*Math.PI/180);',
     '    return { x:(lon+180)/360*s, y:(0.5-Math.log((1+sl)/(1-sl))/(4*Math.PI))*s };',
@@ -889,11 +892,17 @@ export function render(T, templateSrc) {
     '  function renderRouteMap(){',
     '    var host=document.getElementById("routemap"); if(!host) return;',
     '    var pts=(T.stays||[]).map(function(s,i){',
-    '      return { i:i+1, n:s.short||s.n||"", lat:+s.lat, lon:+s.lon };',
+    '      // The photo, not shotFor: shotFor falls back to a Wikimedia tile,',
+    '      // and a map tile inside a pin ON a map is nonsense. No photo simply',
+    '      // means the numbered dot.',
+    '      return { i:i+1, n:s.short||s.n||"", lat:+s.lat, lon:+s.lon,',
+    '        pic:(s.photo&&P[s.photo])?P[s.photo]:"" };',
     '    }).filter(function(p){ return isFinite(p.lat)&&isFinite(p.lon); });',
     '    if(!pts.length){ host.remove(); return; }',
     '',
-    '    var PAD=76;',
+    '    // A photo marker is 68 units across before its label, so the frame',
+    '    // has to keep more room at the edges or the first stay is half off it.',
+    '    var PAD=pts.some(function(p){return p.pic;})?96:76;',
     '    var lats=pts.map(function(p){return p.lat;}), lons=pts.map(function(p){return p.lon;});',
     '    var cLat=(Math.min.apply(null,lats)+Math.max.apply(null,lats))/2;',
     '    var cLon=(Math.min.apply(null,lons)+Math.max.apply(null,lons))/2;',
@@ -913,7 +922,7 @@ export function render(T, templateSrc) {
     '    var c=merc(cLat,cLon,z), left=c.x-MW/2, top=c.y-MH/2, n=Math.pow(2,z);',
     '    var xy=pts.map(function(p){',
     '      var m=merc(p.lat,p.lon,z);',
-    '      return { i:p.i, n:p.n, x:m.x-left, y:m.y-top };',
+    '      return { i:p.i, n:p.n, pic:p.pic, x:m.x-left, y:m.y-top };',
     '    });',
     '',
     '    // One styled image from our own endpoint, so the Google key never',
@@ -928,27 +937,53 @@ export function render(T, templateSrc) {
     '    var line="";',
     '    if(xy.length>1){',
     '      var d=curve(xy);',
-    '      // A soft casing under the dashes so the route stays readable over',
-    '      // both pale sea and dense streets.',
-    '      line=\'<path d="\'+d+\'" fill="none" stroke="#FFFFFF" stroke-width="7" \'+',
-    '        \'stroke-linecap="round" opacity=".7"/>\'+',
-    '        \'<path d="\'+d+\'" fill="none" stroke="#10362A" stroke-width="3" \'+',
-    '        \'stroke-linecap="round" stroke-dasharray="1 9" opacity=".75"/>\';',
+    '      // Solid coral over a white casing, the way the Phu Quoc map draws it.',
+    '      // The dotted dark version read as a hint rather than a route, and it',
+    '      // disappeared over dense streets at the zoom a city trip uses.',
+    '      line=\'<path d="\'+d+\'" fill="none" stroke="#FFFFFF" stroke-width="9" \'+',
+    '        \'stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>\'+',
+    '        \'<path d="\'+d+\'" fill="none" stroke="#EE7B45" stroke-width="4.5" \'+',
+    '        \'stroke-linecap="round" stroke-linejoin="round"/>\';',
     '    }',
     '',
+    // A stay with a photo shows the photo, the way the Phu Quoc map does.
+    //
+    // raffy, 2026-09-01: "also possible to make map closer to how my phu quoc
+    // look? like the no 1 and 2 is the image of the hotel .if possible."
+    //
+    // A picture of the place you are staying tells you more at a glance than a
+    // numbered dot ever will, and it is the thing that makes his map read as
+    // drawn rather than generated. Anything without a photo keeps the dot — a
+    // grey placeholder circle would be worse than the honest small marker.
     '    var pins=xy.map(function(q){',
-    '      // Below the pin, not beside it. Beside means the label runs straight',
-    '      // into the next stop along the route, which is exactly where the next',
-    '      // pin tends to be. Below is clear unless the pin is near the bottom.',
-    '      var below = q.y < MH-42;',
+    '      var R=q.pic?30:12.5;',
+    '      // Below the marker, not beside it. Beside means the label runs',
+    '      // straight into the next stop along the route, which is exactly',
+    '      // where the next pin tends to be. Below is clear unless the marker',
+    '      // is near the bottom.',
+    '      var below = q.y < MH-(R+30);',
+    '      var head;',
+    '      if(q.pic){',
+    '        head=\'<clipPath id="pc\'+q.i+\'"><circle r="\'+R+\'"/></clipPath>\'+',
+    '          \'<circle r="\'+(R+4)+\'" fill="#FFFFFF"/>\'+',
+    '          \'<image href="\'+q.pic+\'" x="-\'+R+\'" y="-\'+R+\'" width="\'+(R*2)+\'" \'+',
+    '          \'height="\'+(R*2)+\'" preserveAspectRatio="xMidYMid slice" \'+',
+    '          \'clip-path="url(#pc\'+q.i+\')"/>\'+',
+    '          (xy.length>1?\'<circle cx="\'+(R-4)+\'" cy="-\'+(R-4)+\'" r="13" fill="#10362A" \'+',
+    '            \'stroke="#FFFFFF" stroke-width="2.5"/>\'+',
+    '            \'<text x="\'+(R-4)+\'" y="-\'+(R-9)+\'" text-anchor="middle" \'+',
+    '            \'font-family="Outfit,sans-serif" font-size="14" font-weight="800" \'+',
+    '            \'fill="#EAF2EC">\'+q.i+\'</text>\':\'\');',
+    '      } else {',
+    '        head=\'<circle r="19" fill="#EE7B45" opacity=".18"/>\'+',
+    '          \'<circle r="12.5" fill="#EE7B45" stroke="#FFFFFF" stroke-width="3"/>\'+',
+    '          (xy.length>1?\'<text y="4.5" text-anchor="middle" font-family="Outfit,sans-serif" \'+',
+    '            \'font-size="13" font-weight="800" fill="#3A1405">\'+q.i+\'</text>\':\'\');',
+    '      }',
     '      return \'<g class="pin" data-stay="\'+(q.i-1)+\'" role="button" tabindex="0" \'+',
     '        \'aria-label="\'+esc(q.n)+\'" transform="translate(\'+q.x.toFixed(1)+\',\'+q.y.toFixed(1)+\')">\'+',
-    '        \'<circle r="26" fill="transparent"/>\'+',
-    '        \'<circle r="19" fill="#EE7B45" opacity=".18"/>\'+',
-    '        \'<circle r="12.5" fill="#EE7B45" stroke="#FFFFFF" stroke-width="3"/>\'+',
-    '        (xy.length>1?\'<text y="4.5" text-anchor="middle" font-family="Outfit,sans-serif" \'+',
-    '          \'font-size="13" font-weight="800" fill="#3A1405">\'+q.i+\'</text>\':\'\')+',
-    '        \'<text x="0" y="\'+(below?32:-22)+\'" text-anchor="middle" \'+',
+    '        \'<circle r="\'+(R+8)+\'" fill="transparent"/>\'+head+',
+    '        \'<text x="0" y="\'+(below?R+20:-(R+10))+\'" text-anchor="middle" \'+',
     '          \'font-family="Outfit,sans-serif" font-size="14" font-weight="700" \'+',
     '          \'stroke="#FFFFFF" stroke-width="4" paint-order="stroke" fill="#0C241B">\'+',
     '          esc(q.n)+\'</text>\'+',
