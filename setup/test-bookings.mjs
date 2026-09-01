@@ -75,6 +75,20 @@ async function open(T, perms) {
   ok('the nav has four tabs', await page.locator('#nav button').count() === 4);
   // raffy, 2026-09-01: "first todo, then explore, them day, last is trip" —
   // left to right, the order things actually happen.
+  // raffy, 2026-09-01: "should we make it cleaner... so content of our app gets
+  // clearer." The island stays; the translucency goes. Text sliding behind a
+  // 93%-opaque blur came out HALF legible, which reads as a rendering fault
+  // rather than as a layer, and a gradient scrim cannot fix it either — on the
+  // dark trip card a fade tuned to the page background is a light smear.
+  const navStyle = await page.locator('#nav').evaluate((n) => {
+    const s = getComputedStyle(n);
+    return { bg: s.backgroundColor, blur: s.backdropFilter };
+  });
+  ok('the bar hides what passes behind it', !/rgba\(/.test(navStyle.bg), navStyle.bg);
+  ok('with no blur left to half-show it', navStyle.blur === 'none', navStyle.blur);
+  ok('and the page ends clear of it',
+     parseInt(await page.locator('.view').first().evaluate((v) => getComputedStyle(v).paddingBottom), 10) >= 130);
+
   ok('in the order the trip happens',
      (await page.locator('#nav button').evaluateAll((b) => b.map((x) => x.getAttribute('data-view')))).join(',')
        === 'book,map,days,trip');

@@ -922,13 +922,40 @@ export function render(T, templateSrc) {
     '    // The day chip shouts THU because it is a chip. A sentence should not.',
     '    var when = d ? (d.dow.charAt(0) + d.dow.slice(1).toLowerCase() + " " + d.dom) : "";',
     '    try {',
+    '      // What they tapped, not a sentence with a colon hanging off it.',
+    '      // The chat shows it as a label and keeps the box empty, so sending',
+    '      // an unfinished instruction is not possible.',
     '      window.parent.postMessage({',
-    '        tripAsk: \'Change "\' + b.getAttribute("data-ask") + \'"\' + (when ? " on " + when : "") + ": ",',
+    '        tripAsk: { what: b.getAttribute("data-ask"), when: when },',
     '      }, "*");',
     '    } catch (err) { /* standalone: there is nobody to ask */ }',
     '  });',
     '',
   ].join('\n'), 'ask bridge');
+
+  // The floating nav, and what was actually wrong with it.
+  //
+  // raffy, 2026-09-01: "should we make it cleaner (stick at the bottom or top)
+  // so content of our app gets clearer."
+  //
+  // The island is not the problem and it is not dated — a floating tab bar is
+  // what current phone OSes do, and it is half of why his Phu Quoc app looks
+  // like an app. What made it feel dirty was the translucency: text slid behind
+  // a 93%-opaque blur and came out HALF legible, which reads as a rendering
+  // fault rather than as a layer. Half-hidden is the worst of both.
+  //
+  // So the bar is opaque. Whatever passes behind it is decisively gone, the
+  // shape and the tuck-on-scroll are untouched, and it works over the pale page
+  // and over a full-bleed dark card alike — which a gradient scrim does not: on
+  // the dark trip card a fade tuned to the page background paints a light smear
+  // across it. Nothing beats knowing when to paint nothing.
+  //
+  // Plus enough clearance that the last card clears the bar at rest.
+  insertBefore('</style>', [
+    '  .nav{background:#0E3125;backdrop-filter:none;-webkit-backdrop-filter:none}',
+    '  .view{padding-bottom:132px}',
+    '',
+  ].join('\n'), 'solid nav');
 
   insertBefore('</style>', [
     '  .evtool.ask{color:var(--coral-text);text-decoration-color:rgba(238,123,69,.5)}',

@@ -279,8 +279,8 @@ export default function Home() {
   // chip that sends itself.
   useEffect(() => {
     const onAsk = (e) => {
-      const text = e && e.data && e.data.tripAsk;
-      if (typeof text !== 'string' || !text) return;
+      const ask = e && e.data && e.data.tripAsk;
+      if (!ask || typeof ask !== 'object' || !ask.what) return;
       // Stay on the trip. raffy, 2026-09-01: "for mobile we need to find better
       // way where chat can exist in the same page , especially on the change
       // this part... i just want the chat continues to live in the app."
@@ -288,7 +288,7 @@ export default function Home() {
       // Bouncing to the chat to type one sentence loses the thing you were
       // looking at, which is the whole context of the change. The composer
       // comes to the trip instead, as a dock over the bottom of it.
-      setDock({ text, sending: false });
+      setDock({ what: ask.what, when: ask.when || '', sending: false });
     };
     window.addEventListener('message', onAsk);
     return () => window.removeEventListener('message', onAsk);
@@ -905,6 +905,19 @@ export default function Home() {
               {dock && (
                 <div className="dock">
                   <button className="dx" onClick={() => setDock(null)} aria-label="Close">×</button>
+                  {/* What they tapped, as a label. raffy, 2026-09-01: "the edit
+                      placeholder in chat a bit weird... if i just click it and
+                      send the chat will respond the message cut off". It was
+                      prefilled with "Change X on Thu 10: " — a sentence you
+                      could send unfinished, and a colon with nothing after it is
+                      not an instruction. The context is a label now and the box
+                      starts empty, so an unfinished ask cannot be sent. */}
+                  {!dock.sending && (
+                    <div className="dwhat">
+                      <b>{dock.what}</b>
+                      {dock.when && <span>{dock.when}</span>}
+                    </div>
+                  )}
                   {dock.sending ? (
                     <div className="dsay">
                       {thinking
@@ -919,18 +932,20 @@ export default function Home() {
                       className="drow"
                       onSubmit={(e) => {
                         e.preventDefault();
-                        const t = (dockRef.current ? dockRef.current.value : dock.text).trim();
+                        const t = (dockRef.current ? dockRef.current.value : '').trim();
+                        // Nothing to say, nothing to send. The agent cannot act
+                        // on "change this" with no change in it.
                         if (!t) return;
-                        send(t);
-                        setDock({ text: '', sending: true });
+                        send('Change "' + dock.what + '"'
+                          + (dock.when ? ' on ' + dock.when : '') + ': ' + t);
+                        setDock({ ...dock, sending: true });
                       }}
                     >
                       <textarea
                         ref={dockRef}
                         rows={2}
-                        defaultValue={dock.text}
                         autoFocus
-                        placeholder="What should change?"
+                        placeholder="Make it later? Somewhere else? Drop it?"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
@@ -1063,6 +1078,18 @@ export default function Home() {
         .dock .dx{
           position:absolute;right:9px;top:7px;border:0;background:none;padding:2px 5px;
           font-size:17px;line-height:1;color:var(--ink-faint);cursor:pointer;
+        }
+        .dwhat{
+          display:flex;align-items:baseline;gap:8px;margin:0 0 9px;padding-right:20px;
+        }
+        .dwhat b{
+          font-family:'Outfit',sans-serif;font-size:14.5px;font-weight:700;
+          line-height:1.25;flex:1;min-width:0;
+        }
+        .dwhat span{
+          flex:none;font-size:11px;font-weight:750;letter-spacing:.04em;
+          text-transform:uppercase;color:var(--coral-text,#AE4715);
+          background:var(--sage);padding:3px 8px;border-radius:99px;
         }
         .drow{display:flex;gap:9px;align-items:flex-end}
         .drow textarea{

@@ -85,18 +85,29 @@ const browser = await chromium.launch();
   ok('the composer comes to the trip', (await page.locator('.dock').count()) === 1);
   ok('and the trip is still on screen', await page.locator('.phone iframe').isVisible());
 
-  const draft = await page.locator('.dock textarea').inputValue();
-  ok('prefilled with what you tapped', draft.startsWith('Change "'), JSON.stringify(draft));
-  ok('naming the item', /Change "[^"]+"/.test(draft), draft);
-  ok('and the day it is on', /on \w+ \d+: $/.test(draft), draft);
-  ok('the day is not shouted', !/on [A-Z]{3} /.test(draft), draft);
-  ok('but it sends nothing on its own', sent.length === 0, JSON.stringify(sent.map((x) => x.text)));
+  // raffy, 2026-09-01: "if i just click it and send the chat will respond the
+  // message cut off". It used to prefill "Change X on Thu 10: " — a sentence you
+  // could send unfinished, and a colon with nothing after it is not an
+  // instruction. The context is a label now; the box starts empty.
+  ok('the box starts empty', (await page.locator('.dock textarea').inputValue()) === '');
+  ok('and says what to type', /later|somewhere|drop/i.test(await page.locator('.dock textarea').getAttribute('placeholder')));
 
-  await page.locator('.dock textarea').fill(draft + 'make it later');
+  const label = await page.locator('.dock .dwhat').innerText();
+  ok('what you tapped is shown as a label', /Land at Da Nang/.test(label), label.replace(/\n/g, ' '));
+  // The chip is styled small-caps, so innerText comes back uppercased — the
+  // data underneath is title case, which is what the sent message proves below.
+  ok('with the day beside it', /thu 10/i.test(label), label.replace(/\n/g, ' '));
+
+  // Sending an empty ask must be impossible, not merely unhelpful.
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  ok('an empty ask cannot be sent', sent.length === 0, JSON.stringify(sent.map((x) => x.text)));
+
+  await page.locator('.dock textarea').fill('make it later');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(500);
   ok('finishing it sends one message', sent.length === 1, JSON.stringify(sent.map((x) => x.text)));
-  ok('carrying both halves', /Change "[^"]+" on .*make it later/.test((sent[0] || {}).text || ''), (sent[0] || {}).text);
+  ok('and the message is whole', /^Change "[^"]+" on \w+ \d+: make it later$/.test((sent[0] || {}).text || ''), (sent[0] || {}).text);
   ok('and the answer comes back here, not offscreen', (await page.locator('.dock .dsay').count()) === 1);
   ok('with a way through to the whole conversation', (await page.locator('.dock .dfull').count()) === 1);
   ok('the trip never left the screen', await page.locator('.phone iframe').isVisible());
