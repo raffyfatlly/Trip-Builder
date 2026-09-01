@@ -221,7 +221,11 @@ function AskFoot({ onManual, onDelete }) {
   );
 }
 
-export default function Editor({ itinerary, onOp, onAsk }) {
+// `photosOnly` is the whole component now in practice: changing anything else
+// is a button on the item itself, which asks the agent. What is left here is
+// the one job direct manipulation genuinely wins — the agent cannot see a
+// photograph, and picking one is faster than describing it.
+export default function Editor({ itinerary, onOp, onAsk, photosOnly }) {
   const photos = itinerary.photos || {};
   const srcOf = (o) => (o && o.photo ? photos[o.photo] : '') || '';
   const [day, setDay] = useState(0);
@@ -244,6 +248,49 @@ export default function Editor({ itinerary, onOp, onAsk }) {
   const cap = (x) => String(x || '').charAt(0).toUpperCase() + String(x || '').slice(1).toLowerCase();
   const when = d.dow && d.dom ? cap(d.dow) + ' ' + d.dom : ('day ' + (day + 1));
   const ask = (text) => { close(); if (onAsk) onAsk(text); };
+
+  if (photosOnly) {
+    return (
+      <div className="editor">
+        <div className="head">
+          <h3>Photos</h3>
+          <p>Swap any picture for one of your own.</p>
+        </div>
+
+        <div className="picrow">
+          <div className="picname">Front page</div>
+          <PhotoPick
+            current={srcOf((itinerary.trip || {}).feature)}
+            onSet={(url, credit) => onOp({ type: 'photo.set', target: 'feature', url, credit })}
+            onClear={() => onOp({ type: 'photo.clear', target: 'feature' })}
+          />
+        </div>
+
+        {(itinerary.stays || []).map((s, i) => (
+          <div className="picrow" key={i}>
+            <div className="picname">{s.n || s.name || 'Stay ' + (i + 1)}</div>
+            <PhotoPick
+              current={srcOf(s)}
+              onSet={(url, credit) => onOp({ type: 'photo.set', target: 'stay', index: i, url, credit })}
+              onClear={() => onOp({ type: 'photo.clear', target: 'stay', index: i })}
+            />
+          </div>
+        ))}
+
+        <style jsx>{`
+          .editor{padding-bottom:26px}
+          .head{margin:4px 0 16px}
+          .head h3{margin:0;font-family:'Outfit',sans-serif;font-size:23px;font-weight:700}
+          .head p{margin:5px 0 0;font-size:13.5px;color:var(--ink-faint)}
+          .picrow{
+            background:var(--surface);border-radius:16px;padding:12px 13px;
+            box-shadow:var(--sh-s);margin-bottom:8px;
+          }
+          .picname{font-size:13.5px;font-weight:650}
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="editor">

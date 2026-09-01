@@ -78,11 +78,11 @@ await page.goto(B, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1400);
 await page.locator('header .itbtn').click();
 await page.waitForTimeout(700);
-await page.locator('.seg button:has-text("Edit")').click();
+await page.locator('.seg button:has-text("Photos")').click();
 await page.waitForTimeout(500);
 
-ok('the feature card can be given a photo', await page.locator('.pics .picrow').count() >= 2);
-await page.locator('.pics .picrow').first().locator('.ppbtn').click();
+ok('the front page can be given a photo', await page.locator('.picrow').count() >= 2);
+await page.locator('.picrow').first().locator('.ppbtn').click();
 await page.waitForTimeout(250);
 ok('uploading is offered', await page.locator('.up:has-text("Upload from this device")').count() === 1);
 ok('and so is a link', await page.locator('.ppin').first().count() === 1);
@@ -108,18 +108,18 @@ const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('itin.e
 ok('the edit is saved', stored.some((e) => e.type === 'photo.set' && e.url === 'https://photos.test/ok.jpg'));
 ok('with the caption', stored.some((e) => e.credit === 'The pool at Furama'));
 ok('the thumbnail shows what was chosen',
-   (await page.locator('.pics .picrow').first().locator('img.thumb').getAttribute('src')) === 'https://photos.test/ok.jpg');
-ok('and it can be taken off again', await page.locator('.pics .picrow').first().locator('.pprem').count() === 1);
+   (await page.locator('.picrow').first().locator('img.thumb').getAttribute('src')) === 'https://photos.test/ok.jpg');
+ok('and it can be taken off again', await page.locator('.picrow').first().locator('.pprem').count() === 1);
 
 // It has to survive a reload — an edit that vanishes is worse than no edit.
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(1500);
 await page.locator('header .itbtn').click();
 await page.waitForTimeout(600);
-await page.locator('.seg button:has-text("Edit")').click();
+await page.locator('.seg button:has-text("Photos")').click();
 await page.waitForTimeout(400);
 ok('the photo is still there after a reload',
-   (await page.locator('.pics .picrow').first().locator('img.thumb').count()) === 1);
+   (await page.locator('.picrow').first().locator('img.thumb').count()) === 1);
 
 ok('no horizontal overflow at 390px',
    (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);

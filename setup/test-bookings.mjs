@@ -85,7 +85,11 @@ async function open(T, perms) {
   ok('the one thing worth remembering is kept', t.includes('Check-in opens 48h'));
   // The list leads with what has to happen; the record follows it.
   ok('what is left comes before what is done', t.indexOf('Still to do') < t.indexOf('Confirmed'));
-  ok('and it says the order it is in', /order it has to happen/i.test(t));
+  // Copy is for the traveller, not the maker. raffy, 2026-09-01: "description
+  // like sorted by when it has to happened , not by what it is only relevant to
+  // me the creator of the app but irrelevant to our user."
+  ok('and it does not explain its own sorting', !/not by what it is|order it has to happen/i.test(t));
+  ok('it just says which end is nearest', /nearest first/i.test(t));
 
   // The traveller told us this flight once and filed it once. Twice is a bug.
   const codes = (t.match(/AK1494/g) || []).length;

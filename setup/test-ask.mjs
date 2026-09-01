@@ -1,18 +1,24 @@
-// Changing something by saying what you want.
+// Changing something without leaving the trip.
 //
-// raffy, 2026-09-01: "the whole editing manually also a concern to me .
-// doesn't feel seamless. not streamline. not intuitive."
+// raffy, 2026-09-01: "include something like want to change the details ? give
+// the button to chat , then auto interactive message send to chat . chat agent
+// then make the edits... so we don't need the edit isolated section anymore."
 //
-// The fix is about which gesture comes first. Tapping an item used to open a
-// five-field form; it now opens a sentence, and the form is one tap further
-// down. So the things worth guarding are: the sentence is what you get first,
-// it reaches the agent with enough context to act on ("which item, which day"),
-// a chip fills the box rather than firing, and the form is still reachable.
+// The edit pane made changing something a MODE: you left the trip, found the
+// same item again in a list of form fields, changed it, and came back. The
+// button lives on the item now, inside the preview, and hands the ask to the
+// composer with the cursor after it.
+//
+// Two things this guards. The bridge only exists inside the chat app — a
+// downloaded itinerary has no agent to talk to and must not offer one. And the
+// ask is HANDED OVER, not sent: "Change dinner:" with nothing after it is a
+// question with no question in it.
 //
 //   BASE=http://localhost:3220 node setup/test-ask.mjs
 
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
-import fs from 'fs';
+import fs from 'fs'; import zlib from 'zlib';
+import { render } from '../renderer/render.js';
 
 const B = process.env.BASE || 'http://localhost:3220';
 let fail = 0;
@@ -20,91 +26,76 @@ const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '
 
 const REAL = JSON.parse(fs.readFileSync('/home/user/claude/tools/itinerary-generator/trips/danang.json', 'utf8'));
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-const errs = [];
-const sent = [];
 
-await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_A' } }));
-await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
-await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
-  transcript: [{ role: 'user', text: 'hi', id: 'u1' }],
-  itinerary: REAL, plan: {}, agentEdits: [], building: false, thinking: false, turns: 1 } }));
-await ctx.route('**/api/send', (r) => {
-  sent.push(JSON.parse(r.request().postData() || '{}'));
-  r.fulfill({ json: { ok: true } });
-});
+// --- standalone: no agent, so no offer of one -------------------------------
+{
+  const tpl = zlib.gunzipSync(fs.readFileSync('public/app-template.html.gz')).toString();
+  const { html } = render(REAL, tpl);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+  await ctx.route('https://trip.test/', (r) => r.fulfill({ contentType: 'text/html', body: html }));
+  await page.goto('https://trip.test/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
+  await page.locator('#nav button[data-view="days"]').click();
+  await page.waitForTimeout(400);
+  ok('a downloaded trip offers no Change buttons', (await page.locator('[data-ask]').count()) === 0);
+  ok('and still shows the day', (await page.locator('.ev').count()) > 0);
+  await ctx.close();
+}
 
-const page = await ctx.newPage();
-page.on('pageerror', (e) => errs.push(e.message));
-await page.goto(B, { waitUntil: 'networkidle' });
-await page.waitForTimeout(1400);
-await page.locator('header .itbtn').click();
-await page.waitForTimeout(700);
-await page.locator('.seg button:has-text("Edit")').click();
-await page.waitForTimeout(500);
+// --- inside the chat app -----------------------------------------------------
+{
+  const ctx = await browser.newContext({ viewport: { width: 900, height: 900 } });
+  const errs = [];
+  const sent = [];
+  await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_A' } }));
+  await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: [{ role: 'user', text: 'hi', id: 'u1' }],
+    itinerary: REAL, plan: {}, agentEdits: [], memoryOps: [],
+    building: false, thinking: false, turns: 1 } }));
+  await ctx.route('**/api/send', (r) => { sent.push(JSON.parse(r.request().postData() || '{}')); r.fulfill({ json: { ok: true } }); });
 
-const first = page.locator('.editor .card').first();
-const heading = (await first.locator('.h').innerText()).trim();
-await first.click();
-await page.waitForTimeout(300);
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('itin.session.v1', 'sesn_A'));
+  await page.goto(B, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
 
-ok('tapping an item asks what you want', await page.locator('.ask textarea').count() === 1);
-ok('the form is not what you get first', await page.locator('.ed .field').count() === 0);
-ok('it names the thing you tapped', (await page.locator('.ask .who b').innerText()).trim() === heading);
-ok('and offers the usual asks', await page.locator('.ask .chip').count() >= 4);
+  ok('the edit mode is gone', (await page.locator('.seg button:has-text("Edit")').count()) === 0);
+  ok('the trip is just the trip', (await page.locator('.seg button:has-text("Your trip")').count()) === 1);
+  ok('and photos are still one tap away', (await page.locator('.seg button:has-text("Photos")').count()) === 1);
 
-// A chip fills the box. Tapping one and then adding "but keep it before
-// dinner" is the normal case, and a chip that sends immediately kills it.
-await page.locator('.ask .chip:has-text("Later in the day")').click();
-await page.waitForTimeout(150);
-ok('a chip fills the box rather than sending', sent.length === 0);
-ok('and the box holds it', (await page.locator('.ask textarea').inputValue()) === 'Later in the day');
+  const frame = page.frameLocator('iframe[title="Itinerary preview"]');
+  await frame.locator('#nav button[data-view="days"]').click();
+  await page.waitForTimeout(500);
 
-await page.locator('.ask textarea').fill('Later in the day, but before dinner');
-await page.locator('.ask .go').click();
-await page.waitForTimeout(500);
+  const asks = frame.locator('[data-ask]');
+  ok('every item offers to be changed', (await asks.count()) > 0, (await asks.count()) + ' items');
+  ok('and it says so plainly', (await asks.first().innerText()).trim() === 'Change this');
 
-ok('asking sends one message', sent.length === 1, JSON.stringify(sent.map((x) => x.text)));
-const msg = (sent[0] || {}).text || '';
-ok('it says which item', msg.includes(heading), msg);
-ok('it says which day', /on \w+ \d+:/.test(msg), msg);
-ok('and it carries what you typed', msg.includes('Later in the day, but before dinner'), msg);
-ok('nothing was edited locally',
-   (await page.evaluate(() => JSON.parse(localStorage.getItem('itin.edits.sesn_A') || '[]'))).length === 0);
-ok('and it takes you back to the chat', await page.locator('.pane.open').count() === 0);
+  await asks.first().click();
+  await page.waitForTimeout(400);
 
-// The form is still there for when you know the words you want.
-await page.locator('header .itbtn').click();
-await page.waitForTimeout(600);
-await page.locator('.seg button:has-text("Edit")').click();
-await page.waitForTimeout(400);
-await page.locator('.editor .card').first().click();
-await page.waitForTimeout(250);
-await page.locator('.foot button:has-text("Edit the details myself")').click();
-await page.waitForTimeout(250);
-ok('the form is one tap down', await page.locator('.ed .field').count() >= 3);
-ok('and it still saves by hand', await page.locator('.ed .save').count() === 1);
-await page.locator('.ed input').first().fill('7:15am');
-await page.locator('.ed .save').click();
-await page.waitForTimeout(300);
-const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('itin.edits.sesn_A') || '[]'));
-ok('a hand edit is still a local op', stored.some((e) => e.type === 'item.update' && e.patch.t === '7:15am'),
-   JSON.stringify(stored));
+  const draft = await page.locator('.composer textarea').inputValue();
+  ok('tapping it fills the composer', draft.startsWith('Change "'), JSON.stringify(draft));
+  ok('with the item it came from', /Change "[^"]+"/.test(draft), draft);
+  ok('and the day it is on', /on \w+ \d+: $/.test(draft), draft);
+  ok('but sends nothing on its own', sent.length === 0, JSON.stringify(sent.map((x) => x.text)));
 
-// Adding leads with the sentence too.
-await page.locator('.editor .add').click();
-await page.waitForTimeout(250);
-ok('adding asks as well', await page.locator('.ask textarea').count() === 1);
-await page.locator('.ask textarea').fill('somewhere for lunch near the hotel');
-await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/ask.png' });
-await page.locator('.ask .go').click();
-await page.waitForTimeout(400);
-ok('and it says which day to add to', /^Add to \w+ \d+: somewhere for lunch/.test((sent[1] || {}).text || ''),
-   (sent[1] || {}).text);
+  // It is a real message from there on: they finish the sentence and send.
+  await page.locator('.composer textarea').fill(draft + 'make it later');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  ok('finishing it sends one message', sent.length === 1, JSON.stringify(sent.map((x) => x.text)));
+  ok('carrying both halves', /Change "[^"]+" on .*make it later/.test((sent[0] || {}).text || ''), (sent[0] || {}).text);
 
-ok('no horizontal overflow at 390px',
-   (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
-ok('no page errors', errs.length === 0, errs.join(' / '));
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/ask.png' });
+  await ctx.close();
+}
 
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');

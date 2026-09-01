@@ -266,6 +266,32 @@ export default function Home() {
     });
   }, [session]);
 
+  // "Change this" from inside the preview.
+  //
+  // raffy, 2026-09-01: "give the button to chat , then auto interactive message
+  // send to chat . chat agent then make the edits."
+  //
+  // Handed to the composer rather than sent, with the cursor after it. The
+  // agent cannot act on "Change dinner:" alone, and a message that fires on tap
+  // would be a question with no question in it — the same mistake as an option
+  // chip that sends itself.
+  useEffect(() => {
+    const onAsk = (e) => {
+      const text = e && e.data && e.data.tripAsk;
+      if (typeof text !== 'string' || !text) return;
+      setSheet(false);
+      setDraft(text);
+      setTimeout(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.focus();
+        try { el.setSelectionRange(text.length, text.length); } catch (err) { /* fine */ }
+      }, 60);
+    };
+    window.addEventListener('message', onAsk);
+    return () => window.removeEventListener('message', onAsk);
+  }, []);
+
   const undoEdits = useCallback(() => {
     setEdits([]);
     if (session) saveEdits(session, []);
@@ -659,10 +685,25 @@ export default function Home() {
             {!booting && messages.length === 0 && skipOb && (
               <div className="intro">
                 <h1>Where are you going?</h1>
-                <p>
-                  Tell me about your trip and I will plan it with you, then build
-                  you an itinerary app for it.
-                </p>
+                {/* What the two halves of this thing are, in two lines.
+                    raffy, 2026-09-01: "important also id to make it clear to
+                    user how to use the whole app . like agents fot them to be
+                    consulted... and the app itself is the app that have all
+                    their plans , decision and everything displayed nicely."
+                    Said once, here, where somebody is deciding whether to
+                    bother — not as a tour nobody reads. */}
+                <div className="how">
+                  <div className="hrow">
+                    <span className="hn">Talk to me</span>
+                    <span>Ask anything, any time — what a hotel really costs, whether
+                      it rains that week, what is worth the trip out. I look it up.</span>
+                  </div>
+                  <div className="hrow">
+                    <span className="hn">Get your own app</span>
+                    <span>Everything we settle turns into a trip app that is yours:
+                      the days, the places, and what is still left to book.</span>
+                  </div>
+                </div>
                 <div className="egs">
                   {[
                     'Da Nang with my wife and 2 kids, 10 to 14 September, staying at Furama',
@@ -813,35 +854,31 @@ export default function Home() {
             {ready && <button className="dl" onClick={download}>Download</button>}
           </div>
 
+          {/* The Preview/Edit toggle is gone. Changing something is a button on
+              the thing itself now, which asks the agent — not a mode you switch
+              into and hunt for the same item in a list of form fields.
+              Photos stay by hand: the agent cannot see a picture, and choosing
+              one is genuinely faster than describing it. */}
           {ready && (
             <div className="seg">
               <button className={pane === 'preview' ? 'on' : ''}
-                onClick={() => setPane('preview')}>Preview</button>
-              <button className={pane === 'edit' ? 'on' : ''}
-                onClick={() => setPane('edit')}>Edit</button>
-              {allEdits.length > 0 && (
-                <span className="count">{allEdits.length} edit{allEdits.length > 1 ? 's' : ''}</span>
-              )}
+                onClick={() => setPane('preview')}>Your trip</button>
+              <button className={pane === 'photos' ? 'on' : ''}
+                onClick={() => setPane('photos')}>Photos</button>
             </div>
           )}
 
           {staleNote > 0 && (
             <div className="stale">
-              {staleNote} of your edits no longer match the rebuilt itinerary and were skipped.
-              <button onClick={undoEdits}>Clear edits</button>
+              {staleNote === 1 ? 'One of your changes did not' : staleNote + ' of your changes did not'} fit
+              the new version of the trip, so it was left out.
+              <button onClick={undoEdits}>Undo my changes</button>
             </div>
           )}
 
-          {ready && pane === 'edit' ? (
+          {ready && pane === 'photos' ? (
             <div className="editwrap">
-              <Editor
-                itinerary={working}
-                onOp={applyOp}
-                // Asking goes back to the chat, because that is where the
-                // answer appears. Staying on the edit pane after asking left
-                // you looking at a form while the reply happened offscreen.
-                onAsk={(text) => { setPane('preview'); setSheet(false); send(text); }}
-              />
+              <Editor itinerary={working} onOp={applyOp} photosOnly />
             </div>
           ) : (
             <div className="phone">
@@ -950,6 +987,14 @@ export default function Home() {
         .scroll{flex:1;overflow-y:auto;padding:6px 2px 10px;scroll-behavior:smooth}
 
         .intro{padding:26px 4px 10px;max-width:30ch}
+        .how{display:flex;flex-direction:column;gap:12px;margin:2px 0 22px}
+        .hrow{display:flex;flex-direction:column;gap:3px}
+        .hrow .hn{
+          font-size:11px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;
+          color:var(--coral-text,#AE4715);
+        }
+        .hrow span:last-child{font-size:14px;line-height:1.5;color:var(--ink-soft)}
+
         .intro h1{
           font-family:'Outfit',sans-serif;font-size:34px;line-height:1.08;
           font-weight:800;margin:0 0 12px;letter-spacing:-.01em;
@@ -1197,7 +1242,15 @@ export default function Home() {
           .pane.open{transform:none}
           .back{display:block}
           .hidden-m{display:none}
-          .intro h1{font-size:30px}
+          .how{display:flex;flex-direction:column;gap:12px;margin:2px 0 22px}
+        .hrow{display:flex;flex-direction:column;gap:3px}
+        .hrow .hn{
+          font-size:11px;font-weight:750;letter-spacing:.07em;text-transform:uppercase;
+          color:var(--coral-text,#AE4715);
+        }
+        .hrow span:last-child{font-size:14px;line-height:1.5;color:var(--ink-soft)}
+
+        .intro h1{font-size:30px}
         }
         @media (min-width:861px){
           .itbtn{display:none}

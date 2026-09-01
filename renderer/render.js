@@ -687,7 +687,7 @@ export function render(T, templateSrc) {
     '    <div class="bkhead">',
     '      <span class="eyebrow">Before you go</span>',
     '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">What still needs doing</h1>',
-    '      <p class="bksub">Sorted by when it has to happen, not by what it is.</p>',
+    '      <p class="bksub">Everything that has to be booked before you go, and everything already sorted.</p>',
     '    </div>',
     '    <div id="bookings"></div>',
     '  </section>',
@@ -785,11 +785,11 @@ export function render(T, templateSrc) {
     '',
     '    if(todo.length){',
     '      h+=\'<div class="sect"><h2>Still to do</h2></div>\';',
-    '      h+=\'<p class="tdlead">In the order it has to happen.</p>\';',
+    '      h+=\'<p class="tdlead">Nearest first.</p>\';',
     '      h+=todo.map(todoRow).join("");',
     '    } else if(need) {',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
-    '        \'<b>Everything is arranged</b><p>Nothing left to book. Your confirmations are below.</p></div>\';',
+    '        \'<b>You are all set</b><p>Nothing left to book. Have a good trip.</p></div>\';',
     '    }',
     '',
     '    if(B.length){',
@@ -833,6 +833,56 @@ export function render(T, templateSrc) {
     '  renderBookings();',
     '',
   ].join('\n');
+
+
+  // --- "Change this", wherever the thing is ----------------------------------
+  //
+  // raffy, 2026-09-01: "include something like want to change the details ?
+  // give the button to chat , then auto interactive message send to chat . chat
+  // agent then make the edits... so we don't need the edit isolated section
+  // anymore I think."
+  //
+  // He is right, and the reason is that the edit pane made changing something
+  // a MODE. You left the trip, found the same item again in a list of form
+  // fields, changed it, and came back. The button belongs on the thing itself.
+  //
+  // LIVE is simply "am I inside the chat app". The preview runs in an iframe
+  // and the downloaded app does not, so `window.parent !== window` separates
+  // them with no flag to plumb and no way for the two to disagree. A downloaded
+  // itinerary has no agent to talk to, and correctly shows none of this.
+  replaceOnce('      var tools=[];\n', [
+    '      var tools=[];',
+    '      if(LIVE) tools.push(\'<button class="evtool ask" data-ask="\'+',
+    '        esc((r.it&&r.it.h)||r.h||"this")+\'" data-day="\'+i+\'">Change this</button>\');',
+    '',
+  ].join('\n'), 'ask button on every item');
+
+  insertBefore('  function reduce(){', [
+    '  var LIVE = (function(){ try { return window.parent !== window; } catch(e){ return false; } })();',
+    '',
+    '  // The ask is not sent, it is handed to the composer with the cursor after',
+    '  // it. "Change dinner on Thu 10: " and then they type what they want —',
+    '  // which is the same gesture as talking to the agent, minus finding the',
+    '  // thing again in a form.',
+    '  document.addEventListener("click", function(e){',
+    '    var b = e.target.closest && e.target.closest("[data-ask]"); if(!b) return;',
+    '    var di = parseInt(b.getAttribute("data-day"), 10);',
+    '    var d = (typeof DAYS !== "undefined" && DAYS[di]) || null;',
+    '    // The day chip shouts THU because it is a chip. A sentence should not.',
+    '    var when = d ? (d.dow.charAt(0) + d.dow.slice(1).toLowerCase() + " " + d.dom) : "";',
+    '    try {',
+    '      window.parent.postMessage({',
+    '        tripAsk: \'Change "\' + b.getAttribute("data-ask") + \'"\' + (when ? " on " + when : "") + ": ",',
+    '      }, "*");',
+    '    } catch (err) { /* standalone: there is nobody to ask */ }',
+    '  });',
+    '',
+  ].join('\n'), 'ask bridge');
+
+  insertBefore('</style>', [
+    '  .evtool.ask{color:var(--coral-text);text-decoration-color:rgba(238,123,69,.5)}',
+    '',
+  ].join('\n'), 'ask button css');
 
   insertBefore('  function reduce(){', BOOKINGS_JS, 'bookings renderer');
 
@@ -1173,7 +1223,7 @@ export function render(T, templateSrc) {
     'explore section heading');
   replaceOnce(
     '<p style="margin:0 0 4px;font-size:13.5px;color:var(--ink-soft)">Places worth a look, grouped by where they are. Nothing here is in the plan yet.</p>',
-    '<p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-soft)">Researched, rated and not yet in the plan. Tap one to see the case for it.</p>',
+    '<p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-soft)">Not in your days yet. Tap one to see why it is worth your time.</p>',
     'explore blurb');
 
 

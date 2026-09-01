@@ -146,7 +146,7 @@ export default function Onboard({ onStart, onSkip, memory }) {
                     </button>
                   ))}
                 </div>
-                <p className="tiny">Tap anyone who isn't coming this time. Ages are counted forward, so correct one if it's off.</p>
+                <p className="tiny">Tap anyone who isn't coming this time. Check the ages while you are here.</p>
               </div>
             )}
 
