@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Rendering for the agent's structured content: options to pick between, and
 // researched numbers. Tapping an option sends it back as a message, so the
@@ -13,6 +13,165 @@ import { useState } from 'react';
 const mapsFor = (name, where) =>
   'https://www.google.com/maps/search/' +
   encodeURIComponent([name, where].filter(Boolean).join(' '));
+
+
+// --- the picture, and everything worth opening -------------------------------
+//
+// raffy, 2026-09-01: "when discussing option, locations etc , i need pictures .
+// and I need the direct link to the think so i don't have to go out the app and
+// type. u know what I mean? we want them to be in our app as much as possible.
+// the link must be there... map is not that important actually. but any info or
+// links related to the suggested place is important."
+//
+// So: every named place gets its photograph and its own links, and Map drops to
+// the end where it belongs — it is the fallback, not the destination.
+//
+// The card fetches its own picture. The agent cannot supply one reliably: there
+// is no free Google Images API, and an image URL lifted out of a search result
+// usually blocks hotlinking on a phone even when it loads here. Places has the
+// real photograph of the real building, so /api/place answers with that, the
+// rating, and the venue's own site — the key never leaving the server.
+// The PROMISE is cached, not the answer.
+//
+// Caching the resolved value and reserving the key with a null meant the
+// picture and the links — two components asking about the same place — raced:
+// whichever asked second saw the reservation, read null, and never heard the
+// answer. Its map link fell back to a search for a place we knew the real page
+// of. Everyone awaiting one promise fires one request and all of them learn.
+const PLACE = new Map();   // name+where -> Promise<{photo,rating,site,maps}|null>
+
+function usePlace(name, where) {
+  const q = [name, where].filter(Boolean).join(' ').trim();
+  const [found, setFound] = useState(null);
+
+  useEffect(() => {
+    if (!q) return undefined;
+    let alive = true;
+    if (!PLACE.has(q)) {
+      PLACE.set(q, fetch('/api/place?q=' + encodeURIComponent(q))
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => (d && (d.photo || d.site || d.rating) ? d : null))
+        // A card with no picture is fine. A card that never renders is not.
+        .catch(() => null));
+    }
+    PLACE.get(q).then((v) => { if (alive) setFound(v); });
+    return () => { alive = false; };
+  }, [q]);
+
+  return found;
+}
+
+function Pic({ name, where }) {
+  const place = usePlace(name, where);
+  const [dead, setDead] = useState(false);
+  if (!place || !place.photo || dead) return null;
+  return (
+    <div className="pic">
+      <img src={place.photo} alt="" loading="lazy" onError={() => setDead(true)} />
+      <style jsx>{`
+        .pic{
+          margin:-15px -15px 12px;height:132px;overflow:hidden;
+          border-radius:18px 18px 0 0;background:var(--sage);
+        }
+        .pic img{width:100%;height:100%;object-fit:cover;display:block}
+      `}</style>
+    </div>
+  );
+}
+
+const OUT = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+  </svg>
+);
+
+// Everything the agent found, then the venue's own site if it did not find one,
+// then the map. Deduplicated by URL — the agent and Places often land on the
+// same page, and the same link twice reads as a bug.
+function Links({ o, name, where }) {
+  const place = usePlace(name, where);
+  const out = [];
+  const seen = new Set();
+  const add = (label, url) => {
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    const k = url.replace(/\/+$/, '').toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ label, url });
+  };
+
+  (o.links || []).forEach((l) => l && add(l.label || 'Open', l.url));
+  add('Their site', o.link);
+
+  // Places knows the venue's own site too, but it is the fallback: the agent
+  // read the page, Google only holds a record of it. So it fills a gap rather
+  // than competing — skipped when the agent already named the venue's site, or
+  // when anything on the card already points at the same host. Otherwise a
+  // booking page and Google's copy of the same hotel both appear as "Their
+  // site", which reads as a bug even though both work.
+  if (place && place.site && !o.link) {
+    const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+    const h = host(place.site);
+    if (h && !out.some((l) => host(l.url) === h)) add('Their site', place.site);
+  }
+
+  return (
+    <div className="links">
+      {out.map((l) => (
+        <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer">
+          {OUT}{l.label}
+        </a>
+      ))}
+      <a className="mapl" href={(place && place.maps) || mapsFor(name, where)}
+        target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" />
+        </svg>
+        Map
+      </a>
+      <style jsx>{`
+        .links{
+          display:flex;flex-wrap:wrap;gap:14px;align-items:center;
+          margin-top:11px;padding-top:11px;border-top:1px solid var(--line);
+        }
+        .links a{
+          display:inline-flex;align-items:center;gap:6px;padding:0;
+          background:none;color:var(--ink-soft);font-size:12.5px;font-weight:650;
+          text-decoration:none;
+        }
+        .links a:hover{color:var(--ink)}
+        /* raffy: "map is not that important actually" — it stays, last and
+           quiet, because a named place should never be a dead end. */
+        .links a.mapl{opacity:.6}
+        .links a :global(svg){width:13px;height:13px;flex:none;color:var(--ink-faint)}
+      `}</style>
+    </div>
+  );
+}
+
+// Where a recommendation came from, when it came from somewhere real.
+function Source({ text }) {
+  if (!text) return null;
+  return (
+    <div className="src">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7.5 12a4.5 4.5 0 0 1 4.5-4.5h4a4.5 4.5 0 0 1 0 9h-1" />
+        <path d="M16.5 12a4.5 4.5 0 0 1-4.5 4.5H8a4.5 4.5 0 0 1 0-9h1" />
+      </svg>
+      <span>{text}</span>
+      <style jsx>{`
+        .src{
+          display:flex;gap:7px;align-items:flex-start;margin-top:9px;
+          font-size:12.5px;line-height:1.45;color:var(--ink-faint);
+        }
+        .src svg{width:14px;height:14px;flex:none;margin-top:1px}
+      `}</style>
+    </div>
+  );
+}
 
 export default function Block({ block, onChoose, disabled, where }) {
   const { kind, title, intro, items, facts, spots, choose, proposal } = block;
@@ -64,6 +223,7 @@ export default function Block({ block, onChoose, disabled, where }) {
 
       {kind === 'spots' && (spots || []).map((sp, i) => (
         <div key={i} className="opt spot">
+          <Pic name={sp.name} where={where} />
           <div className="name">{sp.name}</div>
           <div className="buzz">{sp.buzz}</div>
           {sp.rating && (
@@ -95,6 +255,7 @@ export default function Block({ block, onChoose, disabled, where }) {
           {(sp.tags || []).length > 0 && (
             <div className="tags">{sp.tags.map((t) => <span key={t}>{t}</span>)}</div>
           )}
+          <Source text={sp.source} />
           <div className="acts">
             <button className="pick" disabled={disabled}
               onClick={() => onChoose(`Put ${sp.name} in the trip.`)}>
@@ -105,24 +266,7 @@ export default function Block({ block, onChoose, disabled, where }) {
               Tell me more
             </button>
           </div>
-          <div className="links">
-            {sp.link && (
-              <a href={sp.link} target="_blank" rel="noopener noreferrer">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-                </svg>
-                Their site
-              </a>
-            )}
-            <a href={mapsFor(sp.name, where)} target="_blank" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" />
-              </svg>
-              Map
-            </a>
-          </div>
+          <Links o={sp} name={sp.name} where={where} />
         </div>
       ))}
 
@@ -166,6 +310,7 @@ export default function Block({ block, onChoose, disabled, where }) {
 
       {kind === 'options' && (items || []).map((o, i) => (
         <div key={i} className="opt">
+          <Pic name={o.name} where={where} />
           <div className="top">
             <div className="name">{o.name}</div>
             {o.price && <div className="price">{o.price}</div>}
@@ -192,6 +337,7 @@ export default function Block({ block, onChoose, disabled, where }) {
           {(o.tags || []).length > 0 && (
             <div className="tags">{o.tags.map((t) => <span key={t}>{t}</span>)}</div>
           )}
+          <Source text={o.source} />
           <div className="acts">
             {choose && (multi ? (
               <button className={'pick tick' + (picked.includes(o.name) ? ' on' : '')}
@@ -214,24 +360,7 @@ export default function Block({ block, onChoose, disabled, where }) {
               Tell me more
             </button>
           </div>
-          <div className="links">
-            {o.link && (
-              <a href={o.link} target="_blank" rel="noopener noreferrer">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-                </svg>
-                Their site
-              </a>
-            )}
-            <a href={mapsFor(o.name, where)} target="_blank" rel="noopener noreferrer">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z" /><circle cx="12" cy="10" r="2.6" />
-              </svg>
-              Map
-            </a>
-          </div>
+          <Links o={o} name={o.name} where={where} />
         </div>
       ))}
 
@@ -382,17 +511,11 @@ export default function Block({ block, onChoose, disabled, where }) {
         /* Links sit in their own quiet row under the buttons. Mixed in with
            them they wrapped, and a link that has wrapped onto its own line
            looks like something went wrong rather than something on offer. */
-        .links{
-          display:flex;flex-wrap:wrap;gap:14px;align-items:center;
-          margin-top:11px;padding-top:11px;border-top:1px solid var(--line);
-        }
-        .links :global(a),.links a{
-          display:inline-flex;align-items:center;gap:6px;padding:0;
-          background:none;color:var(--ink-soft);font-size:12.5px;font-weight:650;
-          text-decoration:none;
-        }
-        .links a:hover{color:var(--ink)}
-        .links a :global(svg),.links svg{width:13px;height:13px;flex:none;color:var(--ink-faint)}
+        /* The links row styles itself — see the Links component. styled-jsx
+           scopes by the component that declares the rules, so a selector left
+           here would stop matching the moment the markup moved into a child,
+           silently, which is exactly what happened: the row lost its layout
+           and every icon rendered at its natural size. */
 
         @keyframes rise{
           from{opacity:0;transform:translateY(7px) scale(.985)}
