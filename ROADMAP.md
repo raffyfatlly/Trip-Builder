@@ -1,5 +1,19 @@
 # Roadmap
 
+**Scope line, set 2026-09-01:** *a person who has never met raffy can plan a
+real trip, arrange it through the app, and use it while they are travelling.*
+Anything not on that path is v2. This exists because the honest cause of
+"i feel a bit overwhelm" was that nothing said when a thing was done.
+
+**Strategy, same date:** the build is the moat, the arranging phase is the
+business, the chat is the front door. Read the items below through that.
+
+**Done since this list was written:** buttons in chat (1), editing without a
+rebuild (4), photos (5), the arranging spine and Travelpayouts. Still open:
+accounts (2), admin and metering (3), scope guard (6), commercial model (7).
+
+---
+
 Raffy's asks, **not started**. His words verbatim. Items 1-7 captured
 2026-08-31; item 8 added 2026-09-01.
 
