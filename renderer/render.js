@@ -340,8 +340,25 @@ export function render(T, templateSrc) {
       // index. Once it is confirmed the note is stale, so it is dropped here
       // rather than staying stuck on screen — this re-runs every time the
       // preview redraws, including right after "Confirm" in the editor.
+      // "Before you lock this in" was a review screen for a review that no
+      // longer happens here.
+      //
+      // raffy, 2026-09-01: "do u think that's the best position to place it
+      // there ? or somewhere else ? or integrated as individual somewhere
+      // else?" — the third one. The section was written when this app WAS the
+      // proposal you approved. Accepting the trip moved into the chat
+      // (propose_trip) long ago, so by the time this app exists the trip is
+      // locked in, and a heading asking you to review it is describing a step
+      // that already happened.
+      //
+      // What is left is two different things. A note about something unbooked
+      // is a TASK — it now lives on To do with a deadline and a booking link,
+      // and repeating it here undated is exactly the duplication that made the
+      // Wallet unrecognisable. A note about something worth knowing is neither
+      // a task nor a review: it is context, and it stays.
       var notes = (tr.notes || []).filter(function(n){
-        if(n.stay != null && T.stays[n.stay]) return !!T.stays[n.stay].draft;
+        // Anything pinned to a stay is that stay's booking task. To do owns it.
+        if(n.stay != null) return false;
         // Untagged, from a trip built before notes carried a stay index: drop
         // it only once nothing is a draft any more, so it cannot hide a
         // caveat that is still true.
@@ -350,7 +367,7 @@ export function render(T, templateSrc) {
       if(el){
         el.hidden = !notes.length && !tr.credits;
         el.innerHTML =
-          (notes.length ? '<h2>Before you lock this in</h2>' : '') +
+          (notes.length ? '<h2>Worth knowing</h2>' : '') +
           notes.map(function(n){
             return '<div class="card">' + (SHELLI[n.kind === 'warn' ? 'warn' : 'info'] || '') +
               '<div><b>' + esc(n.h || '') + '</b> ' + esc(n.p || '') + '</div></div>';

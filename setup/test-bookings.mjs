@@ -136,6 +136,50 @@ async function open(T, perms) {
   await ctx.close();
 }
 
+
+// --- the trip page stops repeating the to-do list ---------------------------
+//
+// raffy, 2026-09-01: "for the before you lock this in , inside trip section, do
+// u think that's the best position to place it there ?"
+//
+// It was a review screen for a review that no longer happens here — accepting
+// the trip moved into the chat long ago. What was left was two things: notes
+// about unbooked stays, which are tasks and belong on To do with a deadline and
+// a link, and notes worth knowing, which are context. The first now goes.
+{
+  const T = {
+    ...REAL,
+    stays: STAYS,
+    trip: { ...REAL.trip, notes: [
+      { kind: 'warn', h: 'Stay 2 is not booked.', p: 'Everything after Friday assumes it.', stay: 1 },
+      { kind: 'info', h: 'Mid-autumn festival falls in your week.', p: 'Hoi An fills up and the lanterns are the point.' },
+    ] },
+  };
+  const { html } = render(T, tpl);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+  await ctx.route(ORIGIN + '/', (r) => r.fulfill({ contentType: 'text/html', body: html }));
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
+  const foot = await page.locator('#foot').innerText().catch(() => '');
+
+  console.log('');
+  ok('notes: no page errors', errs.length === 0, errs.join(' / '));
+  ok('the review heading is gone', !/lock this in/i.test(foot), foot.split('\n')[0]);
+  ok('what is left is context, not a checklist', /worth knowing/i.test(foot), foot.split('\n')[0]);
+  ok('an unbooked stay is not repeated here', !/not booked/i.test(foot), foot);
+  ok('but something worth knowing stays', /mid-autumn/i.test(foot));
+  // And the booking it stopped repeating is on the list that owns it.
+  await page.locator('#nav button[data-view="book"]').click();
+  await page.waitForTimeout(300);
+  ok('because To do owns it, with a deadline',
+     /La Siesta/.test(await page.locator('#bookings').innerText()));
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
