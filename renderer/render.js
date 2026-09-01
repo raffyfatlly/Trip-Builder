@@ -845,18 +845,16 @@ export function render(T, templateSrc) {
     // must never collapse the map — that looked exactly like the feature was
     // missing, and cost an evening.
     '  .rmap{position:relative;border-radius:var(--r-card);overflow:hidden;box-shadow:var(--sh-s);',
-    '    background:var(--sage);aspect-ratio:640/400}',
+    '    background:var(--sage);aspect-ratio:640/480}',
     '  .rmap img.ground{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}',
     '  .rmap svg{position:absolute;inset:0;width:100%;height:100%}',
     '  .rmap svg g.pin{cursor:pointer}',
     '  .rmap svg g.pin:active{opacity:.7}',
-    // Top-left, not bottom-left. Google bakes its logo into the bottom-left of
-    // every static map and their terms require it stay visible — the caption
-    // was sitting straight on top of it.
-    '  .rmap .rcap{position:absolute;left:11px;top:10px;font-size:10.5px;font-weight:650;',
-    '    color:var(--ink-soft);background:rgba(255,255,255,.86);padding:4px 9px;border-radius:var(--r-pill)}',
-    '  .rmap .hint{position:absolute;right:10px;top:10px;font-size:10.5px;font-weight:650;',
-    '    color:var(--ink-soft);background:rgba(255,255,255,.86);padding:4px 9px;border-radius:var(--r-pill)}',
+    // The map carried two floating captions, "In order" and "Tap a stop".
+    // raffy, 2026-09-01: "remove tap a stop and in order from map. make the map
+    // bigger a bit." Both were labelling things the picture already says — the
+    // pins are numbered, and a pin on a map is obviously a pin — and both were
+    // eating the corners of the only thing on the card worth looking at.
     '  .rlegend{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}',
     '  .rleg{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:var(--r-pill);',
     '    background:var(--surface);box-shadow:var(--sh-s);font-size:12.5px;font-weight:600}',
@@ -867,7 +865,7 @@ export function render(T, templateSrc) {
 
   insertBefore('  function reduce(){', [
     '  // Web Mercator, so a pin lands where the tiles actually put the place.',
-    '  var TILE=256, MW=640, MH=400;',
+    '  var TILE=256, MW=640, MH=480;',   // matches size= in pages/api/map.js
     '  function merc(lat,lon,z){',
     '    var s=TILE*Math.pow(2,z), sl=Math.sin(lat*Math.PI/180);',
     '    return { x:(lon+180)/360*s, y:(0.5-Math.log((1+sl)/(1-sl))/(4*Math.PI))*s };',
@@ -959,8 +957,7 @@ export function render(T, templateSrc) {
     '',
     '    host.innerHTML=\'<div class="rmap">\'+ground+',
     '      \'<svg viewBox="0 0 \'+MW+\' \'+MH+\'" aria-hidden="true">\'+line+pins+\'</svg>\'+',
-    '      \'<span class="rcap">\'+(xy.length>1?"In order":"Where you stay")+\'</span>\'+',
-    '      (xy.length?\'<span class="hint">Tap a stop</span>\':\'\')+\'</div>\'+',
+    '      \'</div>\'+',
     '      (xy.length>1?\'<div class="rlegend">\'+xy.map(function(q){',
     '        return \'<span class="rleg"><i>\'+q.i+\'</i>\'+esc(q.n)+\'</span>\';',
     '      }).join("")+\'</div>\':\'\');',

@@ -92,6 +92,11 @@ for (const [label, stays] of Object.entries(TRIPS)) {
   ok('the map has real size', !!box && box.width > 200 && box.height > 100,
      box ? Math.round(box.width) + '×' + Math.round(box.height) : 'none');
   if (stays.length > 1) {
+    // raffy, 2026-09-01: "remove tap a stop and in order from map." Both were
+    // labelling what the picture already says, in the corners of the only
+    // thing on the card worth looking at.
+    ok('nothing floats over the map',
+       (await page.locator('.rmap .rcap, .rmap .hint').count()) === 0);
     ok('the stays are numbered in a legend',
        (await page.locator('#routemap .rleg').count()) === stays.length);
   }

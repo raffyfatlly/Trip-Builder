@@ -56,7 +56,10 @@ export default async function handler(req, res) {
   const q = new URLSearchParams({
     center: lat + ',' + lon,
     zoom: String(zoom),
-    size: '640x400',
+    // 640x480. Must match MW/MH and the .rmap aspect-ratio in
+    // renderer/render.js — the pins are drawn in this coordinate space, so a
+    // tile of a different shape puts every one of them in the wrong place.
+    size: '640x480',
     scale: '2',
     maptype: 'roadmap',
     key,
