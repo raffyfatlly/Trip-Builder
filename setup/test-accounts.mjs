@@ -83,6 +83,9 @@ await page.goto(B, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1300);
 await page.locator('.burger').click();
 await page.waitForTimeout(400);
+// Account and profile are one row now, folded shut until tapped.
+await page.locator('.proftoggle').click();
+await page.waitForTimeout(350);
 ok('the sign-in section matches what the server said',
    (await page.locator('.acct').count() === 1) === me.accounts);
 ok('and the drawer still works', await page.locator('.drawer .act:has-text("New trip")').count() === 1);
@@ -114,6 +117,10 @@ ok('no page errors', errs.length === 0, errs.join(' / '));
   await p2.waitForTimeout(1400);
   await p2.locator('.burger').click();
   await p2.waitForTimeout(400);
+  ok('the account is behind one tap, not laid out in the drawer',
+     await p2.locator('.acct').count() === 0 && await p2.locator('.proftoggle').count() === 1);
+  await p2.locator('.proftoggle').click();
+  await p2.waitForTimeout(350);
 
   ok('sign-in is offered when accounts are on', await p2.locator('.acct .cta').count() === 1);
   await p2.locator('.acct .cta').click();

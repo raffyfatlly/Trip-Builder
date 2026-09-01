@@ -90,22 +90,24 @@ await page.goto(B, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1300);
 await page.locator('.burger').click();
 await page.waitForTimeout(400);
+await page.locator('.proftoggle').click();
+await page.waitForTimeout(350);
 
-ok('it is shown, not hidden', await page.locator('.mem').count() === 1);
-const text = await page.locator('.mem').innerText();
+ok('it is shown, not hidden', await page.locator('.prof').count() === 1);
+const text = await page.locator('.prof').innerText();
 ok('in plain words', text.includes('Adam') && text.includes('Kuala Lumpur'));
 ok('with a label for each thing', text.includes('TRAVELS WITH') || text.includes('Travels with'));
 await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/memory.png' });
 
-const rowsBefore = await page.locator('.mrow').count();
-await page.locator('.mrow').nth(1).locator('.mx').click();
+const rowsBefore = await page.locator('.prow .px').count();
+await page.locator('.prow').filter({ hasText: 'Travels from' }).locator('.px').click();
 await page.waitForTimeout(300);
-ok('one line can be removed', await page.locator('.mrow').count() === rowsBefore - 1);
+ok('one line can be removed', await page.locator('.prow .px').count() === rowsBefore - 1);
 ok('and it stays removed', !(await page.evaluate(() => localStorage.getItem('itin.memory.v1'))).includes('Kuala Lumpur'));
 
-await page.locator('.mall').click();
+await page.locator('.pall').click();
 await page.waitForTimeout(300);
-ok('and all of it can go at once', await page.locator('.mem').count() === 0);
+ok('and all of it can go at once', await page.locator('.prof .px').count() === 0);
 ok('leaving nothing behind', await page.evaluate(() => localStorage.getItem('itin.memory.v1')) === null);
 ok('no page errors', errs.length === 0, errs.join(' / '));
 

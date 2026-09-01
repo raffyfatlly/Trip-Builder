@@ -101,55 +101,55 @@ export default function Account({ user, trips, onSignedIn, onSignOut }) {
 // landing on the composer's paperclip label two components away and pushing it
 // 2.5px off centre against the send button.
 const css = `
-  .acct{margin-bottom:6px}
-  .cta{
+  .acct{margin-top:6px}
+  .acct .cta{
     display:flex;align-items:center;gap:12px;width:100%;
-    border:0;background:var(--surface);cursor:pointer;color:inherit;
-    padding:12px 13px;border-radius:14px;box-shadow:var(--sh-s);
+    border:0;background:var(--bg);cursor:pointer;color:inherit;
+    padding:11px 12px;border-radius:12px;
     font-family:inherit;text-align:left;transition:transform 150ms var(--e);
   }
-  .cta:active{transform:scale(.985)}
-  .cta svg{width:17px;height:17px;flex:none;color:var(--deep)}
-  .cta span{display:flex;flex-direction:column;gap:2px;min-width:0}
-  .cta b{font-size:14px;font-weight:650}
-  .cta i{font-style:normal;font-size:11.5px;color:var(--ink-soft)}
+  .acct .cta:active{transform:scale(.985)}
+  .acct .cta svg{width:17px;height:17px;flex:none;color:var(--deep)}
+  .acct .cta span{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .acct .cta b{font-size:13px;font-weight:650}
+  .acct .cta i{font-style:normal;font-size:11.5px;color:var(--ink-soft)}
 
-  .form{background:var(--surface);border-radius:14px;padding:13px;box-shadow:var(--sh-s)}
+  .acct .form{background:var(--bg);border-radius:12px;padding:12px}
   .acct label{
     display:block;font-size:11px;font-weight:750;letter-spacing:.06em;
     text-transform:uppercase;color:var(--ink-faint);margin:0 0 5px;
   }
   .acct label + input{margin-bottom:11px}
-  .opt{text-transform:none;letter-spacing:0;font-weight:600;opacity:.75}
+  .acct .opt{text-transform:none;letter-spacing:0;font-weight:600;opacity:.75}
   .acct input{
-    width:100%;border:0;background:var(--bg);border-radius:11px;padding:11px 12px;
+    width:100%;border:0;background:var(--surface);border-radius:11px;padding:11px 12px;
     font-size:15px;font-family:inherit;color:var(--ink);outline:none;
   }
   .acct input:focus{box-shadow:0 0 0 2px var(--deep)}
-  .note{margin:2px 0 11px;font-size:11.5px;line-height:1.45;color:var(--ink-faint)}
-  .err{margin:0 0 10px;font-size:12.5px;line-height:1.4;color:#8C3B14}
-  .row{display:flex;gap:7px}
-  .row button{
+  .acct .note{margin:2px 0 11px;font-size:11.5px;line-height:1.45;color:var(--ink-faint)}
+  .acct .err{margin:0 0 10px;font-size:12.5px;line-height:1.4;color:#8C3B14}
+  .acct .row{display:flex;gap:7px}
+  .acct .row button{
     border:0;border-radius:99px;padding:10px 14px;font-size:13px;font-weight:650;
     cursor:pointer;font-family:inherit;
   }
-  .ghost{background:var(--sage);color:var(--ink-soft)}
-  .go{flex:1;background:var(--deep);color:#EAF2EC}
-  .go:disabled{opacity:.45;cursor:default}
+  .acct .ghost{background:var(--sage);color:var(--ink-soft)}
+  .acct .go{flex:1;background:var(--deep);color:#EAF2EC}
+  .acct .go:disabled{opacity:.45;cursor:default}
 
-  .in{display:flex;align-items:center;gap:10px;background:var(--surface);
-      border-radius:14px;padding:11px 12px;box-shadow:var(--sh-s)}
-  .who{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
-  .av{
-    flex:none;width:30px;height:30px;border-radius:99px;background:var(--deep);
-    color:#EAF2EC;display:grid;place-items:center;font-weight:700;font-size:13px;
+  .acct.in{display:flex;align-items:center;gap:10px;background:var(--bg);
+      border-radius:12px;padding:10px 12px}
+  .acct .who{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+  .acct .av{
+    flex:none;width:28px;height:28px;border-radius:99px;background:var(--deep);
+    color:#EAF2EC;display:grid;place-items:center;font-weight:700;font-size:12.5px;
   }
-  .det{display:flex;flex-direction:column;gap:2px;min-width:0}
-  .det b{font-size:13px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .det i{font-style:normal;font-size:11px;color:var(--ink-soft)}
-  .out{
+  .acct .det{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .acct .det b{font-size:12.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acct .det i{font-style:normal;font-size:11px;color:var(--ink-soft)}
+  .acct .out{
     flex:none;border:0;background:none;color:var(--ink-soft);font-size:12px;
     font-weight:650;cursor:pointer;padding:6px 8px;border-radius:9px;
   }
-  .out:hover{background:var(--sage)}
+  .acct .out:hover{background:var(--sage)}
 `;

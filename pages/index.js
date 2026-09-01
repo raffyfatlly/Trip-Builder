@@ -10,7 +10,7 @@ import Plan from '../components/Plan.js';
 import Drawer from '../components/Drawer.js';
 import Rich from '../components/Rich.js';
 import Actions from '../components/Actions.js';
-import { applyMemory } from '../lib/memory.js';
+import { applyMemory, editSlot, filledCount } from '../lib/memory.js';
 
 const KEY = 'itin.session.v1';
 const POLL_MS = 2000;
@@ -423,9 +423,38 @@ export default function Home() {
     });
   };
 
+  const editSlotByHand = (key, text) => {
+    setMemory((prev) => {
+      const next = editSlot(prev, key, text);
+      persistMemory(next);
+      return next;
+    });
+  };
+
   const forgetAll = () => {
     setMemory(null);
     persistMemory(null);
+  };
+
+  // Asking to save the profile, without becoming a nag.
+  //
+  // Signed out, everything still works — the profile just lives in this
+  // browser. So this is an offer, not a wall, and it is only worth making once
+  // there is something to lose: a few things known, and asked again only after
+  // the profile has GROWN since they last said no. Dismissing it does not
+  // silence it forever, and agreeing to it never blocks anything.
+  const NUDGE_KEY = 'itin.saveprofile.v1';
+  const [nudgeAt, setNudgeAt] = useState(null);
+  useEffect(() => {
+    try { setNudgeAt(Number(localStorage.getItem(NUDGE_KEY) || 0)); } catch (e) { setNudgeAt(0); }
+  }, []);
+
+  const known = filledCount(memory);
+  const nudge = account.accounts && !account.user && nudgeAt !== null && known >= 3 && known > nudgeAt + 1;
+
+  const nudgeLater = () => {
+    setNudgeAt(known);
+    try { localStorage.setItem(NUDGE_KEY, String(known)); } catch (e) { /* ignore */ }
   };
 
   // The account's trips and this browser's are both real. Union them, newest
@@ -729,8 +758,12 @@ export default function Home() {
         onDownload={() => { setMenu(false); download(); }}
         canDownload={ready}
         memory={memory}
+        onEditSlot={editSlotByHand}
         onForgetSlot={forgetSlot}
         onForgetAll={forgetAll}
+        nudge={nudge}
+        onNudgeSave={() => { nudgeLater(); setMenu(true); }}
+        onNudgeLater={nudgeLater}
         accounts={account.accounts}
         user={account.user}
         onSignedIn={onSignedIn}
