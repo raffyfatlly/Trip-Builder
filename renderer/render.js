@@ -750,8 +750,13 @@ export function render(T, templateSrc) {
   }
 
   insertBefore('</style>', [
-    '  .rmap{position:relative;border-radius:var(--r-card);overflow:hidden;box-shadow:var(--sh-s);background:var(--sage)}',
-    '  .rmap img{display:block;width:100%;height:auto;',
+    // aspect-ratio holds the shape, not the image. The img used to be the only
+    // thing in here with height, so a tile that failed to load collapsed the
+    // whole map to nothing — the pins and route are absolutely positioned and
+    // contribute none. It looked exactly like the feature was missing.
+    '  .rmap{position:relative;border-radius:var(--r-card);overflow:hidden;box-shadow:var(--sh-s);',
+    '    background:var(--sage);aspect-ratio:640/400}',
+    '  .rmap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;',
     '    filter:grayscale(.42) sepia(.16) saturate(.82) brightness(1.04) contrast(.94);}',
     '  .rmap svg{position:absolute;inset:0;width:100%;height:100%}',
     '  .rmap .rcap{position:absolute;left:12px;bottom:11px;font-size:11px;font-weight:600;',
@@ -826,8 +831,8 @@ export function render(T, templateSrc) {
     '        return \'<span class="rleg"><i>\'+q.i+\'</i>\'+esc(q.n)+\'</span>\';',
     '      }).join("")+\'</div>\':\'\');',
     '',
-    '    // A tile that will not load leaves the pins floating on nothing; the',
-    '    // sage ground behind them is the designed empty state.',
+    '    // A tile that will not load now leaves pins and route on the sage',
+    '    // ground, which still reads as the shape of the trip.',
     '    var img=host.querySelector("img");',
     '    if(img) img.addEventListener("error",function(){ this.remove(); });',
     '  }',

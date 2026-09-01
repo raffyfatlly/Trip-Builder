@@ -108,6 +108,28 @@ const far = await zoomOf(TRIPS['two continents']);
 console.log('');
 ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs two continents z' + far);
 
+// The tile failing is the common case in the wild — a slow network, a blocked
+// host, an offline phone. It must not take the map down with it: that looked
+// exactly like the feature had never shipped, and cost an evening of hunting
+// for a deploy problem that did not exist.
+{
+  const { html } = render({ ...REAL, stays: TRIPS['two cities'] }, tpl);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  const page = await ctx.newPage();
+  await page.route('**maps.wikimedia.org**', (r) => r.abort());
+  await page.setContent(html, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.waitForTimeout(500);
+  const box = await page.locator('#routemap .rmap').boundingBox();
+  console.log('');
+  ok('a dead tile does not collapse the map', !!box && box.height > 120,
+     box ? Math.round(box.width) + '×' + Math.round(box.height) : 'zero height');
+  ok('the pins survive it', (await page.locator('#routemap svg g').count()) === 2);
+  await page.screenshot({ path: 'shots/routemap-no-tile.png' });
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
