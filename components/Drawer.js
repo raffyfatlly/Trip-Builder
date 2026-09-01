@@ -69,7 +69,7 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
                 )}
               </span>
               <span className="proftext">
-                <b>{(memory && memory.name) || (user && user.email) || 'Your profile'}</b>
+                <b>{(memory && memory.name) || 'Your info'}</b>
                 <i>{profSummary || (user ? user.email : 'Nothing saved yet')}</i>
               </span>
               <svg className="profchev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -269,7 +269,10 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
           padding:6px;box-shadow:var(--sh-s);animation:rise 200ms var(--e) both;
         }
         .proftext{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-        .proftext b{font-size:14px;font-weight:650}
+        .proftext b{
+          font-size:14px;font-weight:650;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        }
         .proftext i{
           font-style:normal;font-size:11.5px;color:var(--ink-soft);
           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;

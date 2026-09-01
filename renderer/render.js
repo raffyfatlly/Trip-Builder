@@ -228,6 +228,28 @@ export function render(T, templateSrc) {
     // someone driving to Johor Bahru is a small lie the whole app is judged
     // by. (raffy, 2026-08-31: "the countdown hardcoded fly. but some trips are
     // by car right".)
+    // Never a blank card, booked or not. (raffy, 2026-09-01: "make sure even
+    // the hotel not book. the photo need to be there. so it looks nice.
+    // that's why the app is special. it looks nice.")
+    //
+    // Every stay carries its own lat/lon, so when there is no photograph we
+    // can still show the actual place: a map tile centred on that hotel. It
+    // is honest — this really is where they would be sleeping — and it means
+    // an unbooked option looks like a considered suggestion instead of an
+    // empty slot. This runs in the app rather than in the builder because the
+    // builder forgetting is exactly how cards ended up blank.
+    function mapTile(o, zoom){
+      if(!o) return '';
+      var la = Number(o.lat), lo = Number(o.lon);
+      if(!isFinite(la) || !isFinite(lo)) return '';
+      return 'https://maps.wikimedia.org/img/osm-intl,' + (zoom||15) + ',' +
+        la.toFixed(4) + ',' + lo.toFixed(4) + ',640x360.png';
+    }
+    function shotFor(o, zoom){
+      if(o && o.photo && P[o.photo]) return P[o.photo];
+      return mapTile(o, zoom);
+    }
+
     function leaveVerb(){
       return (T.trip.flights && T.trip.flights.length) ? 'fly' : 'set off';
     }
@@ -278,7 +300,9 @@ export function render(T, templateSrc) {
         // src renders as a broken-image icon, and .fc is absolutely positioned
         // over the image — with no image the card collapses and the text spills
         // out. So drop the img entirely and let CSS restack the card.
-        var fsrc = f.photo ? (P[f.photo]||'') : '';
+        // The feature card has no coordinates of its own, so it borrows the
+        // first stay's — a wider map of the area they are going to.
+        var fsrc = shotFor(f) || mapTile((T.stays||[])[0], 12);
         el.className = 'feature' + (fsrc ? '' : ' nophoto');
         el.innerHTML =
           (fsrc ? '<img src="' + esc(fsrc) + '" alt="' + esc(f.alt||'') + '" /><div class="veil"></div>' : '') +
@@ -378,7 +402,7 @@ export function render(T, templateSrc) {
   // which becomes src="undefined" and renders a broken-image icon.
   replaceOnce(
     'b.innerHTML=\'<img src="\'+P[s.photo]+\'" alt=""><div class="veil"></div>\'+',
-    'b.innerHTML=(s.photo&&P[s.photo]?\'<img src="\'+P[s.photo]+\'" alt=""><div class="veil"></div>\':\'<div class="ph"></div><div class="veil"></div>\')+',
+    'b.innerHTML=(function(){var q=shotFor(s);return q?\'<img src="\'+q+\'" alt=""><div class="veil"></div>\':\'<div class="ph"></div><div class="veil"></div>\';})()+',
     'stay card photo guard');
 
   replaceOnce('  .feature .badge{position:absolute;top:16px;left:16px}',
