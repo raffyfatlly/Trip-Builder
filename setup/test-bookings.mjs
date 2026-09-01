@@ -1,4 +1,4 @@
-// The Wallet.
+// The To do tab: the arranging phase.
 //
 // raffy, 2026-09-01: "im not happy with the booking tab .feels superficial
 // especially like its an app."
@@ -73,30 +73,38 @@ async function open(T, perms) {
 
   ok('no page errors', errs.length === 0, errs.join(' / '));
   ok('the nav has four tabs', await page.locator('#nav button').count() === 4);
-  ok('the wallet tab is short', (await page.locator('#nav button[data-view="book"]').innerText()).trim() === 'Wallet');
-  ok('the wallet is its own view, not nested', await page.locator('#v-book').isVisible());
+  // raffy, 2026-09-01: "change wallet to like to do or list or something." A
+// wallet is a container; the tab is named after the job now.
+  ok('the tab is named after the job', (await page.locator('#nav button[data-view="book"]').innerText()).trim() === 'To do');
+  ok('it is its own view, not nested', await page.locator('#v-book').isVisible());
   ok('and it has real height', (await page.locator('#v-book').boundingBox()).height > 300);
 
   // The whole point: the record, not the plan.
   ok('a filed booking is the content', t.includes('AirAsia AK1494'));
   ok('its reference is on the card', t.includes('QK7T2P'));
   ok('the one thing worth remembering is kept', t.includes('Check-in opens 48h'));
-  ok('confirmed comes first', t.indexOf('Confirmed') < t.indexOf('Still to sort'));
+  // The list leads with what has to happen; the record follows it.
+  ok('what is left comes before what is done', t.indexOf('Still to do') < t.indexOf('Confirmed'));
+  ok('and it says the order it is in', /order it has to happen/i.test(t));
 
   // The traveller told us this flight once and filed it once. Twice is a bug.
   const codes = (t.match(/AK1494/g) || []).length;
   ok('the flight is not listed twice', codes === 1, codes + ' mentions');
 
   // A booking that names a stay takes it off the outstanding list.
-  const under = t.slice(t.indexOf('Still to sort'));
+  const under = t.slice(t.indexOf('Still to do'), t.indexOf('Confirmed'));
   ok('the filed stay is off the to-do list', !under.includes('La Siesta'));
   ok('the unfiled stay is still on it', under.includes('Furama'));
-  // innerText comes back through text-transform:uppercase, so match loosely.
-  ok('a booked stay with no paperwork says so', /no confirmation filed/i.test(under));
-  ok('it counts what is sorted', /2 of 3 sorted/.test(t), t.split('\n')[0]);
+  // A task says WHEN, because the deadline is the whole reason for the order.
+  ok('every task carries a deadline', /week|now|today|by \d/i.test(under), under.slice(0, 120));
+  // And the link that finishes it.
+  ok('and the link that does it', (await page.locator('#bookings .tdgo').count()) > 0);
+  ok('it counts what is sorted', /\d of \d sorted/.test(t), t.split('\n')[0]);
 
   // Copying is what you actually do with a reference at a counter.
-  await page.locator('.bkref').first().click();
+  const refBtn = page.locator('.bkref').first();
+  await refBtn.scrollIntoViewIfNeeded();
+  await refBtn.click();
   await page.waitForTimeout(250);
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   ok('tapping the reference copies it', clip === 'QK7T2P', JSON.stringify(clip));
@@ -114,8 +122,8 @@ async function open(T, perms) {
   ok('empty: no page errors', errs.length === 0, errs.join(' / '));
   ok('empty: it asks for a confirmation', t.includes('Nothing filed yet'));
   ok('empty: it says how to send one', /forward/i.test(t));
-  ok('empty: the draft stay still reads as not booked', t.includes('La Siesta') && /not booked/i.test(t));
-  ok('empty: nothing is sorted yet', /0 of 3 sorted/.test(t), t.split('\n')[0]);
+  ok('empty: both stays are still to do', t.includes('La Siesta') && t.includes('Furama'));
+  ok('empty: nothing is sorted yet', /0 of \d sorted/.test(t), t.split('\n')[0]);
   await ctx.close();
 }
 

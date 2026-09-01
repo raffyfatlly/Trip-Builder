@@ -8,7 +8,13 @@ import { ageNow } from '../lib/memory.js';
 // asks better questions than a form does. This is here to save typing and to
 // give the first reply something to work with — not to gate anything.
 
-const blank = { destination: '', when: { start: '', end: '', rough: '' }, who: { list: [{ name: '', age: '' }] }, about: [] };
+const blank = {
+  destination: '', when: { start: '', end: '', rough: '' },
+  who: { list: [{ name: '', age: '' }] }, about: [],
+  // `asked` separates "nothing booked" from "never answered" — the first is an
+  // answer worth putting in the opening message, the second is not.
+  ready: { have: [], pace: '', asked: false },
+};
 
 export default function Onboard({ onStart, onSkip, memory }) {
   const [i, setI] = useState(0);
@@ -60,6 +66,7 @@ export default function Onboard({ onStart, onSkip, memory }) {
     destination: !!a.destination.trim(),
     when: !!(a.when.start || a.when.rough),
     who: (a.who.list || []).some((p) => p.name.trim() || p.age),
+    ready: !!(a.ready.pace || a.ready.have.length || a.ready.asked),
     about: a.about.length > 0,
   }[step.key];
 
@@ -181,6 +188,43 @@ export default function Onboard({ onStart, onSkip, memory }) {
           </div>
         )}
 
+        {step.type === 'ready' && (
+          <div className="ready">
+            <div className="chiprow wrap">
+              <button
+                className={'obchip' + (a.ready.asked && !a.ready.have.length ? ' on' : '')}
+                onClick={() => set('ready', { ...a.ready, have: [], asked: true })}
+              >Nothing yet</button>
+              {step.options.map((o) => (
+                <button
+                  key={o}
+                  className={'obchip' + (a.ready.have.includes(o) ? ' on' : '')}
+                  onClick={() => set('ready', {
+                    ...a.ready, asked: true,
+                    have: a.ready.have.includes(o)
+                      ? a.ready.have.filter((x) => x !== o)
+                      : [...a.ready.have, o],
+                  })}
+                >{o}</button>
+              ))}
+            </div>
+
+            <span className="rlab">How full do you like your days?</span>
+            <div className="paces">
+              {step.paces.map((p) => (
+                <button
+                  key={p.key}
+                  className={'pace' + (a.ready.pace === p.key ? ' on' : '')}
+                  onClick={() => set('ready', { ...a.ready, pace: p.key, asked: true })}
+                >
+                  <b>{p.label}</b>
+                  <em>{p.hint}</em>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {step.type === 'multi' && (
           <div className="chiprow wrap">
             {step.options.map((o) => (
@@ -251,6 +295,26 @@ export default function Onboard({ onStart, onSkip, memory }) {
         }
         .obchip:active{transform:scale(.96)}
         .obchip.on{background:var(--deep);color:#EAF2EC}
+
+        .ready{display:flex;flex-direction:column;gap:0}
+        .rlab{
+          display:block;margin:26px 0 10px;font-size:11px;font-weight:750;
+          letter-spacing:.07em;text-transform:uppercase;color:var(--ink-faint);
+        }
+        /* Three whole cards rather than three chips: pace is the one answer
+           here that changes every day of the trip, and it earns the room. */
+        .paces{display:flex;gap:8px}
+        .pace{
+          flex:1;border:0;background:var(--surface);box-shadow:var(--sh-s);
+          border-radius:16px;padding:13px 11px;text-align:left;cursor:pointer;
+          font-family:inherit;color:var(--ink);transition:transform 150ms var(--e);
+          display:flex;flex-direction:column;gap:4px;min-width:0;
+        }
+        .pace:active{transform:scale(.96)}
+        .pace b{font-size:14.5px;font-weight:700;line-height:1.15}
+        .pace em{font-style:normal;font-size:11.5px;line-height:1.35;color:var(--ink-faint)}
+        .pace.on{background:var(--deep);color:#EAF2EC}
+        .pace.on em{color:#B9CFC2}
 
         /* A saved person is a chip with their age on it, so the whole step can
            be read at a glance and answered without the keyboard opening. */

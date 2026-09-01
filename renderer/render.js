@@ -1,3 +1,5 @@
+import { checklist, dueIn, linkFor } from '../lib/checklist.js';
+
 // The renderer. Turns one itinerary.json into a finished app.
 //
 // Environment-agnostic on purpose: it takes the template as a string and
@@ -12,6 +14,9 @@
 // beneath it.
 
 export function render(T, templateSrc) {
+  // The arranging phase, computed here so the app ships with it. Every task
+  // carries its own deadline and the link that finishes it.
+  const LIST = checklist(T);
   let lines = templateSrc.split('\n');
   let applied = 0;
 
@@ -140,6 +145,13 @@ export function render(T, templateSrc) {
 
   const SHELL = `
     var T = ${JSON.stringify(T)};
+    // Derived at build time from the plan and the filed bookings — see
+    // lib/checklist.js. Each entry already knows when it has to happen and
+    // where it gets done.
+    var TODO = ${JSON.stringify({
+      todo: LIST.todo.map((t) => ({ ...t, due: dueIn(t.by), link: linkFor(t, T) })),
+      done: LIST.done.map((t) => ({ ...t, link: linkFor(t, T) })),
+    })};
     var SHELLI = ${JSON.stringify(ICONS)};
 
     // chip()/lnk() used to be called at data-definition time and returned HTML.
@@ -637,6 +649,17 @@ export function render(T, templateSrc) {
     '  .bkref:active{opacity:.55}',
     '  .bkref.done .cp{color:#155C3C}',
     '  .bknote{margin-top:11px;padding:10px 12px;border-radius:12px;background:var(--sage);font-size:12.5px;line-height:1.5;color:var(--deep)}',
+    '  .tdlead{margin:-4px 2px 10px;font-size:12.5px;color:var(--ink-faint)}',
+    '  .tdcard{margin-bottom:9px}',
+    // The deadline is the only thing on this screen that changes behaviour, so
+    // it is the only thing that gets colour.
+    '  .bkicon.hot{background:var(--coral);color:#3A1405}',
+    '  .tdgo{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;',
+    '    margin-top:13px;padding:11px 0 0;border-top:1px solid var(--line);',
+    '    font-size:13px;font-weight:700;color:var(--deep);text-decoration:none}',
+    '  .tdgo svg{width:14px;height:14px;flex:none;opacity:.7}',
+    '  .tdgo:active{opacity:.55}',
+    '  .tdcard.is-done b{text-decoration:line-through;text-decoration-thickness:1.5px;opacity:.75}',
     '  .bkempty{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:22px 18px;text-align:center}',
     '  .bkempty .ico{width:44px;height:44px;border-radius:14px;background:var(--sage);color:var(--deep);display:grid;place-items:center;margin:0 auto 12px}',
     '  .bkempty .ico svg{width:20px;height:20px}',
@@ -662,9 +685,9 @@ export function render(T, templateSrc) {
     '  <!-- ================= BOOKINGS ================= -->',
     '  <section class="view bk" id="v-book" hidden>',
     '    <div class="bkhead">',
-    '      <span class="eyebrow">Bookings</span>',
-    '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">Everything in one place</h1>',
-    '      <p class="bksub">References and times, and what is still outstanding.</p>',
+    '      <span class="eyebrow">Before you go</span>',
+    '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">What still needs doing</h1>',
+    '      <p class="bksub">Sorted by when it has to happen, not by what it is.</p>',
     '    </div>',
     '    <div id="bookings"></div>',
     '  </section>',
@@ -674,10 +697,12 @@ export function render(T, templateSrc) {
   insertBefore('</nav>', [
     '  <button data-view="book" aria-selected="false">',
     '    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>',
-    // "Bookings" is too long for a 76px tab and reads like a database table.
-    // "Wallet" is what the thing actually is: what you open at a counter.
-    // (raffy, 2026-09-01: "booking as text seems too long".)
-    '    <span>Wallet</span>',
+    // Named after the job, not the container. raffy, 2026-09-01: "in the trip
+    // page itself ,i actually don't really understand what it means . or
+    // booking" — then asked for a to-do list that the Wallet already held. A
+    // wallet is a thing that holds stuff; it never said when to open it or
+    // what you would do there. "To do" says both.
+    '    <span>To do</span>',
     '  </button>',
     '',
   ].join('\n'), 'bookings nav button');
@@ -724,65 +749,72 @@ export function render(T, templateSrc) {
     '    return h+\'</div>\';',
     '  }',
     '',
+    '  function todoIcon(k){',
+    '    if(k==="flight") return SHELLI.plane;',
+    '    if(k==="stay") return bkIcon("stay");',
+    '    if(k==="ticket") return bkIcon("activity");',
+    '    if(k==="transfer") return bkIcon("transfer");',
+    '    if(k==="visa") return \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.2"/><path d="M14 10h4M14 14h4M6 16h6"/></svg>\';',
+    '    return bkIcon("other");',
+    '  }',
+    '',
+    '  function todoRow(t){',
+    '    var soon = t.due==="do this now" || t.due==="today" || t.due==="this week";',
+    '    var h=\'<div class="card tdcard"><div class="bkrow">\'+',
+    '      \'<span class="bkicon\'+(soon?" hot":"")+\'">\'+todoIcon(t.kind)+\'</span><div class="bkbody">\'+',
+    '      \'<b>\'+esc(t.what||"")+\'</b>\';',
+    '    if(t.why) h+=\'<div class="bkmeta">\'+esc(t.why)+\'</div>\';',
+    '    if(t.due) h+=\'<span class="bktag \'+(soon?"no":"ok")+\'">\'+esc(t.due)+\'</span>\';',
+    '    h+=\'</div></div>\';',
+    '    if(t.link) h+=\'<a class="tdgo" href="\'+esc(t.link)+\'" target="_blank" rel="noopener noreferrer">\'+',
+    '      \'<span>\'+(t.kind==="flight"?"Find flights":t.kind==="stay"?"Find rooms":"Book it")+\'</span>\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" \'+',
+    '      \'stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>\';',
+    '    return h+\'</div>\';',
+    '  }',
+    '',
     '  function renderBookings(){',
     '    var el=document.getElementById("bookings"); if(!el) return;',
-    '    var B=(T.bookings||[]).slice(), F=(T.trip.flights||[]), S=(T.stays||[]);',
-    '    B.sort(function(a,b){ return (a.at||0)-(b.at||0); });',
+    '    var B=(T.bookings||[]).slice(); B.sort(function(a,b){ return (a.at||0)-(b.at||0); });',
+    '    var todo=(TODO&&TODO.todo)||[], done=(TODO&&TODO.done)||[];',
+    '    var need=todo.length+done.length, sorted=done.length;',
     '',
-    // A flight the traveller told us about is already a record, so it belongs in
-    // the wallet — unless they have since filed the real confirmation for it, in
-    // which case the filed one wins and this would be the same flight twice.
-    '    var filed=B.map(function(b){ return ((b.title||"")+" "+(b.ref||"")).toLowerCase(); });',
-    '    var loose=F.filter(function(f){',
-    '      if(!f.code) return true;',
-    '      var c=String(f.code).toLowerCase().replace(/\\s+/g,"");',
-    '      return !filed.some(function(t){ return t.replace(/\\s+/g,"").indexOf(c)>=0; });',
-    '    });',
+    '    var bars=""; for(var i=0;i<need;i++) bars+=\'<i class="\'+(i<sorted?"on":"")+\'"></i>\';',
+    '    var h=need?\'<div class="bksum"><div class="top"><b>\'+sorted+\' of \'+need+\' sorted</b>\'+',
+    '      \'<span>\'+(need-sorted)+\' left</span></div><div class="bkbar">\'+bars+\'</div></div>\':"";',
     '',
-    '    var stayFiled={};',
-    '    B.forEach(function(b){ if(typeof b.stay==="number") stayFiled[b.stay]=1; });',
-    '    var open=S.map(function(s,i){ return {s:s,i:i}; })',
-    '      .filter(function(x){ return !stayFiled[x.i]; });',
-    '',
-    '    var need=S.length+1, done=(S.length-open.length)+((B.length>loose.length||F.length)?1:0);',
-    '    if(done>need) done=need;',
-    '    var bars=""; for(var i=0;i<need;i++) bars+=\'<i class="\'+(i<done?"on":"")+\'"></i>\';',
-    '    var h=\'<div class="bksum"><div class="top"><b>\'+done+\' of \'+need+\' sorted</b>\'+',
-    '      \'<span>\'+(need-done)+\' left</span></div><div class="bkbar">\'+bars+\'</div></div>\';',
-    '',
-    '    if(B.length||loose.length){',
-    '      h+=\'<div class="sect"><h2>Confirmed</h2></div>\';',
-    '      h+=B.map(bkCard).join("");',
-    '      h+=loose.map(function(f){',
-    '        return bkCard({kind:"flight",',
-    '          title:(f.from||"")+" \\u2192 "+(f.to||""),',
-    '          when:[f.date,f.dep].filter(Boolean).join(", "),',
-    '          where:f.code||"", ref:f.ref||""});',
-    '      }).join("");',
-    '    } else {',
+    '    if(todo.length){',
+    '      h+=\'<div class="sect"><h2>Still to do</h2></div>\';',
+    '      h+=\'<p class="tdlead">In the order it has to happen.</p>\';',
+    '      h+=todo.map(todoRow).join("");',
+    '    } else if(need) {',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
-    '        \'<b>Nothing filed yet</b><p>Forward me a confirmation in the chat \\u2014 an email, \'+',
-    '        \'a screenshot, a PDF, or just the reference typed out. I will read it, keep it here, \'+',
-    '        \'and fit the days around the real times.</p></div>\';',
+    '        \'<b>Everything is arranged</b><p>Nothing left to book. Your confirmations are below.</p></div>\';',
     '    }',
     '',
-    '    if(open.length){',
-    '      h+=\'<div class="sect"><h2>Still to sort</h2></div>\';',
-    '      h+=open.map(function(x){',
-    '        var s=x.s;',
-    '        var m=[s.dates,s.nights].filter(Boolean).join(" \\u00b7 ");',
-    '        return \'<div class="card" style="margin-bottom:9px"><div class="bkrow">\'+',
-    '          \'<span class="bkicon soft">\'+bkIcon("stay")+\'</span><div class="bkbody"><b>\'+',
-    '          esc(s.n||"")+\'</b>\'+(m?\'<div class="bkmeta">\'+esc(m)+\'</div>\':"")+',
-    '          \'<span class="bktag \'+(s.draft?"no":"ok")+\'">\'+',
-    '          (s.draft?"Not booked":"No confirmation filed")+\'</span></div></div></div>\';',
+    '    if(B.length){',
+    '      h+=\'<div class="sect"><h2>Confirmed</h2></div>\';',
+    '      h+=B.map(bkCard).join("");',
+    '    } else {',
+    '      h+=\'<div class="sect"><h2>Confirmed</h2></div>\';',
+    '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
+    '        \'<b>Nothing filed yet</b><p>Once you have booked something, forward me the \'+',
+    '        \'confirmation in the chat \\u2014 an email, a screenshot, a PDF, or just the \'+',
+    '        \'reference typed out. It lands here with the times and the address.</p></div>\';',
+    '    }',
+    '',
+    '    if(done.length){',
+    '      h+=\'<div class="sect"><h2>Sorted</h2></div>\';',
+    '      h+=done.map(function(t){',
+    '        return \'<div class="card tdcard is-done"><div class="bkrow">\'+',
+    '          \'<span class="bkicon soft">\'+todoIcon(t.kind)+\'</span><div class="bkbody"><b>\'+',
+    '          esc(t.what||"")+\'</b><span class="bktag ok">Done</span></div></div></div>\';',
     '      }).join("");',
-    '      h+=\'<p class="bkask">Booked one of these? Send it to me in the chat and it moves up there.</p>\';',
     '    }',
     '    el.innerHTML=h;',
     '  }',
     '',
-    // Copy is the point of the reference, so it says so afterwards rather than
+    // Copy is the point of a reference, so it says so afterwards rather than
     // leaving you wondering whether the tap did anything.
     '  document.addEventListener("click",function(e){',
     '    var b=e.target.closest && e.target.closest(".bkref"); if(!b) return;',

@@ -63,11 +63,25 @@ await page.waitForTimeout(300);
 await page.locator('.whorow input').first().fill('Aisyah');
 await page.locator('.obnext').click();
 await page.waitForTimeout(300);
+
+// raffy, 2026-09-01: "depending whether user has already some of these
+// confirmed/book before they engage" and "some people might prefer to have
+// really pack schedule... for some want a more relax itenary".
+ok('it asks what is already booked', await page.locator('.ready .obchip:has-text("Flights")').count() === 1);
+ok('and how full they like their days', await page.locator('.ready .pace').count() === 3);
+await page.locator('.ready .obchip:has-text("Flights")').click();
+await page.locator('.pace:has-text("Slow")').click();
+await page.waitForTimeout(150);
+ok('picking a pace selects exactly one', await page.locator('.pace.on').count() === 1);
+await page.locator('.obnext').click();
+await page.waitForTimeout(300);
 await page.locator('.obchip:has-text("Photos")').click();
 ok('the last step offers to start', (await page.locator('.obnext').innerText()).includes('Start planning'));
 await page.locator('.obnext').click();
 await page.waitForTimeout(800);
 ok('the answers are sent as the first message', !!sent && sent.text.includes('Da Nang') && sent.text.includes('Aisyah'));
+ok('including what is already booked', /already sorted: flights/i.test(sent.text), sent.text);
+ok('and the pace they want', /slow/i.test(sent.text), sent.text);
 ok('and it lands in the chat, not a form', await page.locator('.composer').count() === 1);
 ok('no horizontal overflow at 390px',
    (await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
@@ -145,6 +159,8 @@ await ctx.close();
   await p4.waitForTimeout(150);
   await p4.locator('.whorow input').first().fill('Mak');
   await p4.locator('.obnext').click();
+  await p4.waitForTimeout(250);
+  await p4.locator('.obnext').click();          // already sorted: skipped
   await p4.waitForTimeout(250);
   await p4.locator('.obnext').click();
   await p4.waitForTimeout(700);
