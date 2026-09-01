@@ -84,5 +84,23 @@ ok('and a thrown tool still answers the agent', /answerFactCall[\s\S]{0,400}catc
 const reg = (await import('fs')).readFileSync('setup/update-agent.js', 'utf8');
 ok('and the agent is registered with them', reg.includes('...FACT_TOOLS'));
 
+
+// --- and where the doubts are supposed to go -------------------------------
+//
+// raffy asked where a "could not confirm their hours" note should live. The
+// answer is nowhere: it is a symptom, not a placement problem. The chat agent
+// has place_details and the builder has no research at all, so a hedge in the
+// finished app is almost always the chat agent's omission arriving in the
+// traveller's trip. Both prompts say so now.
+ok('the chat agent checks hours before handing over',
+   /Check the hours of everything you put in a day/.test(P));
+ok('and knows the builder cannot', /the builder does not/i.test(P));
+ok('and hands over the remedy rather than the doubt', /hand over the remedy, not the doubt/i.test(P));
+
+const { BUILDER_SYSTEM: BP } = await import('../lib/builderPrompt.js');
+ok('the builder is told not to hedge', /Do not hedge in the traveller/.test(BP));
+ok('and what to write instead', /write what to DO, not what you do not know/.test(BP));
+ok('and to say nothing rather than shrug', /say nothing about it at all/.test(BP));
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
