@@ -498,6 +498,48 @@ credentials can live in a vault so they are substituted at egress and never
 enter the sandbox. So it is technically available. The blocker is not the
 runtime, it is the OAuth and review process, which is why forwarding wins.
 
+### The forwarding flow, from the traveller's side
+
+Written out 2026-09-01 when raffy asked what it actually feels like to use.
+
+**Empty state.** The built app has a Bookings section, and before anything is
+in it: *"When you book a flight or a hotel, forward the confirmation here and
+I'll file it — trip-a7f3@…"* with a Copy button and, more importantly, an
+**"Email this to me"** button. They will book the flight three days later on a
+laptop, and the address has to already be in their inbox where they can hit
+reply-forward. Expecting anyone to remember a token is expecting them to fail.
+
+**The act itself** is open → Forward → paste → send. Four or five taps on a
+phone. Not free, but it is a thing people already know how to do, with no new
+concept to learn.
+
+**Two confirmations, because they could be in either place.** A short reply in
+their mail — *"AirAsia AK1494, KUL → FCO, 14 Oct 23:40. Filed under Italy in
+October. Ref QX8P2M."* with a link back — and the booking appearing in the app,
+where the countdown stops saying "no flights yet" and starts counting to a real
+departure. The reply mail is doing quiet work: it proves the thing arrived, it
+lets them check the parse was right, and it puts a way back into the app in the
+place they are already standing.
+
+**Per-trip addresses, not one shared inbox.** With a single `bookings@` you
+have to identify people by sender, and people forward from work accounts,
+second Gmails, a partner's phone. The token identifies the trip regardless of
+who sent it — which also means a spouse can forward their own flight to the
+same trip without an account. That falls out for free and is worth keeping.
+
+**Never drop what you cannot parse.** A Sorrento hotel sends plain text in
+Italian with dates as 14/10. File the PDF anyway and ask: *"I've kept this —
+Villa Maria, 14–17 Oct. Three nights or four?"* A booking half-understood is
+still a booking you can open at a check-in desk at 6am.
+
+**Duplicates** happen — they forward twice, or the auto-rule catches what they
+already sent. Match on reference plus date and merge silently.
+
+**Why this is a better deal for them, not just less work for us:** they grant
+access to nothing, they see exactly what they sent, and if they stop trusting
+the app they delete one filter rather than hunting for an OAuth revocation
+screen.
+
 ### The renderer is the other constraint
 
 The generated app is built by string-splicing the pinned Phu Quoc `app.html`.
