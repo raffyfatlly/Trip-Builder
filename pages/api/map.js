@@ -36,9 +36,9 @@ const STYLE = [
   'feature:road.highway|element:geometry|color:0xF7F2E7',
   'feature:road.highway|element:geometry.stroke|color:0xE3DCCB',
   'feature:transit|visibility:off',
-  // raffy picked this one himself, as hsl(120,38%,82%).
-  'feature:water|element:geometry|color:0xC0E3C0',
-  'feature:water|element:labels.text.fill|color:0x6E8F6E',
+  // raffy picked this one himself: RGB 207, 232, 227.
+  'feature:water|element:geometry|color:0xCFE8E3',
+  'feature:water|element:labels.text.fill|color:0x6E938C',
 ];
 
 const COORD = /^-?\d{1,3}(\.\d{1,6})?$/;
