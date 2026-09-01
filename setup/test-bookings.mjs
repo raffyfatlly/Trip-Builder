@@ -35,6 +35,7 @@ await p.waitForTimeout(900);
 let fail=0; const ok=(n,c,x)=>{console.log((c?'  ok    ':'  FAIL  ')+n+(x?'   '+x:''));if(!c)fail++;};
 ok('no page errors', errs.length===0, errs.join(' / '));
 ok('the nav has four tabs', await p.locator('#nav button').count()===4);
+ok('the wallet tab is short', (await p.locator('#nav button[data-view="book"]').innerText()).trim()==='Wallet');
 await p.locator('#nav button[data-view="book"]').click();
 await p.waitForTimeout(400);
 ok('the bookings view opens', await p.locator('#v-book').isVisible());

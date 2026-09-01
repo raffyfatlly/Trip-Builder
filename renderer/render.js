@@ -104,7 +104,7 @@ export function render(T, templateSrc) {
     replaceRange(589, 685, 'Where you go',
       '    <div style="padding:calc(14px + env(safe-area-inset-top)) 0 16px">\n' +
       '      <span class="eyebrow">Worth doing</span>\n' +
-      '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">Ideas and stays</h1>\n' +
+      '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">Explore</h1>\n' +
       '    </div>',
       'strip illustrated map');
   }
@@ -561,7 +561,9 @@ export function render(T, templateSrc) {
   // The section is edited earlier, in the bottom-up block, because it is a line
   // range. Here the tab keeps its slot but stops claiming to be a map.
   if (!T.map) {
-    replaceOnce('<span>Map</span>', '<span>Ideas</span>', 'relabel map tab as Ideas');
+    // raffy, 2026-09-01: "change ideas to explore". Explore is a verb — it says
+    // what the tab is for rather than what it contains.
+    replaceOnce('<span>Map</span>', '<span>Explore</span>', 'relabel map tab as Explore');
   }
 
   // Adding to the app, rather than doing surgery on it.
@@ -663,7 +665,10 @@ export function render(T, templateSrc) {
   insertBefore('</nav>', [
     '  <button data-view="book" aria-selected="false">',
     '    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>',
-    '    <span>Bookings</span>',
+    // "Bookings" is too long for a 76px tab and reads like a database table.
+    // "Wallet" is what the thing actually is: what you open at a counter.
+    // (raffy, 2026-09-01: "booking as text seems too long".)
+    '    <span>Wallet</span>',
     '  </button>',
     '',
   ].join('\n'), 'bookings nav button');
@@ -927,10 +932,95 @@ export function render(T, templateSrc) {
     "      h+='<div class=\"arearow\"><h3>'+(any?'More to explore':'Worth a look')+",
     "        '</h3><span class=\"ln\"></span><span class=\"near\">'+rest.length+' idea'+",
     "        (rest.length===1?'':'s')+'</span></div>';",
+    "      h+='<div class=\"ideagrid\">';",
     "      rest.forEach(function(i){ h+=ideaCard(i); });",
+    "      h+='</div>';",
     "    })();",
     '',
   ].join('\n'), 'ungrouped ideas');
+
+
+  // --- Explore, as something you browse ---------------------------------------
+  //
+  // raffy, 2026-09-01: "i think the tab explore should list all the things we
+  // find and suggest, integrated om days already good. but need different view
+  // I think in explore. what do u think?"
+  //
+  // He is right, and the reason is upstream of the layout: an idea card was an
+  // icon, a name and one line of text — the same shape as a day row and a stay
+  // row. Three lists that look identical, so the tab had no reason to feel like
+  // anywhere. Ideas now carry a photo, a rating and a price (they did not, while
+  // the chat options always had all three), so Explore can be what it should be:
+  // pictures in a grid, scanned rather than read, with the rating up front
+  // because that is what the whole app recommends on.
+  replaceRegex(
+    /function ideaCard\(i\)\{[\s\S]*?<\/button>';\n  \}/,
+    [
+      "function ideaCard(i){",
+      "    var d=IDEAS[i];",
+      "    var src=d.photo&&P[d.photo]?P[d.photo]:'';",
+      "    return '<button class=\"ideacard\" data-idea=\"'+i+'\">'+",
+      "      '<span class=\"ipic\">'+(src?'<img src=\"'+esc(src)+'\" alt=\"\" loading=\"lazy\">':",
+      "        '<span class=\"iph\">'+(II[d.icon]||I.chev)+'</span>')+",
+      "        (d.verdict==='yes'?'<span class=\"ivd\">Worth it</span>':'')+'</span>'+",
+      "      '<span class=\"ibody\">'+",
+      "        '<span class=\"it\">'+esc(d.n)+'</span>'+",
+      "        (d.rating?'<span class=\"irate\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\">'+",
+      "          '<path d=\"m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.2l5.9-.9z\"/>'+",
+      "          '</svg>'+esc(d.rating)+'</span>':'')+",
+      "        '<span class=\"is\">'+esc(d.one||'')+'</span>'+",
+      "        '<span class=\"ifoot\">'+[d.price,d.time].filter(Boolean).map(esc).join(' &middot; ')+'</span>'+",
+      "      '</span></button>';",
+      "  }",
+    ].join('\n'),
+    'idea card as a picture');
+
+  // Cards go in a grid; the area headings stay full width between them.
+  replaceOnce(
+    "      list.forEach(function(o){ h+=ideaCard(o.i); });",
+    "      h+='<div class=\"ideagrid\">';\n" +
+    "      list.forEach(function(o){ h+=ideaCard(o.i); });\n" +
+    "      h+='</div>';",
+    'group ideas into a grid');
+
+  insertBefore('</style>', [
+    '  #ideas .ideagrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:4px}',
+    '  #ideas .ideacard{',
+    '    display:flex;flex-direction:column;gap:0;text-align:left;padding:0;overflow:hidden;',
+    '    background:var(--surface);border-radius:20px;box-shadow:var(--sh-s);width:100%;',
+    '    transition:transform 160ms var(--e-out);',
+    '  }',
+    '  #ideas .ideacard:active{transform:scale(.975)}',
+    '  #ideas .ipic{position:relative;display:block;aspect-ratio:4/3;background:var(--sage);overflow:hidden}',
+    '  #ideas .ipic img{width:100%;height:100%;object-fit:cover;display:block}',
+    '  #ideas .iph{position:absolute;inset:0;display:grid;place-items:center;color:var(--deep);opacity:.5}',
+    '  #ideas .iph svg{width:28px;height:28px}',
+    '  #ideas .ivd{',
+    '    position:absolute;left:8px;top:8px;font-size:9.5px;font-weight:800;letter-spacing:.04em;',
+    '    text-transform:uppercase;background:var(--coral);color:#3A1405;padding:3px 7px;border-radius:var(--r-pill);',
+    '  }',
+    '  #ideas .ibody{display:flex;flex-direction:column;gap:3px;padding:10px 11px 12px;min-width:0}',
+    '  #ideas .it{font-family:\'Outfit\',sans-serif;font-size:14px;font-weight:700;line-height:1.2;letter-spacing:-.01em}',
+    '  #ideas .irate{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:650;color:var(--ink-soft)}',
+    '  #ideas .irate svg{width:11px;height:11px;flex:none;color:#E8A020}',
+    '  #ideas .is{font-size:11.5px;line-height:1.4;color:var(--ink-faint);',
+    '    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+    '  #ideas .ifoot{font-size:11px;font-weight:700;color:var(--coral-text);margin-top:2px}',
+    '  #ideas .ideacard .go{display:none}',
+    '',
+  ].join('\n'), 'explore grid css');
+
+
+  // The Explore headings, which still read as a footnote to the itinerary
+  // rather than the point of the tab.
+  replaceOnce(
+    '      <h2>Ideas nearby</h2>\n      <span class="note" style="background:none;padding:0;font-size:12.5px">Not booked</span>',
+    '      <h2>Everything we found</h2>',
+    'explore section heading');
+  replaceOnce(
+    '<p style="margin:0 0 4px;font-size:13.5px;color:var(--ink-soft)">Places worth a look, grouped by where they are. Nothing here is in the plan yet.</p>',
+    '<p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-soft)">Researched, rated and not yet in the plan. Tap one to see the case for it.</p>',
+    'explore blurb');
 
   // --- boot ------------------------------------------------------------------
 
