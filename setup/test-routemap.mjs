@@ -202,6 +202,68 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   await ctx.close();
 }
 
+// --- how the route is drawn -------------------------------------------------
+//
+// raffy, 2026-09-01: "draw like dash line rather than solid in between... then
+// i dont want straight line do it like in my phu quoc map. also i want some
+// line from the map with like flight or car icon to the airport."
+{
+  const two = [stay('Furama', 16.0296, 108.2497), stay('Hoi An', 15.8801, 108.3380)];
+  const open = async (trip) => {
+    const { html } = render(trip, tpl);
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
+    const page = await ctx.newPage();
+    await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+    await serve(ctx, html);
+    await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(700);
+    await page.locator('#nav button[data-view="map"]').click();
+    await page.waitForTimeout(400);
+    return { ctx, page };
+  };
+
+  console.log('');
+  {
+    const { ctx, page } = await open({ ...REAL, stays: two });
+    const paths = await page.locator('#routemap svg path').evaluateAll(
+      (els) => els.map((e) => ({ d: e.getAttribute('d'), dash: e.getAttribute('stroke-dasharray') })));
+    const route = paths.filter((p) => p.d && /^M[\d.]+ [\d.]+ [QC]/.test(p.d));
+    ok('two stays are joined by a curve, not a ruler', route.length > 0,
+       (paths[0] || {}).d);
+    ok('and nothing is drawn as a straight segment',
+       !paths.some((p) => p.d && / L[\d.]/.test(p.d)), JSON.stringify(paths.map((p) => p.d)));
+    ok('the route is dashed', paths.some((p) => p.dash), JSON.stringify(paths.map((p) => p.dash)));
+    // Long dashes, not dots: dots read as a hint and vanish over dense streets.
+    const dash = (paths.find((p) => p.dash) || {}).dash || '';
+    ok('with dashes rather than dots', parseFloat(dash) >= 6, dash);
+    await ctx.close();
+  }
+
+  // The airport is drawn from real coordinates or not at all — a plane marker
+  // at a made-up position on a REAL map is a lie.
+  {
+    const { ctx, page } = await open({ ...REAL, stays: two,
+      trip: { ...REAL.trip, flights: [{ dir: 'out', from: 'KUL', to: 'DAD', lat: 16.0439, lon: 108.1994 }] } });
+    ok('a known airport is on the map', (await page.locator('#routemap .airpin').count()) === 1);
+    ok('and says which one',
+       /DAD/.test(await page.locator('#routemap .airpin').evaluate((g) => g.textContent)));
+    await ctx.close();
+  }
+  {
+    const { ctx, page } = await open({ ...REAL, stays: two,
+      trip: { ...REAL.trip, flights: [{ dir: 'out', from: 'KUL', to: 'DAD' }] } });
+    ok('no coordinates means no airport', (await page.locator('#routemap .airpin').count()) === 0);
+    await ctx.close();
+  }
+  {
+    const { ctx, page } = await open({ ...REAL, stays: two,
+      trip: { ...REAL.trip, flights: [{ dir: 'out', from: 'KUL', to: 'DAD', lat: 51.47, lon: -0.45 }] } });
+    ok('and a hallucinated one is dropped, not drawn',
+       (await page.locator('#routemap .airpin').count()) === 0);
+    await ctx.close();
+  }
+}
+
 // Tapping a stop opens that stay.
 {
   const { html } = render({ ...REAL, stays: TRIPS['two cities'] }, tpl);

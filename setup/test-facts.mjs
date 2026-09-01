@@ -102,5 +102,10 @@ ok('the builder is told not to hedge', /Do not hedge in the traveller/.test(BP))
 ok('and what to write instead', /write what to DO, not what you do not know/.test(BP));
 ok('and to say nothing rather than shrug', /say nothing about it at all/.test(BP));
 
+
+// The sea, as raffy picked it: hsl(120,38%,82%).
+const mapSrc = (await import('fs')).readFileSync('pages/api/map.js', 'utf8');
+ok('the water is the colour he chose', mapSrc.includes('feature:water|element:geometry|color:0xC0E3C0'));
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

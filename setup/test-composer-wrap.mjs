@@ -16,6 +16,9 @@
 //   BASE=http://localhost:3272 node setup/test-composer-wrap.mjs
 
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import fs from 'fs';
+
+const REAL = JSON.parse(fs.readFileSync('/home/user/claude/tools/itinerary-generator/trips/danang.json', 'utf8'));
 
 const B = process.env.BASE || 'http://localhost:3272';
 let fail = 0;
@@ -80,6 +83,48 @@ ok('and shrinks back once on delete', backFlips <= 1, 'flips=' + backFlips);
 ok('no page errors', errs.length === 0, errs.join(' / '));
 
 await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/composer-wrap.png' });
+
+// --- coming back from the trip ----------------------------------------------
+//
+// raffy, 2026-09-01: "sometimes when im back from app to chat, the chat input
+// fill become like in photo" — the placeholder sliced in half. On a phone the
+// trip pane hides the chat outright, so any grow() that fired while it was open
+// measured a hidden box, read scrollHeight 0, and wrote height:0px. Coming back
+// re-showed a box that had already been told to be nothing.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_H' } }));
+  await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: [{ role: 'user', text: 'hi', id: 'u1' }],
+    itinerary: REAL, plan: {}, agentEdits: [], memoryOps: [],
+    building: false, thinking: false, turns: 1 } }));
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('itin.session.v1', 'sesn_H'));
+  await page.goto(B, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+
+  const box = () => page.locator('.composer textarea').evaluate((el) => el.getBoundingClientRect().height);
+  const before = await box();
+  console.log('');
+  ok('the composer starts at a sane height', before > 24, Math.round(before) + 'px');
+
+  // Open the trip, which hides the chat on a phone, then come back.
+  await page.locator('header .itbtn').click();
+  await page.waitForTimeout(900);
+  await page.locator('.panehead .back').click();
+  await page.waitForTimeout(700);
+
+  const after = await box();
+  ok('and is still that height on the way back', Math.abs(after - before) < 4,
+     Math.round(before) + 'px then ' + Math.round(after) + 'px');
+  ok('the placeholder is not sliced', after > 24, Math.round(after) + 'px');
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

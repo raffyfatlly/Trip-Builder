@@ -353,8 +353,18 @@ export default function Home() {
   const grow = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
+    // A hidden box cannot be measured, and measuring it anyway sets a height
+    // of zero that nothing later corrects.
+    //
+    // raffy, 2026-09-01: "sometimes when im back from app to chat, the chat
+    // input fill become like in photo" — the placeholder sliced in half. On a
+    // phone the trip pane hides the chat outright, so any grow() that fires
+    // while it is open reads scrollHeight 0 and writes height:0px. Coming back
+    // re-showed a box that had already been told to be nothing.
+    if (el.offsetParent === null) return;
     el.style.height = 'auto';
     const h = el.scrollHeight;
+    if (!h) return;
     el.style.height = Math.min(h, 168) + 'px';
     // Past one line the controls drop to their own row underneath, so the
     // text gets the full width instead of threading between two buttons.
@@ -406,6 +416,11 @@ export default function Home() {
   }, [grow]);
 
   useEffect(() => { grow(); }, [messages.length, grow]);
+
+  // And re-measure the moment the chat is on screen again. Nothing else in
+  // this component changes when the trip pane closes, so without this the box
+  // keeps whatever height it had when it went away.
+  useMeasure(() => { grow(); }, [sheet, grow]);
 
   // On a phone there is no shift key, so Enter cannot mean "send" — it has to
   // mean a new line, or you can never write a second paragraph. With a real
