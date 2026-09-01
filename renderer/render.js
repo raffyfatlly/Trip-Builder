@@ -717,6 +717,124 @@ export function render(T, templateSrc) {
     '',
   ].join('\n'), 'bookings renderer');
 
+
+  // --- the route map ---------------------------------------------------------
+  //
+  // raffy, 2026-09-01: "would it be too hard to do the map like in phu quoc ? i
+  // really wish they have that map too like mine. it look nice." Then, catching
+  // the hard part himself: "but the map will cover their destination journey.
+  // u know what i mean? lke what if they go to two countries."
+  //
+  // That second thought is the whole design problem. The Phu Quoc map is a
+  // hand-drawn island: an OSM polygon simplified to 168 points, markers nudged
+  // offshore by hand. Lovely, and it describes one island at one zoom. It
+  // cannot describe Kuala Lumpur to Bangkok to Hanoi.
+  //
+  // So: a REAL map underneath, drawn by Wikimedia at whatever zoom fits the
+  // trip, tinted into the app's palette — and OUR illustration on top. The pins,
+  // the numbering, the dashed route in date order are all ours, in the app's
+  // language. What changes with scale is only the ground beneath them, which is
+  // exactly the part that has to change.
+  //
+  // One island, one city, two countries, two continents: same component, and
+  // the zoom is computed rather than chosen. No key, no library, and the tiles
+  // are the ones already used for photo fallbacks.
+  // The map moves to the head of Ideas rather than being a destination of its
+  // own — you look at it to find what is near you, which is what Ideas is for.
+  // Down here with the other insertions, not up beside the relabel: adding a
+  // line mid-file shifts every absolute line range still to come. It happened
+  // to be safe there and that is not a reason to leave it.
+  if (!T.map) {
+    insertBefore('    <div class="sect"><h2>In order</h2></div>',
+      '    <div id="routemap" style="margin-bottom:6px"></div>\n', 'route map slot');
+  }
+
+  insertBefore('</style>', [
+    '  .rmap{position:relative;border-radius:var(--r-card);overflow:hidden;box-shadow:var(--sh-s);background:var(--sage)}',
+    '  .rmap img{display:block;width:100%;height:auto;',
+    '    filter:grayscale(.42) sepia(.16) saturate(.82) brightness(1.04) contrast(.94);}',
+    '  .rmap svg{position:absolute;inset:0;width:100%;height:100%}',
+    '  .rmap .rcap{position:absolute;left:12px;bottom:11px;font-size:11px;font-weight:600;',
+    '    color:var(--ink-soft);background:rgba(255,255,255,.88);padding:5px 10px;border-radius:var(--r-pill)}',
+    '  .rlegend{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}',
+    '  .rleg{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:var(--r-pill);',
+    '    background:var(--surface);box-shadow:var(--sh-s);font-size:12.5px;font-weight:600}',
+    '  .rleg i{width:19px;height:19px;border-radius:99px;background:var(--coral);color:#3A1405;',
+    '    display:grid;place-items:center;font-size:11px;font-weight:800;font-style:normal;flex:none}',
+    '  .rleg span{color:var(--ink-faint);font-weight:600}',
+    '',
+  ].join('\n'), 'route map css');
+
+  insertBefore('  function reduce(){', [
+    '  // Web Mercator, so a pin lands where the tile actually put the place.',
+    '  function merc(lat,lon,z){',
+    '    var s=256*Math.pow(2,z), sl=Math.sin(lat*Math.PI/180);',
+    '    return { x:(lon+180)/360*s, y:(0.5-Math.log((1+sl)/(1-sl))/(4*Math.PI))*s };',
+    '  }',
+    '  function renderRouteMap(){',
+    '    var host=document.getElementById("routemap"); if(!host) return;',
+    '    var pts=(T.stays||[]).map(function(s,i){',
+    '      return { i:i+1, n:s.short||s.n||"", lat:+s.lat, lon:+s.lon };',
+    '    }).filter(function(p){ return isFinite(p.lat)&&isFinite(p.lon); });',
+    '    if(!pts.length){ host.remove(); return; }',
+    '',
+    '    var W=640, H=400, PAD=64;',
+    '    var lats=pts.map(function(p){return p.lat;}), lons=pts.map(function(p){return p.lon;});',
+    '    var cLat=(Math.min.apply(null,lats)+Math.max.apply(null,lats))/2;',
+    '    var cLon=(Math.min.apply(null,lons)+Math.max.apply(null,lons))/2;',
+    '',
+    '    // Widest zoom first, step in until every stay fits with room for a pin.',
+    '    // A single stay has no span to fit, so it just gets a sensible city zoom.',
+    '    var z=12;',
+    '    if(pts.length>1){',
+    '      for(z=15; z>1; z--){',
+    '        var m=pts.map(function(p){return merc(p.lat,p.lon,z);});',
+    '        var dx=Math.max.apply(null,m.map(function(q){return q.x;}))-Math.min.apply(null,m.map(function(q){return q.x;}));',
+    '        var dy=Math.max.apply(null,m.map(function(q){return q.y;}))-Math.min.apply(null,m.map(function(q){return q.y;}));',
+    '        if(dx<=W-PAD*2 && dy<=H-PAD*2) break;',
+    '      }',
+    '    }',
+    '',
+    '    var c=merc(cLat,cLon,z);',
+    '    var xy=pts.map(function(p){',
+    '      var m=merc(p.lat,p.lon,z);',
+    '      return { i:p.i, n:p.n, x:W/2+(m.x-c.x), y:H/2+(m.y-c.y) };',
+    '    });',
+    '',
+    '    var url="https://maps.wikimedia.org/img/osm-intl,"+z+","+cLat.toFixed(4)+","+',
+    '      cLon.toFixed(4)+","+W+"x"+H+".png";',
+    '',
+    '    var line="";',
+    '    if(xy.length>1){',
+    '      line=\'<path d="M\'+xy.map(function(q){return q.x.toFixed(1)+" "+q.y.toFixed(1);}).join(" L ")+',
+    '        \'" fill="none" stroke="#10362A" stroke-width="3" stroke-linecap="round" \'+',
+    '        \'stroke-dasharray="1 9" opacity=".55"/>\';',
+    '    }',
+    '    var pins=xy.map(function(q){',
+    '      return \'<g transform="translate(\'+q.x.toFixed(1)+\',\'+q.y.toFixed(1)+\')">\'+',
+    '        \'<circle r="17" fill="#EE7B45" opacity=".22"/>\'+',
+    '        \'<circle r="11" fill="#EE7B45" stroke="#FFF" stroke-width="2.5"/>\'+',
+    '        (xy.length>1?\'<text y="4" text-anchor="middle" font-family="Outfit,sans-serif" \'+',
+    '          \'font-size="12" font-weight="800" fill="#3A1405">\'+q.i+\'</text>\':\'\')+',
+    '        \'</g>\';',
+    '    }).join("");',
+    '',
+    '    host.innerHTML=\'<div class="rmap"><img src="\'+url+\'" alt="Map of the trip" />\'+',
+    '      \'<svg viewBox="0 0 \'+W+\' \'+H+\'" aria-hidden="true">\'+line+pins+\'</svg>\'+',
+    '      \'<span class="rcap">\'+(xy.length>1?"In order":"Where you stay")+\'</span></div>\'+',
+    '      (xy.length>1?\'<div class="rlegend">\'+xy.map(function(q){',
+    '        return \'<span class="rleg"><i>\'+q.i+\'</i>\'+esc(q.n)+\'</span>\';',
+    '      }).join("")+\'</div>\':\'\');',
+    '',
+    '    // A tile that will not load leaves the pins floating on nothing; the',
+    '    // sage ground behind them is the designed empty state.',
+    '    var img=host.querySelector("img");',
+    '    if(img) img.addEventListener("error",function(){ this.remove(); });',
+    '  }',
+    '  renderRouteMap();',
+    '',
+  ].join('\n'), 'route map renderer');
+
   // --- boot ------------------------------------------------------------------
 
   replaceOnce('  function reduce(){', '  renderShell();\n\n  function reduce(){', 'renderShell boot call');
