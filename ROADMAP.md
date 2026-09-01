@@ -1,6 +1,7 @@
 # Roadmap
 
-Raffy's asks, captured 2026-08-31, **not started**. His words verbatim:
+Raffy's asks, **not started**. His words verbatim. Items 1-7 captured
+2026-08-31; item 8 added 2026-09-01.
 
 > * more interactive chat , like for example for certain things chat offers
 >   button, instead of type. but stil let the type as an option (3rd choice) or
@@ -410,3 +411,90 @@ works, and it is why packs beat pay-per-action.
 Two consequences worth being deliberate about: do not expire credits
 aggressively (it reads as a trick and the breakage is already in your favour),
 and size the free grant knowing it is customer acquisition cost.
+
+---
+
+## 8. From itinerary to travel app: bookings, and where they come from
+
+Raffy, 2026-09-01, verbatim:
+
+> just to note later in roadmap i want to turn the app into a real travel app.
+> like the chat manage the research assist and everything . so right now it's
+> just nice looking but it misses the handling the booking part for example. we
+> need app that keep their flight bookings , hotel bookings etc. so they just
+> open the app and everything is kept nicely for them in there . so since its
+> managed agent i think it can handle their email, or other revelant mcp for
+> user right. im not sure how to execute this. but the app will look like
+> something first is the summary of trip, then we have ideas and exploration,
+> then the day, then the booking pages etc . to make it like real functional
+
+**The shape he wants:** Summary → Ideas and exploration → The days → Bookings.
+That is four sections, and only two of them exist today.
+
+### The thing this breaks
+
+Everything in this app is **replayed, never stored**. The itinerary is
+reconstructed from the builder's event log; the server keeps nothing. That was
+a deliberate and good decision and **bookings break it.**
+
+A booking is not derived state. It is a PDF someone was emailed, a reference
+number they will need at a counter at 6am, and it has to survive the session,
+the model, the rebuild and the event log being trimmed. It is the first thing
+in this app that is genuinely the user's own data rather than a view of a
+conversation.
+
+So: a `bookings` collection in Firestore, keyed by trip, with the file itself
+in storage. Not the event log. Anything else loses somebody's boarding pass.
+
+### Where bookings come from — three ways in, in this order
+
+**1. Forward it.** Every trip gets its own address — `trip-a7f3@…` — and they
+forward the confirmation. The agent parses it into a booking record and
+attaches the original PDF.
+
+This is the one to build first, and it is worth being clear why: it needs no
+OAuth, no permission screen, no Google verification review, and it works with
+every airline, hotel, tour and ferry on earth including the ones with terrible
+email. TripIt ran on exactly this for fifteen years. The AgentMail account
+already in the vault is the piece needed.
+
+**2. Upload it.** Already half-built — the composer takes PDFs and images and
+the agent reads them. Today that information dissolves into the conversation;
+it should land as a booking record instead.
+
+**3. Read their inbox.** Gmail through MCP, or a connector. This is the one he
+asked about and it is the *last* one to do, not the first:
+
+- It needs OAuth, a Google verification review for restricted scopes, and a
+  privacy policy — weeks of process before a line of it works.
+- Reading a whole inbox to find four emails is a large ask for a small gain
+  over forwarding.
+- **Prompt injection becomes a real attack surface.** An agent that reads
+  arbitrary email *and* can act is a target: a "booking confirmation"
+  containing instructions is trivial to send to a known address. If this gets
+  built, the email content must be treated as data the agent reads and never as
+  instructions it follows, and it must not be able to spend money or send mail
+  off the back of it.
+
+**On Managed Agents and MCP specifically** — yes, it supports MCP servers, and
+credentials can live in a vault so they are substituted at egress and never
+enter the sandbox. So it is technically available. The blocker is not the
+runtime, it is the OAuth and review process, which is why forwarding wins.
+
+### The renderer is the other constraint
+
+The generated app is built by string-splicing the pinned Phu Quoc `app.html`.
+A Bookings section is not a splice — that template has no such section to
+patch. Either the template gains real sections, or the renderer stops being a
+splicer. **This is the actual work in this item**, and it is bigger than the
+booking parsing.
+
+### Sequence
+
+1. `bookings` in Firestore, stored not replayed, with file storage.
+2. Uploads become booking records instead of dissolving into chat.
+3. A Bookings section in the template, and a renderer that can address it.
+4. Per-trip forwarding address, agent parses what arrives.
+5. Only then, and only if people ask for it: inbox access.
+
+Steps 1–4 need no OAuth, no review, and no new permission from anybody.
