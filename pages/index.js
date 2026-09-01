@@ -33,6 +33,9 @@ export default function Home() {
   const [agentEdits, setAgentEdits] = useState([]);
   const [trips, setTrips] = useState([]);
   const [menu, setMenu] = useState(false);
+  // "Save profile" has to land on the email field, not just open the drawer
+  // and leave them hunting for it behind a collapsed row.
+  const [signInNow, setSignInNow] = useState(false);
   const [unseen, setUnseen] = useState(false);
   const [plan, setPlan] = useState({});
   const [skipOb, setSkipOb] = useState(false);
@@ -749,7 +752,7 @@ export default function Home() {
 
       <Drawer
         open={menu}
-        onClose={() => setMenu(false)}
+        onClose={() => { setMenu(false); setSignInNow(false); }}
         trips={trips}
         session={session}
         onOpenTrip={openTrip}
@@ -762,7 +765,8 @@ export default function Home() {
         onForgetSlot={forgetSlot}
         onForgetAll={forgetAll}
         nudge={nudge}
-        onNudgeSave={() => { nudgeLater(); setMenu(true); }}
+        onNudgeSave={() => { nudgeLater(); setMenu(true); setSignInNow(true); }}
+        signInNow={signInNow}
         onNudgeLater={nudgeLater}
         accounts={account.accounts}
         user={account.user}

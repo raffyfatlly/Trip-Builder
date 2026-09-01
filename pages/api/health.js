@@ -16,5 +16,8 @@ export default function handler(req, res) {
     openrouterKey: !!process.env.OPENROUTER_API_KEY,
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
     googlePhotos: !!placesKey(),
+    // False means the signing key is the deployment id, so every deploy signs
+    // everyone out. That was the "why do I keep typing my email" bug.
+    sessionsSurviveDeploys: !!(process.env.AUTH_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT),
   });
 }

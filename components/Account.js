@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Signing in, in the drawer, in one step.
 //
@@ -11,11 +11,14 @@ import { useState } from 'react';
 // loses nothing they had before; they simply cannot reach their trips from a
 // different phone, and the copy says exactly that rather than nagging.
 
-export default function Account({ user, trips, onSignedIn, onSignOut }) {
+export default function Account({ user, trips, onSignedIn, onSignOut, startOpen }) {
   const [step, setStep] = useState('idle');   // idle | form | busy
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [err, setErr] = useState('');
+
+  // Arrived here from "Save profile", so skip the button they already pressed.
+  useEffect(() => { if (startOpen && !user) setStep((v) => (v === 'idle' ? 'form' : v)); }, [startOpen, user]);
 
   const go = async () => {
     setErr(''); setStep('busy');

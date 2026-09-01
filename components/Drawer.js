@@ -15,7 +15,7 @@ import { peopleText } from '../lib/memory.js';
 export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onEditSlot, onForgetSlot, onForgetAll,
-                                nudge, onNudgeSave, onNudgeLater }) {
+                                nudge, onNudgeSave, onNudgeLater, signInNow }) {
   // Which trip is being removed, if any. Inline rather than a dialog: the row
   // is where the mistake would happen, so that is where the second look
   // belongs — and it keeps the trip's name in front of you while you decide.
@@ -34,6 +34,9 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
   // Closing the drawer abandons the question rather than leaving it armed for
   // whenever it is opened again.
   useEffect(() => { if (!open) { setConfirming(null); setProfOpen(false); } }, [open]);
+
+  // Asked to sign in from the nudge: unfold the row so the form is on screen.
+  useEffect(() => { if (signInNow && open) setProfOpen(true); }, [signInNow, open]);
 
   return (
     <>
@@ -85,7 +88,8 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
                   onClearAll={onForgetAll}
                 />
                 {accounts && (
-                  <Account user={user} trips={trips} onSignedIn={onSignedIn} onSignOut={onSignOut} />
+                  <Account user={user} trips={trips} onSignedIn={onSignedIn}
+                    onSignOut={onSignOut} startOpen={signInNow} />
                 )}
               </div>
             )}
