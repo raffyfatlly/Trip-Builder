@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 // Rendering for the agent's structured content: options to pick between, and
 // researched numbers. Tapping an option sends it back as a message, so the
 // conversation carries on normally and typing is always still available.
@@ -14,6 +16,32 @@ const mapsFor = (name, where) =>
 
 export default function Block({ block, onChoose, disabled, where }) {
   const { kind, title, intro, items, facts, spots, choose, proposal } = block;
+
+  // Ticking several and sending once.
+  //
+  // raffy, 2026-09-01, planning two areas of Italy: "i need to click two hotels
+  // selcteion… if it has more iption, enable multi select option so the agent
+  // dont react immediately after user choose."
+  //
+  // One click used to send straight away, so a card set that needed two answers
+  // got one, and the agent replied to half a question. When the agent says this
+  // set wants more than one, the buttons become toggles and nothing is sent
+  // until they say they are done.
+  const multi = choose && block.pick === 'many';
+  const [picked, setPicked] = useState([]);
+  const toggle = (name) =>
+    setPicked((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
+  const sendPicked = () => {
+    if (!picked.length) return;
+    // Read back in the order they appear on the card, not the order tapped —
+    // it matches what they are looking at.
+    const inOrder = (items || []).map((o) => o.name).filter((n) => picked.includes(n));
+    const list = inOrder.length === 1
+      ? inOrder[0]
+      : inOrder.slice(0, -1).join(', ') + ' and ' + inOrder[inOrder.length - 1];
+    onChoose(`Let's go with ${list}.`);
+    setPicked([]);
+  };
 
   return (
     <div className="block">
@@ -165,12 +193,22 @@ export default function Block({ block, onChoose, disabled, where }) {
             <div className="tags">{o.tags.map((t) => <span key={t}>{t}</span>)}</div>
           )}
           <div className="acts">
-            {choose && (
+            {choose && (multi ? (
+              <button className={'pick tick' + (picked.includes(o.name) ? ' on' : '')}
+                disabled={disabled} aria-pressed={picked.includes(o.name)}
+                onClick={() => toggle(o.name)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m5 12.5 4.5 4.5L19 7" />
+                </svg>
+                {picked.includes(o.name) ? 'Picked' : 'Pick this'}
+              </button>
+            ) : (
               <button className="pick" disabled={disabled}
                 onClick={() => onChoose(`Let's go with ${o.name}.`)}>
                 Choose this
               </button>
-            )}
+            ))}
             <button className="more" disabled={disabled}
               onClick={() => onChoose(`Tell me more about ${o.name}.`)}>
               Tell me more
@@ -196,6 +234,21 @@ export default function Block({ block, onChoose, disabled, where }) {
           </div>
         </div>
       ))}
+
+      {/* Nothing is sent until they say they are done, so a card set that
+          needs two answers gets two. */}
+      {multi && (
+        <div className={'confirm' + (picked.length ? ' ready' : '')}>
+          <span className="count">
+            {picked.length === 0
+              ? 'Tick the ones you want'
+              : picked.length + (picked.length === 1 ? ' picked' : ' picked')}
+          </span>
+          <button className="send" disabled={disabled || !picked.length} onClick={sendPicked}>
+            {picked.length > 1 ? 'Send these' : 'Send'}
+          </button>
+        </div>
+      )}
 
       <style jsx>{`
         .block{
@@ -298,6 +351,31 @@ export default function Block({ block, onChoose, disabled, where }) {
         button:active,.link:active{transform:scale(.96)}
         button:disabled{opacity:.4;cursor:default}
         .pick{background:var(--coral);color:#fff}
+
+        /* Multi-select: a tick that fills in, and a bar that does the sending. */
+        .pick.tick{
+          background:var(--sage);color:var(--ink-soft);
+          display:inline-flex;align-items:center;gap:6px;
+        }
+        .pick.tick svg{width:13px;height:13px;flex:none;opacity:.32}
+        .pick.tick.on{background:var(--deep);color:#EAF2EC}
+        .pick.tick.on svg{opacity:1}
+        .confirm{
+          display:flex;align-items:center;justify-content:space-between;gap:10px;
+          margin-top:8px;padding:9px 10px 9px 15px;border-radius:99px;
+          background:var(--surface);box-shadow:var(--sh-s);
+          transition:background 200ms var(--e);
+        }
+        .confirm .count{
+          font-size:12.5px;font-weight:600;color:var(--ink-faint);
+        }
+        .confirm.ready .count{color:var(--ink)}
+        .confirm .send{
+          border:0;border-radius:99px;padding:9px 17px;font-size:13px;font-weight:650;
+          font-family:inherit;cursor:pointer;background:var(--coral);color:#fff;
+          transition:opacity 160ms;
+        }
+        .confirm .send:disabled{opacity:.35;cursor:default}
         .more{background:var(--sage);color:var(--ink-soft)}
         .link{background:none;color:var(--ink-faint);margin-left:auto;padding-right:4px}
 
