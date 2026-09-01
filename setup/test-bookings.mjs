@@ -73,6 +73,11 @@ async function open(T, perms) {
 
   ok('no page errors', errs.length === 0, errs.join(' / '));
   ok('the nav has four tabs', await page.locator('#nav button').count() === 4);
+  // raffy, 2026-09-01: "first todo, then explore, them day, last is trip" —
+  // left to right, the order things actually happen.
+  ok('in the order the trip happens',
+     (await page.locator('#nav button').evaluateAll((b) => b.map((x) => x.getAttribute('data-view')))).join(',')
+       === 'book,map,days,trip');
   // raffy, 2026-09-01: "change wallet to like to do or list or something." A
 // wallet is a container; the tab is named after the job now.
   ok('the tab is named after the job', (await page.locator('#nav button[data-view="book"]').innerText()).trim() === 'To do');

@@ -79,18 +79,27 @@ const browser = await chromium.launch();
   await asks.first().click();
   await page.waitForTimeout(400);
 
-  const draft = await page.locator('.composer textarea').inputValue();
-  ok('tapping it fills the composer', draft.startsWith('Change "'), JSON.stringify(draft));
-  ok('with the item it came from', /Change "[^"]+"/.test(draft), draft);
-  ok('and the day it is on', /on \w+ \d+: $/.test(draft), draft);
-  ok('but sends nothing on its own', sent.length === 0, JSON.stringify(sent.map((x) => x.text)));
+  // The composer comes to the trip. raffy, 2026-09-01: "i just want the chat
+  // continues to live in the app" — bouncing to the chat to type one sentence
+  // loses the thing you were looking at, which is the context of the change.
+  ok('the composer comes to the trip', (await page.locator('.dock').count()) === 1);
+  ok('and the trip is still on screen', await page.locator('.phone iframe').isVisible());
 
-  // It is a real message from there on: they finish the sentence and send.
-  await page.locator('.composer textarea').fill(draft + 'make it later');
+  const draft = await page.locator('.dock textarea').inputValue();
+  ok('prefilled with what you tapped', draft.startsWith('Change "'), JSON.stringify(draft));
+  ok('naming the item', /Change "[^"]+"/.test(draft), draft);
+  ok('and the day it is on', /on \w+ \d+: $/.test(draft), draft);
+  ok('the day is not shouted', !/on [A-Z]{3} /.test(draft), draft);
+  ok('but it sends nothing on its own', sent.length === 0, JSON.stringify(sent.map((x) => x.text)));
+
+  await page.locator('.dock textarea').fill(draft + 'make it later');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(500);
   ok('finishing it sends one message', sent.length === 1, JSON.stringify(sent.map((x) => x.text)));
   ok('carrying both halves', /Change "[^"]+" on .*make it later/.test((sent[0] || {}).text || ''), (sent[0] || {}).text);
+  ok('and the answer comes back here, not offscreen', (await page.locator('.dock .dsay').count()) === 1);
+  ok('with a way through to the whole conversation', (await page.locator('.dock .dfull').count()) === 1);
+  ok('the trip never left the screen', await page.locator('.phone iframe').isVisible());
 
   ok('no page errors', errs.length === 0, errs.join(' / '));
   await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/ask.png' });

@@ -694,7 +694,7 @@ export function render(T, templateSrc) {
     '',
   ].join('\n'), 'bookings view');
 
-  insertBefore('</nav>', [
+  const BOOK_TAB = [
     '  <button data-view="book" aria-selected="false">',
     '    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>',
     // Named after the job, not the container. raffy, 2026-09-01: "in the trip
@@ -704,8 +704,42 @@ export function render(T, templateSrc) {
     // what you would do there. "To do" says both.
     '    <span>To do</span>',
     '  </button>',
-    '',
-  ].join('\n'), 'bookings nav button');
+  ].join('\n');
+
+  // The tab order follows the trip, not the data model.
+  //
+  // raffy, 2026-09-01: "first todo, then explore, them day, last is trip".
+  // Read left to right it is the order things actually happen — arrange it,
+  // decide what is worth doing, see the plan, and Trip as the summary you show
+  // someone who asks. The nav is rebuilt rather than appended to, because the
+  // template's order (trip, map, days) is the reverse of that.
+  replaceRegex(
+    /<nav class="nav" id="nav">[\s\S]*?<\/nav>/,
+    (() => {
+      const src = lines.join('\n');
+      const nav = src.match(/<nav class="nav" id="nav">([\s\S]*?)<\/nav>/);
+      if (!nav) fail('nav: could not read the tab bar');
+      const btns = nav[1].match(/<button[\s\S]*?<\/button>/g) || [];
+      const of = (v) => btns.find((b) => b.includes('data-view="' + v + '"'));
+      if (btns.length !== 3 || !of('trip') || !of('map') || !of('days')) {
+        fail('nav: expected the three template tabs, got ' + btns.length);
+      }
+      const clean = (b) => b.replace(/aria-selected="[a-z]+"/, 'aria-selected="false"');
+      return '<nav class="nav" id="nav">\n' + [BOOK_TAB, of('map'), of('days'), of('trip')]
+        .map(clean).join('\n') + '\n</nav>';
+    })(),
+    'tab order: to do, explore, days, trip');
+
+  // Which tab you land on depends on which phase the trip is in. Before you
+  // go, the useful screen is what still has to be arranged; once you are
+  // there, it is today. The old default — always the front page — was right
+  // for neither.
+  insertAfter("var nav=document.getElementById('nav');",
+    "\n  (function(){ var i=pqIndex(pqNow()); setTimeout(function(){"
+    + " setView(i>=0 && i<DAYS.length ? 'days' : 'book'); },0); })();",
+    'land on the tab that matches the phase');
+
+
 
   insertAfter("var views={trip:document.getElementById('v-trip'),map:document.getElementById('v-map'),days:document.getElementById('v-days')};",
     "\n  views.book=document.getElementById('v-book');", 'register bookings view');
@@ -1159,7 +1193,7 @@ export function render(T, templateSrc) {
       "    var src=d.photo&&P[d.photo]?P[d.photo]:'';",
       "    return '<button class=\"ideacard\" data-idea=\"'+i+'\">'+",
       "      '<span class=\"ipic\">'+(src?'<img src=\"'+esc(src)+'\" alt=\"\" loading=\"lazy\">':",
-      "        '<span class=\"iph\">'+(II[d.icon]||I.chev)+'</span>')+",
+      "        '<span class=\"iph\">'+(II[d.icon]||I.pin||II.tower)+'</span>')+",
       "        (d.verdict==='must'?'<span class=\"ivd must\">Don\\u2019t miss</span>':",
       "          d.verdict==='yes'?'<span class=\"ivd\">Worth it</span>':'')+'</span>'+",
       "      '<span class=\"ibody\">'+",
@@ -1183,34 +1217,50 @@ export function render(T, templateSrc) {
     "      h+='</div>';",
     'group ideas into a grid');
 
+  // Scoped to the card, not to #ideas.
+  //
+  // raffy, 2026-09-01, on the stay sheet: "in ideas in this area there's a big
+  // font of writing im not sure what it is but it looks out of place." That was
+  // the "Worth it" badge. The same ideaCard() renders in the stay sheet as in
+  // Explore, but these rules were scoped to #ideas, so in the sheet the
+  // template's original row layout won — a 38px icon column that the picture
+  // area was squeezed into, with the badge falling out of it as plain oversized
+  // text. One card, one set of rules, wherever it appears.
   insertBefore('</style>', [
-    '  #ideas .ideagrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:4px}',
-    '  #ideas .ideacard{',
-    '    display:flex;flex-direction:column;gap:0;text-align:left;padding:0;overflow:hidden;',
+    '  .ideagrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:4px}',
+    '  .ideacard{',
+    // align-items has to be reset explicitly. The template lays this card out
+    // as a centred grid row, and `align-items:center` survived the switch to a
+    // flex column — which shrank the picture to the width of its own content,
+    // i.e. zero. The card looked like it had a blank photo area on every idea;
+    // it had no photo area at all.
+    '    display:flex;flex-direction:column;align-items:stretch;gap:0;',
+    '    text-align:left;padding:0;overflow:hidden;',
     '    background:var(--surface);border-radius:20px;box-shadow:var(--sh-s);width:100%;',
     '    transition:transform 160ms var(--e-out);',
     '  }',
-    '  #ideas .ideacard:active{transform:scale(.975)}',
+    '  .ideacard:active{transform:scale(.975)}',
     // A fixed height, not aspect-ratio. As a flex item with only an absolutely
     // positioned child, aspect-ratio resolved to zero and the whole picture
     // area vanished on any idea without a photo — which is every existing trip.
     // Fixed also keeps the grid rows aligned, which is the point of a grid.
-    '  #ideas .ipic{position:relative;display:block;height:104px;background:var(--sage);overflow:hidden}',
-    '  #ideas .ipic img{width:100%;height:100%;object-fit:cover;display:block}',
-    '  #ideas .iph{position:absolute;inset:0;display:grid;place-items:center;color:var(--deep);opacity:.5}',
-    '  #ideas .iph svg{width:28px;height:28px}',
-    '  #ideas .ivd{',
+    '  .ipic{position:relative;display:block;width:100%;height:104px;overflow:hidden;',
+    '    background:linear-gradient(150deg,var(--sage),rgba(238,123,69,.16))}',
+    '  .ipic img{width:100%;height:100%;object-fit:cover;display:block}',
+    '  .iph{position:absolute;inset:0;display:grid;place-items:center;color:var(--deep);opacity:.34}',
+    '  .iph svg{width:30px;height:30px}',
+    '  .ivd{',
     '    position:absolute;left:8px;top:8px;font-size:9.5px;font-weight:800;letter-spacing:.04em;',
     '    text-transform:uppercase;background:var(--coral);color:#3A1405;padding:3px 7px;border-radius:var(--r-pill);',
     '  }',
-    '  #ideas .ibody{display:flex;flex-direction:column;gap:3px;padding:10px 11px 12px;min-width:0}',
-    '  #ideas .it{font-family:\'Outfit\',sans-serif;font-size:14px;font-weight:700;line-height:1.2;letter-spacing:-.01em}',
-    '  #ideas .irate{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:650;color:var(--ink-soft)}',
-    '  #ideas .irate svg{width:11px;height:11px;flex:none;color:#E8A020}',
-    '  #ideas .is{font-size:11.5px;line-height:1.4;color:var(--ink-faint);',
+    '  .ibody{display:flex;flex-direction:column;gap:3px;padding:10px 11px 12px;min-width:0}',
+    '  .it{font-family:\'Outfit\',sans-serif;font-size:14px;font-weight:700;line-height:1.2;letter-spacing:-.01em}',
+    '  .irate{display:flex;align-items:center;gap:4px;font-size:11px;font-weight:650;color:var(--ink-soft)}',
+    '  .irate svg{width:11px;height:11px;flex:none;color:#E8A020}',
+    '  .is{font-size:11.5px;line-height:1.4;color:var(--ink-faint);',
     '    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
-    '  #ideas .ifoot{font-size:11px;font-weight:700;color:var(--coral-text);margin-top:2px}',
-    '  #ideas .ideacard .go{display:none}',
+    '  .ifoot{font-size:11px;font-weight:700;color:var(--coral-text);margin-top:2px}',
+    '  .ideacard .go{display:none}',
     '',
   ].join('\n'), 'explore grid css');
 
@@ -1264,8 +1314,8 @@ export function render(T, templateSrc) {
     'area list skips must-go');
 
   insertBefore('</style>', [
-    '  #ideas .ivd.must{background:var(--deep);color:#EAF2EC}',
-    '  #ideas .itrav{',
+    '  .ivd.must{background:var(--deep);color:#EAF2EC}',
+    '  .itrav{',
     "    display:inline-flex;align-items:center;gap:4px;margin-top:5px;font-size:10.5px;",
     '    font-weight:650;color:var(--ink-faint);',
     '  }',

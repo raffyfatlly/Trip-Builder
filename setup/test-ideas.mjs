@@ -125,6 +125,17 @@ const openIdeas = async (T) => {
   const pic = await page.locator('#ideas .ipic').first().boundingBox();
   ok('a photoless card keeps its picture area', !!pic && pic.height > 60,
      pic ? Math.round(pic.height) + 'px' : 'collapsed');
+  // And a WIDTH, which is the half that was missing.
+  //
+  // raffy, 2026-09-01: "in worth a look ideas there are no photos." The card
+  // switched from the template's centred grid row to a flex column without
+  // resetting align-items, so every child shrank to its own content width — and
+  // a picture area whose only content is a background has none. The photos were
+  // not missing; there was nowhere to put one.
+  ok('and it fills the card', !!pic && pic.width > 100,
+     pic ? Math.round(pic.width) + '×' + Math.round(pic.height) : 'collapsed');
+  ok('an idea with no photo still shows something',
+     /gradient/.test(await page.locator('#ideas .ipic').first().evaluate((el) => getComputedStyle(el).backgroundImage)));
   const badge = await page.locator('#ideas .ivd').first().boundingBox();
   ok('so the badge is actually visible', !!badge && badge.height > 0);
   await page.screenshot({ path: 'shots/ideas-must.png' });
@@ -132,5 +143,6 @@ const openIdeas = async (T) => {
 }
 
 await browser.close();
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

@@ -49,6 +49,8 @@ export default function Home() {
   const [edits, setEdits] = useState([]);
   const [pane, setPane] = useState('preview');   // preview | edit
   const [staleNote, setStaleNote] = useState(0);
+  // The composer, docked over the trip, so a change never costs you the view.
+  const [dock, setDock] = useState(null);
   const [agentEdits, setAgentEdits] = useState([]);
   const [trips, setTrips] = useState([]);
   const [menu, setMenu] = useState(false);
@@ -279,18 +281,32 @@ export default function Home() {
     const onAsk = (e) => {
       const text = e && e.data && e.data.tripAsk;
       if (typeof text !== 'string' || !text) return;
-      setSheet(false);
-      setDraft(text);
-      setTimeout(() => {
-        const el = inputRef.current;
-        if (!el) return;
-        el.focus();
-        try { el.setSelectionRange(text.length, text.length); } catch (err) { /* fine */ }
-      }, 60);
+      // Stay on the trip. raffy, 2026-09-01: "for mobile we need to find better
+      // way where chat can exist in the same page , especially on the change
+      // this part... i just want the chat continues to live in the app."
+      //
+      // Bouncing to the chat to type one sentence loses the thing you were
+      // looking at, which is the whole context of the change. The composer
+      // comes to the trip instead, as a dock over the bottom of it.
+      setDock({ text, sending: false });
     };
     window.addEventListener('message', onAsk);
     return () => window.removeEventListener('message', onAsk);
   }, []);
+
+  const dockRef = useRef(null);
+  // What the agent last said, trimmed to something that fits a dock. The point
+  // of answering here is that the reply does not happen offscreen.
+  const lastAgentLine = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== 'assistant' || !m.text) continue;
+      const line = String(m.text).split('\n').map((x) => x.trim()).filter(Boolean)[0] || '';
+      return line.length > 130 ? line.slice(0, 128) + '…' : line;
+    }
+    return '';
+  })();
+
 
   const undoEdits = useCallback(() => {
     setEdits([]);
@@ -882,6 +898,56 @@ export default function Home() {
             </div>
           ) : (
             <div className="phone">
+              {/* The chat, docked over the trip rather than instead of it.
+                  It carries the last thing the agent said, so a change you ask
+                  for here is answered here — the conversation keeps going
+                  without the trip ever leaving the screen. */}
+              {dock && (
+                <div className="dock">
+                  <button className="dx" onClick={() => setDock(null)} aria-label="Close">×</button>
+                  {dock.sending ? (
+                    <div className="dsay">
+                      {thinking
+                        ? <><i className="dd" /><i className="dd" /><i className="dd" /><span>Working on it</span></>
+                        : <span>{lastAgentLine || 'Done — have a look.'}</span>}
+                      <button className="dfull" onClick={() => { setDock(null); setSheet(false); }}>
+                        Open chat
+                      </button>
+                    </div>
+                  ) : (
+                    <form
+                      className="drow"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        const t = (dockRef.current ? dockRef.current.value : dock.text).trim();
+                        if (!t) return;
+                        send(t);
+                        setDock({ text: '', sending: true });
+                      }}
+                    >
+                      <textarea
+                        ref={dockRef}
+                        rows={2}
+                        defaultValue={dock.text}
+                        autoFocus
+                        placeholder="What should change?"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            e.currentTarget.form.requestSubmit();
+                          }
+                        }}
+                      />
+                      <button type="submit" aria-label="Send">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+                          strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 19V5M5 12l7-7 7 7" />
+                        </svg>
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
               {preview
                 ? <iframe title="Itinerary preview" srcDoc={preview} />
                 : (
@@ -987,6 +1053,44 @@ export default function Home() {
         .scroll{flex:1;overflow-y:auto;padding:6px 2px 10px;scroll-behavior:smooth}
 
         .intro{padding:26px 4px 10px;max-width:30ch}
+        /* Over the trip, not instead of it. Anchored to the bottom because
+           that is where a keyboard comes from on a phone. */
+        .dock{
+          position:absolute;left:10px;right:10px;bottom:10px;z-index:5;
+          background:var(--surface);border-radius:20px;padding:12px 12px 11px;
+          box-shadow:0 2px 6px rgba(12,36,27,.08), 0 18px 40px -20px rgba(12,36,27,.55);
+        }
+        .dock .dx{
+          position:absolute;right:9px;top:7px;border:0;background:none;padding:2px 5px;
+          font-size:17px;line-height:1;color:var(--ink-faint);cursor:pointer;
+        }
+        .drow{display:flex;gap:9px;align-items:flex-end}
+        .drow textarea{
+          flex:1;min-width:0;border:0;background:var(--sage);border-radius:14px;
+          padding:10px 12px;font-size:15px;font-family:inherit;color:var(--ink);
+          outline:0;resize:none;line-height:1.45;
+        }
+        .drow textarea:focus{box-shadow:0 0 0 2px var(--coral)}
+        .drow button{
+          flex:none;width:38px;height:38px;border:0;border-radius:50%;cursor:pointer;
+          background:var(--deep);color:#EAF2EC;display:grid;place-items:center;
+        }
+        .drow button svg{width:17px;height:17px}
+        .dsay{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink-soft);padding-right:18px}
+        .dsay span{flex:1;min-width:0;line-height:1.45}
+        .dsay .dd{
+          width:5px;height:5px;border-radius:50%;background:var(--ink-faint);flex:none;
+          animation:dbl 1.2s var(--e,ease) infinite;
+        }
+        .dsay .dd:nth-child(2){animation-delay:.15s}
+        .dsay .dd:nth-child(3){animation-delay:.3s}
+        @keyframes dbl{0%,60%,100%{opacity:.25}30%{opacity:1}}
+        @media (prefers-reduced-motion:reduce){ .dsay .dd{animation:none} }
+        .dfull{
+          flex:none;border:0;background:var(--sage);color:var(--deep);border-radius:99px;
+          padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;
+        }
+
         .how{display:flex;flex-direction:column;gap:12px;margin:2px 0 22px}
         .hrow{display:flex;flex-direction:column;gap:3px}
         .hrow .hn{
@@ -1218,6 +1322,9 @@ export default function Home() {
         }
         .editwrap{flex:1;min-height:0;overflow-y:auto;padding-right:2px}
         .phone{
+          /* position:relative so the docked composer can sit over the trip
+             rather than pushing it up. */
+          position:relative;
           flex:1;min-height:0;border-radius:28px;overflow:hidden;background:var(--surface);
           box-shadow:var(--sh-l);
         }
