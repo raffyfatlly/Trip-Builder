@@ -24,6 +24,9 @@ const POLL_MS = 2000;
 // that outlives this is not going to arrive. Give up, show something honest,
 // and try again on the next tick.
 const POLL_TIMEOUT_MS = 45000;
+// How often to nudge the agent forward. Slower than the render poll on
+// purpose: this one does the expensive work, and only one runs at a time.
+const ADVANCE_MS = 2500;
 
 export default function Home() {
   const [session, setSession] = useState(null);
@@ -160,6 +163,33 @@ export default function Home() {
       if (alive) timer = setTimeout(tick, POLL_MS);
     };
     tick();
+    return () => { alive = false; clearTimeout(timer); };
+  }, [session]);
+
+  // The other half of the loop, kept away from the one that renders.
+  //
+  // /api/advance answers the agent's pending tool calls and takes the build
+  // forward. It can legitimately run for minutes, so it gets its own slow
+  // cadence and never blocks the poll above — which is the whole reason the
+  // Italy trip came back blank. One at a time: a second call while the first
+  // is still going would duplicate work and cost money twice.
+  useEffect(() => {
+    if (!session) return;
+    let alive = true;
+    let timer;
+    let inFlight = false;
+
+    const push = async () => {
+      if (!inFlight) {
+        inFlight = true;
+        try {
+          await fetch('/api/advance?session=' + encodeURIComponent(session), { method: 'POST' });
+        } catch (e) { /* the next one retries; the page is unaffected */ }
+        inFlight = false;
+      }
+      if (alive) timer = setTimeout(push, ADVANCE_MS);
+    };
+    push();
     return () => { alive = false; clearTimeout(timer); };
   }, [session]);
 
