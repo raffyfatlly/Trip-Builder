@@ -1,4 +1,5 @@
 import { PHOTO_REF, photoMediaUrl, placesKey } from '../../lib/photos.js';
+import { fetchWith } from '../../lib/net.js';
 
 // A Google Places photo, served from here.
 //
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
   const width = Math.min(Math.max(parseInt(req.query.w, 10) || 1200, 200), 1600);
 
   try {
-    const up = await fetch(photoMediaUrl(ref, width), { redirect: 'follow' });
+    const up = await fetchWith(photoMediaUrl(ref, width), 10000, { redirect: 'follow' });
     const type = up.headers.get('content-type') || '';
     if (!up.ok || !/^image\//i.test(type)) return res.status(502).json({ error: 'no image' });
 

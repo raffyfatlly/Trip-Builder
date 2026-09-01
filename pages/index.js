@@ -20,6 +20,10 @@ import { applyMemory, editSlot, filledCount } from '../lib/memory.js';
 
 const KEY = 'itin.session.v1';
 const POLL_MS = 2000;
+// The server can legitimately spend a while advancing the agent, but a poll
+// that outlives this is not going to arrive. Give up, show something honest,
+// and try again on the next tick.
+const POLL_TIMEOUT_MS = 45000;
 
 export default function Home() {
   const [session, setSession] = useState(null);
@@ -27,6 +31,12 @@ export default function Home() {
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState([]);      // uploaded, not yet sent
   const [thinking, setThinking] = useState(false);
+  // What the agent is doing, in its own words, and how long it has been at it.
+  const [doing, setDoing] = useState(null);
+  const [since, setSince] = useState(0);
+  // Consecutive failed polls. A blank page after a refresh reads as "my trip
+  // is gone" when the truth is "the server did not answer" — say which.
+  const [stalled, setStalled] = useState(0);
   const [building, setBuilding] = useState(false);
   const [itinerary, setItinerary] = useState(null);
   const [preview, setPreview] = useState('');
@@ -126,23 +136,41 @@ export default function Home() {
 
     const tick = async () => {
       try {
-        const r = await fetch('/api/state?session=' + encodeURIComponent(session));
+        // The server holds this open while it advances the agent, and a poll
+        // that never returns used to leave the page blank forever. Give up and
+        // try again rather than waiting on it.
+        const r = await fetch('/api/state?session=' + encodeURIComponent(session),
+          { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) });
+        if (!r.ok) throw new Error('state ' + r.status);
         const d = await r.json();
         if (!alive) return;
         if (d.transcript) setMessages(d.transcript);
         setThinking(!!d.thinking);
         setBuilding(!!d.building);
+        setDoing(d.doing || null);
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
         setPlan(d.plan || {});
         if ((d.memoryOps || []).length) foldMemory(d.memoryOps);
         setLoaded(true);
-      } catch (e) { /* transient, next tick retries */ }
+        setStalled(0);
+      } catch (e) {
+        if (alive) setStalled((n) => n + 1);
+      }
       if (alive) timer = setTimeout(tick, POLL_MS);
     };
     tick();
     return () => { alive = false; clearTimeout(timer); };
   }, [session]);
+
+  // How long the current wait has been going. Reset whenever it stops working,
+  // so the escalating copy below is about this wait, not the session.
+  useEffect(() => {
+    if (!thinking && !building) { setSince(0); return; }
+    const t0 = Date.now();
+    const id = setInterval(() => setSince(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [thinking, building]);
 
   // The itinerary is read-only (replayed from the event log), so manual edits
   // live alongside it and are applied on top.
@@ -634,13 +662,29 @@ export default function Home() {
 
             {thinking && (
               <div className="msg assistant typing">
-                <span /><span /><span />
+                <span className="dots"><span /><span /><span /></span>
+                {/* Says what it is actually doing, from the event log — not a
+                    rotating list of invented phrases. After a minute it stops
+                    pretending this is normal and says so, because a status that
+                    keeps reassuring you through a genuine hang is worse than
+                    three dots. (raffy, 2026-09-01) */}
+                <span className="says">
+                  {stalled > 2
+                    ? "Lost the connection — still trying"
+                    : since > 120
+                      ? (doing || 'Still working') + " — longer than usual, it hasn't given up"
+                      : since > 25
+                        ? (doing || 'Thinking') + ' — this one is taking a moment'
+                        : (doing || 'Thinking')}
+                </span>
               </div>
             )}
             {building && (
               <div className="working">
                 <span className="spin" />
-                Researching and building your itinerary. This takes a couple of minutes.
+                {since > 240
+                  ? 'Still building your itinerary. It is a big one — this can take a few minutes.'
+                  : 'Building your itinerary. This takes a couple of minutes.'}
               </div>
             )}
 
@@ -904,15 +948,21 @@ export default function Home() {
         @keyframes rise{from{opacity:0;transform:translateY(7px) scale(.985)}to{opacity:1;transform:none}}
 
         .typing{
-          display:flex;gap:5px;align-items:center;width:fit-content;max-width:none;
+          display:flex;gap:10px;align-items:center;width:fit-content;max-width:none;
           padding:10px 2px;
         }
-        .typing span{
+        .typing .dots{display:flex;gap:5px;align-items:center;flex:none}
+        .typing .dots span{
           width:7px;height:7px;border-radius:99px;background:var(--ink-faint);opacity:.45;
           animation:bob 1.15s infinite;
         }
-        .typing span:nth-child(2){animation-delay:.14s}
-        .typing span:nth-child(3){animation-delay:.28s}
+        .typing .dots span:nth-child(2){animation-delay:.14s}
+        .typing .dots span:nth-child(3){animation-delay:.28s}
+        .typing .says{
+          font-size:13px;line-height:1.4;color:var(--ink-faint);
+          animation:fadein 300ms var(--e) both;
+        }
+        @keyframes fadein{from{opacity:0}to{opacity:1}}
         @keyframes bob{0%,60%,100%{transform:none;opacity:.35}30%{transform:translateY(-4px);opacity:.85}}
 
         .working{

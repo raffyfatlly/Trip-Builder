@@ -2,6 +2,7 @@
 // the next message references as an image/document content block.
 
 import { apiKey } from '../../lib/config.js';
+import { fetchWith } from '../../lib/net.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '12mb' } } };
 
@@ -25,7 +26,7 @@ export default async function handler(req, res) {
     const form = new FormData();
     form.append('file', new Blob([bytes], { type }), name || 'upload');
 
-    const r = await fetch('https://api.anthropic.com/v1/files', {
+    const r = await fetchWith('https://api.anthropic.com/v1/files', 60000, {
       method: 'POST',
       headers: {
         'x-api-key': apiKey(),
