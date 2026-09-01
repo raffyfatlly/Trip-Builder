@@ -126,5 +126,25 @@ ok('and never to estimate a fare', /Never estimate a fare/.test(P));
 ok('and that pace changes every day of the trip', /changes every single day/.test(P));
 ok('the prompt still parses whole', P.length > 25000, P.length + ' chars');
 
+
+// --- getting there is only a task if they arrange it ------------------------
+//
+// raffy, 2026-09-01: "if the trip doesn't involve flight , do not put confirm
+// the flights." A list with one wrong item on it is a list people stop
+// trusting, and a trip somebody drives to does not want a flight row.
+{
+  const how = (arriveBy) => checklist({ ...trip(), trip: { ...trip().trip, arriveBy } })
+    .todo.map((t) => t.what);
+  console.log('');
+  ok('a flown trip books flights', how('fly').some((w) => /flights/i.test(w)));
+  ok('and so does one that never said', how(undefined).some((w) => /flights/i.test(w)));
+  ok('a driven trip does not', !how('drive').some((w) => /flight/i.test(w)), how('drive').join(' | '));
+  ok('and is not told to sort a car it already owns',
+     !how('drive').some((w) => /getting there|car/i.test(w)), how('drive').join(' | '));
+  ok('a train trip books the train', how('train').some((w) => /train/i.test(w)), how('train').join(' | '));
+  // Seats on a good departure go before hotel rooms do.
+  ok('and books it before the room', /train/i.test(how('train')[0]), how('train').join(' | '));
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

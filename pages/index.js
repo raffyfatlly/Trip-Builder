@@ -49,6 +49,7 @@ export default function Home() {
   const [edits, setEdits] = useState([]);
   const [pane, setPane] = useState('preview');   // preview | edit
   const [staleNote, setStaleNote] = useState(0);
+  const [progress, setProgress] = useState(null);
   // The composer, docked over the trip, so a change never costs you the view.
   const [dock, setDock] = useState(null);
   const [agentEdits, setAgentEdits] = useState([]);
@@ -152,6 +153,7 @@ export default function Home() {
         if (d.transcript) setMessages(d.transcript);
         setThinking(!!d.thinking);
         setBuilding(!!d.building);
+        setProgress(d.progress || null);
         setDoing(d.doing || null);
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
@@ -984,8 +986,17 @@ export default function Home() {
                   <div className="empty">
                     <div className="ph" />
                     <p>{building
-                      ? 'Building your itinerary…'
+                      ? 'Building your itinerary. Carry on — it keeps going without you.'
                       : 'Your itinerary will appear here once there is enough to build.'}</p>
+                    {/* A bar that moves when the BUILDER moves, not when time
+                        passes. An animation that fills on a timer is a lie
+                        about progress, and this build genuinely varies. */}
+                    {building && progress && progress.steps > 0 && (
+                      <div className="bbar" role="progressbar"
+                        aria-valuenow={progress.step} aria-valuemin={0} aria-valuemax={progress.steps}>
+                        <i style={{ width: Math.min(97, Math.round((progress.step / progress.steps) * 100)) + '%' }} />
+                      </div>
+                    )}
                   </div>
                 )}
             </div>
@@ -1371,6 +1382,14 @@ export default function Home() {
           box-shadow:var(--sh-l);
         }
         .phone iframe{width:100%;height:100%;border:0;display:block}
+        .bbar{
+          width:min(220px,60%);height:5px;border-radius:99px;background:var(--sage);
+          overflow:hidden;margin-top:4px;
+        }
+        .bbar i{
+          display:block;height:100%;border-radius:99px;background:var(--deep);
+          transition:width 600ms var(--e);
+        }
         .empty{
           height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
           gap:16px;padding:32px;text-align:center;color:var(--ink-faint);

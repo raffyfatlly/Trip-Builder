@@ -247,6 +247,44 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
     ok('a known airport is on the map', (await page.locator('#routemap .airpin').count()) === 1);
     ok('and says which one',
        /DAD/.test(await page.locator('#routemap .airpin').evaluate((g) => g.textContent)));
+    ok('with no incoming leg when we do not know where from',
+       !/from /.test(await page.locator('#routemap .airpin').evaluate((g) => g.textContent)));
+    await ctx.close();
+  }
+
+  // The leg in from the origin, pointed along the true bearing. raffy:
+  // "there will be like a dash line coming from origin direction to the
+  // airport , and airport to first hotel right ?"
+  {
+    const { ctx, page } = await open({ ...REAL, stays: two,
+      trip: { ...REAL.trip, flights: [{ dir: 'out', from: 'KUL', to: 'DAD',
+        lat: 16.0439, lon: 108.1994, fromLat: 2.7456, fromLon: 101.7099 }] } });
+    const g = await page.locator('#routemap svg').evaluate((el) => el.innerHTML);
+    ok('a known origin draws a leg in', /from KUL/.test(g));
+    // KL is south-west of Da Nang, so the stub must leave the airport to the
+    // lower left. A decoration would not know that.
+    const seg = /M([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+)/.exec(g);
+    ok('pointed the way they actually fly in',
+       !!seg && +seg[1] < +seg[3] && +seg[2] > +seg[4],
+       seg ? seg[0] : 'no leg');
+    // raffy: "must go all the way to end of map". A line stopping in open
+    // country reads as a route to nowhere; one leaving the frame reads as
+    // coming from somewhere off it, which is the truth.
+    const vb = await page.locator('#routemap svg').evaluate((el) => ({
+      w: el.viewBox.baseVal.width, h: el.viewBox.baseVal.height }));
+    const onEdge = seg && (+seg[1] <= 0.5 || +seg[2] <= 0.5
+      || +seg[1] >= vb.w - 0.5 || +seg[2] >= vb.h - 0.5);
+    ok('and it runs off the edge of the map', !!onEdge,
+       seg ? seg[1] + ',' + seg[2] + ' in ' + vb.w + '×' + vb.h : 'no leg');
+    await ctx.close();
+  }
+
+  // Only a trip somebody flies to has an airport on its map.
+  {
+    const { ctx, page } = await open({ ...REAL, stays: two,
+      trip: { ...REAL.trip, arriveBy: 'drive',
+        flights: [{ dir: 'out', from: 'KUL', to: 'DAD', lat: 16.0439, lon: 108.1994 }] } });
+    ok('a driven trip has no airport', (await page.locator('#routemap .airpin').count()) === 0);
     await ctx.close();
   }
   {
