@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview, downloadName } from '../lib/preview.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
+
+// Measuring has to happen before the browser paints, not after. useEffect runs
+// after, which leaves one frame where the new character is rendered at the old
+// height — the textarea scrolls itself to fit and the end of the line appears
+// to vanish. useLayoutEffect does not exist on the server, so fall back there.
+const useMeasure = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 import { loadTrips, rememberTrip, forgetTrip, loadMemory, saveMemory } from '../lib/trips.js';
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
@@ -259,10 +265,27 @@ export default function Home() {
     const cs = getComputedStyle(el);
     const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const line = parseFloat(cs.lineHeight) || 22;
-    setTall((h - pad) > line * 1.6);
+    const lines = (h - pad) / line;
+    // Tall latches until the box is empty, and that is the whole fix.
+    //
+    // Going tall moves the two buttons onto their own row, so the textarea
+    // gets about 96px WIDER. Text that had just wrapped to a second line then
+    // fits on one again — which says "go short" — which narrows it — which
+    // wraps it. The composer flip-flopped on every keystroke for the whole
+    // end of the first line, and settled only once the text was long enough
+    // to wrap at both widths. Measured here: thirteen switches in one line.
+    //
+    // No threshold can fix that, because the measurement is downstream of the
+    // thing it decides. Breaking the loop is the fix: once it has grown it
+    // stays grown until they send or clear, which is also what anyone would
+    // expect a text box to do mid-sentence.
+    // (raffy, 2026-09-01: "as i was writing the first line, at the end, some
+    // words and letters go missing, and glitch. only after finishing that last
+    // few lines and moving to second line it will stabilise again.")
+    setTall((was) => (!el.value ? false : was || lines > 1.7));
   }, []);
 
-  useEffect(() => { grow(); }, [draft, grow]);
+  useMeasure(() => { grow(); }, [draft, grow]);
 
   // The height was measured once at mount and then only when they typed. The
   // conversation loading in above it, a font finishing its swap, the keyboard
@@ -289,6 +312,11 @@ export default function Home() {
   // keyboard Enter still sends and shift+Enter breaks the line, which is what
   // anyone typing at a desk expects.
   const [tall, setTall] = useState(false);
+
+  // Switching to tall changes the width, so the height measured a moment ago
+  // was for the old layout. Re-measure once the class has actually landed.
+  // Safe from looping now that tall only latches one way.
+  useMeasure(() => { grow(); }, [tall, grow]);
   const [hasKeyboard, setHasKeyboard] = useState(false);
   useEffect(() => {
     try { setHasKeyboard(window.matchMedia('(hover: hover) and (pointer: fine)').matches); }
