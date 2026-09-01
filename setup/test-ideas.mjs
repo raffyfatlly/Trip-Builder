@@ -21,7 +21,8 @@ const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '
 
 const tpl = zlib.gunzipSync(fs.readFileSync('public/app-template.html.gz')).toString();
 const REAL = JSON.parse(fs.readFileSync('/home/user/claude/tools/itinerary-generator/trips/danang.json', 'utf8'));
-const idea = (n, area) => ({ n, one: 'Worth the trip', time: '2 hours', icon: 'sun', verdict: 'yes', area });
+const idea = (n, area, verdict, travel) =>
+  ({ n, one: 'Worth the trip', time: '2 hours', icon: 'sun', verdict: verdict || 'yes', area, travel });
 
 const ORIGIN = 'https://itinerary.test';
 const browser = await chromium.launch();
@@ -82,6 +83,51 @@ const openIdeas = async (T) => {
   ok('the strays get their own heading', text.includes('More to explore'));
   ok('including one with an area that does not exist', text.includes('Blue Grotto'));
   ok('no page errors', errs.length === 0, errs.join(' / '));
+  await ctx.close();
+}
+
+// Ranked by worth, not by radius.
+//
+// raffy, 2026-09-01: "im scared we only limit to certain radius... they missed
+// opportunity that are worth it even if it far" and "i only want to give the
+// best out of the best only as suggestions."
+//
+// Grouping everything by area silently ranks the list by distance — the temple
+// two hours out gets filed under a heading nobody scrolls to, beneath a cafe
+// down the road. The must-go handful leads instead, ungrouped.
+{
+  const T = {
+    ...REAL,
+    areas: [{ k: 'near', t: 'Near the hotel', sub: '10 min' }],
+    ideas: [
+      idea('Beach cafe', 'near'),
+      idea('Besakih Temple', 'far', 'must', '2h drive each way'),
+      idea('Sunrise on Batur', null, 'must', '3h, leaves at 2am'),
+      idea('Corner warung', 'near', 'maybe'),
+    ],
+  };
+  const { ctx, page, errs } = await openIdeas(T);
+  const text = await page.locator('#ideas').innerText();
+  const order = await page.locator('#ideas .ideacard .it').allInnerTexts();
+
+  ok('the must-go section leads', text.indexOf('Don') < text.indexOf('Near the hotel'));
+  ok('a far must-go outranks a near maybe',
+     order.indexOf('Besakih Temple') < order.indexOf('Beach cafe'), order.join(' / '));
+  ok('a must-go with no area is not lost', order.includes('Sunrise on Batur'));
+  ok('the long drive is stated, not hidden', text.includes('2h drive each way'));
+  ok('nothing is listed twice', new Set(order).size === order.length, order.join(' / '));
+  ok('the near things still group by area', text.includes('Near the hotel'));
+  ok('every idea appears exactly once', order.length === 4, order.length + ' cards');
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  // Every existing trip has ideas with no photo. aspect-ratio resolved to zero
+  // on a flex item whose only child is absolutely positioned, so the picture
+  // area — and the Don't-miss badge inside it — silently vanished.
+  const pic = await page.locator('#ideas .ipic').first().boundingBox();
+  ok('a photoless card keeps its picture area', !!pic && pic.height > 60,
+     pic ? Math.round(pic.height) + 'px' : 'collapsed');
+  const badge = await page.locator('#ideas .ivd').first().boundingBox();
+  ok('so the badge is actually visible', !!badge && badge.height > 0);
+  await page.screenshot({ path: 'shots/ideas-must.png' });
   await ctx.close();
 }
 

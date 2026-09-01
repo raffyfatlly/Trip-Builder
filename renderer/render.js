@@ -925,7 +925,9 @@ export function render(T, templateSrc) {
     "      AREAS.forEach(function(a){",
     "        IDEAS.forEach(function(d,i){ if(d.area===a.k) shown[i]=1; });",
     "      });",
-    "      var rest=IDEAS.map(function(d,i){return i;}).filter(function(i){ return !shown[i]; });",
+    "      var rest=IDEAS.map(function(d,i){return i;}).filter(function(i){",
+    "        return !shown[i] && IDEAS[i].verdict!=='must';",
+    "      });",
     "      if(!rest.length) return;",
     "      // Only call it 'more' when something was grouped above it.",
     "      var any=Object.keys(shown).length;",
@@ -962,7 +964,8 @@ export function render(T, templateSrc) {
       "    return '<button class=\"ideacard\" data-idea=\"'+i+'\">'+",
       "      '<span class=\"ipic\">'+(src?'<img src=\"'+esc(src)+'\" alt=\"\" loading=\"lazy\">':",
       "        '<span class=\"iph\">'+(II[d.icon]||I.chev)+'</span>')+",
-      "        (d.verdict==='yes'?'<span class=\"ivd\">Worth it</span>':'')+'</span>'+",
+      "        (d.verdict==='must'?'<span class=\"ivd must\">Don\\u2019t miss</span>':",
+      "          d.verdict==='yes'?'<span class=\"ivd\">Worth it</span>':'')+'</span>'+",
       "      '<span class=\"ibody\">'+",
       "        '<span class=\"it\">'+esc(d.n)+'</span>'+",
       "        (d.rating?'<span class=\"irate\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\">'+",
@@ -970,6 +973,7 @@ export function render(T, templateSrc) {
       "          '</svg>'+esc(d.rating)+'</span>':'')+",
       "        '<span class=\"is\">'+esc(d.one||'')+'</span>'+",
       "        '<span class=\"ifoot\">'+[d.price,d.time].filter(Boolean).map(esc).join(' &middot; ')+'</span>'+",
+      "        (d.travel?'<span class=\"itrav\">'+esc(d.travel)+'</span>':'')+",
       "      '</span></button>';",
       "  }",
     ].join('\n'),
@@ -991,7 +995,11 @@ export function render(T, templateSrc) {
     '    transition:transform 160ms var(--e-out);',
     '  }',
     '  #ideas .ideacard:active{transform:scale(.975)}',
-    '  #ideas .ipic{position:relative;display:block;aspect-ratio:4/3;background:var(--sage);overflow:hidden}',
+    // A fixed height, not aspect-ratio. As a flex item with only an absolutely
+    // positioned child, aspect-ratio resolved to zero and the whole picture
+    // area vanished on any idea without a photo — which is every existing trip.
+    // Fixed also keeps the grid rows aligned, which is the point of a grid.
+    '  #ideas .ipic{position:relative;display:block;height:104px;background:var(--sage);overflow:hidden}',
     '  #ideas .ipic img{width:100%;height:100%;object-fit:cover;display:block}',
     '  #ideas .iph{position:absolute;inset:0;display:grid;place-items:center;color:var(--deep);opacity:.5}',
     '  #ideas .iph svg{width:28px;height:28px}',
@@ -1021,6 +1029,52 @@ export function render(T, templateSrc) {
     '<p style="margin:0 0 4px;font-size:13.5px;color:var(--ink-soft)">Places worth a look, grouped by where they are. Nothing here is in the plan yet.</p>',
     '<p style="margin:0 0 10px;font-size:13.5px;color:var(--ink-soft)">Researched, rated and not yet in the plan. Tap one to see the case for it.</p>',
     'explore blurb');
+
+
+  // --- the best of the best, first and ungrouped -------------------------------
+  //
+  // raffy, 2026-09-01: "i only want to give the best out of the best only as
+  // suggestions. main suggestion at least. like a must go if they are already
+  // there especially for first timers." And, on the flip side: "im scared we
+  // only limit to certain radius... they missed opportunity that are worth it
+  // even if it far."
+  //
+  // Those are the same point. Grouping everything by area silently ranks the
+  // list by distance — the temple two hours out gets filed under a heading
+  // nobody scrolls to, beneath a café down the road. So the must-go handful
+  // leads, ungrouped, with its travel time stated honestly; everything else
+  // keeps its area grouping underneath, where proximity genuinely is the useful
+  // way to read it.
+  // Marker includes the next line: the orphan sweep above also contains an
+  // AREAS.forEach, and the shorter string matches inside it.
+  insertBefore('    AREAS.forEach(function(a){\n      var list=IDEAS', [
+    "    var must=IDEAS.map(function(d,i){return {d:d,i:i};})",
+    "      .filter(function(o){ return o.d.verdict==='must'; });",
+    "    if(must.length){",
+    "      h+='<div class=\"arearow\"><h3>Don\\u2019t miss</h3><span class=\"ln\"></span>'+",
+    "        '<span class=\"near\">wherever they are</span></div>';",
+    "      h+='<div class=\"ideagrid\">';",
+    "      must.forEach(function(o){ h+=ideaCard(o.i); });",
+    "      h+='</div>';",
+    "    }",
+    '',
+  ].join('\n'), 'must-go section');
+
+  // A must-go has already been shown at the top; do not print it twice.
+  replaceOnce(
+    "      var list=IDEAS.map(function(d,i){return {d:d,i:i};}).filter(function(o){return o.d.area===a.k;});",
+    "      var list=IDEAS.map(function(d,i){return {d:d,i:i};})\n" +
+    "        .filter(function(o){return o.d.area===a.k && o.d.verdict!=='must';});",
+    'area list skips must-go');
+
+  insertBefore('</style>', [
+    '  #ideas .ivd.must{background:var(--deep);color:#EAF2EC}',
+    '  #ideas .itrav{',
+    "    display:inline-flex;align-items:center;gap:4px;margin-top:5px;font-size:10.5px;",
+    '    font-weight:650;color:var(--ink-faint);',
+    '  }',
+    '',
+  ].join('\n'), 'must-go css');
 
   // --- boot ------------------------------------------------------------------
 
