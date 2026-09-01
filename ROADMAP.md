@@ -462,11 +462,28 @@ already in the vault is the piece needed.
 the agent reads them. Today that information dissolves into the conversation;
 it should land as a booking record instead.
 
+**2b. Let their mail client forward it for them.** The rung nobody thinks of,
+and it is the one that matters. Gmail (and Outlook) can auto-forward matching
+mail to an address: one filter, set once — *from airasia / booking.com / agoda
+→ trip-a7f3@…*. That is the automatic behaviour people actually want from
+inbox access, with no OAuth, no verification review, and no access to anything
+they did not choose to send. Ship it as a "set this up once" card in the app.
+
+Decided 2026-09-01, after raffy asked which of upload or forward was best:
+**they are not alternatives, they cover different moments.** Upload is "I have
+it right now", in-session, while planning. Forwarding is "it just arrived",
+three weeks later, when they are not in the app at all. Planning takes a week
+and the confirmations trickle in over the following month — so upload alone
+means the app goes quiet exactly when it should be filling up, which is the
+whole gap between a nice-looking itinerary and a travel app.
+
 **3. Read their inbox.** Gmail through MCP, or a connector. This is the one he
 asked about and it is the *last* one to do, not the first:
 
 - It needs OAuth, a Google verification review for restricted scopes, and a
-  privacy policy — weeks of process before a line of it works.
+  privacy policy — weeks of process before a line of it works. There is no
+  cheap version: even read-only with a narrow query is a restricted scope, so
+  asking for less does not shorten the review.
 - Reading a whole inbox to find four emails is a large ask for a small gain
   over forwarding.
 - **Prompt injection becomes a real attack surface.** An agent that reads
@@ -495,6 +512,7 @@ booking parsing.
 2. Uploads become booking records instead of dissolving into chat.
 3. A Bookings section in the template, and a renderer that can address it.
 4. Per-trip forwarding address, agent parses what arrives.
-5. Only then, and only if people ask for it: inbox access.
+5. The auto-forward card, so it keeps working without them thinking about it.
+6. Only then, and only if people ask for it: inbox access.
 
 Steps 1–4 need no OAuth, no review, and no new permission from anybody.
