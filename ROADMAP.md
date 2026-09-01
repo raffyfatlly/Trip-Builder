@@ -5,6 +5,12 @@ real trip, arrange it through the app, and use it while they are travelling.*
 Anything not on that path is v2. This exists because the honest cause of
 "i feel a bit overwhelm" was that nothing said when a thing was done.
 
+**Copy rule, set 2026-09-01:** if a line would only make sense to somebody who
+has seen the code, it is a comment, not copy. The app is written for the
+traveller, not for the person who built it — "sorted by when it has to happen,
+not by what it is" describes a sort function to its author and nothing at all to
+a user.
+
 **Strategy, same date:** the build is the moat, the arranging phase is the
 business, the chat is the front door. Read the items below through that.
 
