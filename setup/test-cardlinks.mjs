@@ -37,7 +37,10 @@ const OPTIONS = {
     },
     // The single-link form still has to work: it is what the agent sent before
     // `links` existed, and it is still in old transcripts.
-    { name: 'TIA Wellness', why: 'Quieter, all-inclusive spa.', link: 'https://tia.test/' },
+    // No rating and no meta from the agent — the card has to fill both from
+    // Places, which is the whole of "im not seeing good info like [ratings]".
+    { name: 'TIA Wellness', why: 'Quieter, all-inclusive spa.', link: 'https://tia.test/',
+      tags: ['8 min to the beach', 'Free cancellation'] },
   ],
 };
 
@@ -63,6 +66,7 @@ await ctx.route('**/api/place**', (r) => {
   r.fulfill({ json: {
     photo: '/api/photo?ref=places/x/photos/y',
     rating: '4.6 on Google, 2,300 reviews',
+    address: 'Vo Nguyen Giap, Da Nang',
     site: 'https://furama.test/',            // the same site the agent gave
     maps: 'https://maps.google.test/place/furama',
   } });
@@ -87,6 +91,14 @@ await page.waitForTimeout(1800);
 const first = page.locator('.opt').first();
 
 ok('every card gets a picture', (await page.locator('.opt .pic img').count()) === 3);
+// A curated search result, not a poster: the picture sits beside the facts so
+// the eye can run down the column. raffy: "should come out as a curated google
+// search i think... so its not becoming long read."
+const thumb = await first.locator('.pic').boundingBox();
+ok('the picture is a thumbnail beside the name', thumb.width < 120 && thumb.height < 120,
+   Math.round(thumb.width) + '×' + Math.round(thumb.height));
+ok('and a whole card fits in a glance', (await first.boundingBox()).height < 330,
+   Math.round((await first.boundingBox()).height) + 'px tall');
 ok('and it comes from our own proxy, not a scraped URL',
    (await first.locator('.pic img').getAttribute('src')).startsWith('/api/photo?'));
 ok('the card asks for it by name and place', asked.some((q) => q.startsWith('Furama Resort Danang')), asked.join(' | '));
@@ -111,6 +123,15 @@ ok('the links row is actually styled', icon && icon.width < 20 && icon.height < 
    icon ? Math.round(icon.width) + '×' + Math.round(icon.height) : 'no icon');
 ok('and it sits on one row per line, not stacked huge',
    (await links.first().boundingBox()).height < 30);
+
+// The score is the first thing anyone looks for. The agent is told to look it
+// up and often does not, so the card fills its own gap from Places.
+ok('a card with no rating from the agent still shows one',
+   (await page.locator('.opt').nth(1).locator('.meta').innerText()).includes('4.6'),
+   await page.locator('.opt').nth(1).locator('.meta').innerText());
+ok('and where it is', (await page.locator('.opt').nth(1).locator('.meta').innerText()).includes('Da Nang'));
+ok('the hard facts are pills, not prose',
+   (await page.locator('.opt').nth(1).locator('.tags span').count()) === 2);
 
 ok('where the recommendation came from is shown',
    (await first.locator('.src').innerText()).includes('r/VietnamTravel'));

@@ -61,19 +61,69 @@ function usePlace(name, where) {
   return found;
 }
 
+// A thumbnail beside the name, not a banner above it.
+//
+// raffy, 2026-09-01: "should come out as a curated google search i think. also
+// the try to structure everything so its not becoming long read. smartly
+// visualise it to the reader."
+//
+// The banner version was 132px of picture per card, so three hotels were a
+// scroll rather than a comparison. A search result puts the picture beside the
+// facts precisely so the eye can run down the column — which is the whole job
+// of a card set: choosing between these, not admiring each one.
 function Pic({ name, where }) {
   const place = usePlace(name, where);
   const [dead, setDead] = useState(false);
-  if (!place || !place.photo || dead) return null;
+  const live = place && place.photo && !dead;
   return (
-    <div className="pic">
-      <img src={place.photo} alt="" loading="lazy" onError={() => setDead(true)} />
+    <div className={'pic' + (live ? '' : ' none')}>
+      {live && <img src={place.photo} alt="" loading="lazy" onError={() => setDead(true)} />}
       <style jsx>{`
         .pic{
-          margin:-15px -15px 12px;height:132px;overflow:hidden;
-          border-radius:18px 18px 0 0;background:var(--sage);
+          width:92px;height:92px;flex:none;border-radius:15px;overflow:hidden;
+          background:var(--sage);
         }
         .pic img{width:100%;height:100%;object-fit:cover;display:block}
+        /* Kept, empty, rather than removed: a card set where one place has no
+           photograph should still line up as a column. */
+        .pic.none{background:var(--sage)}
+      `}</style>
+    </div>
+  );
+}
+
+// The line every search result has and this one kept losing: what it scores,
+// how many people said so, and where it is.
+//
+// raffy, 2026-09-01: "im not seeing good info like [rating] etc." The agent is
+// told to look ratings up and often does not. Places returns one with the
+// photograph we are already fetching, so the card fills its own gap rather
+// than showing nothing — the agent's own figure still wins when it has one,
+// because it may be from Booking or Agoda rather than Google.
+function Meta({ o, name, where }) {
+  const place = usePlace(name, where);
+  const rating = o.rating || (place && place.rating) || '';
+  const meta = o.meta || (place && place.address) || '';
+  if (!rating && !meta) return null;
+  return (
+    <div className="meta">
+      {rating && (
+        <span className="r">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.2l5.9-.9z" />
+          </svg>
+          {rating}
+        </span>
+      )}
+      {meta && <span className="w">{meta}</span>}
+      <style jsx>{`
+        /* Two rows, not one wrapping row. A separator between them looked
+           right until an address wrapped and left the dot stranded at the
+           start of its own line. Google stacks these for the same reason. */
+        .meta{margin-top:4px;font-size:12.5px;line-height:1.45;color:var(--ink-faint)}
+        .r{display:flex;align-items:center;gap:4px;font-weight:650;color:var(--ink-soft)}
+        .r svg{width:12.5px;height:12.5px;flex:none;color:#E8A33D}
+        .w{display:block;margin-top:1px}
       `}</style>
     </div>
   );
@@ -223,18 +273,14 @@ export default function Block({ block, onChoose, disabled, where }) {
 
       {kind === 'spots' && (spots || []).map((sp, i) => (
         <div key={i} className="opt spot">
-          <Pic name={sp.name} where={where} />
-          <div className="name">{sp.name}</div>
-          <div className="buzz">{sp.buzz}</div>
-          {sp.rating && (
-            <div className="rating">
-              <svg className="star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.2l5.9-.9z" />
-              </svg>
-              <span>{sp.rating}</span>
+          <div className="head">
+            <Pic name={sp.name} where={where} />
+            <div className="hbody">
+              <div className="name">{sp.name}</div>
+              <Meta o={sp} name={sp.name} where={where} />
             </div>
-          )}
-          {sp.meta && <div className="meta">{sp.meta}</div>}
+          </div>
+          <div className="buzz">{sp.buzz}</div>
           {sp.best && (
             <div className="best">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -310,20 +356,14 @@ export default function Block({ block, onChoose, disabled, where }) {
 
       {kind === 'options' && (items || []).map((o, i) => (
         <div key={i} className="opt">
-          <Pic name={o.name} where={where} />
-          <div className="top">
-            <div className="name">{o.name}</div>
-            {o.price && <div className="price">{o.price}</div>}
-          </div>
-          {o.rating && (
-            <div className="rating">
-              <svg className="star" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.2l5.9-.9z" />
-              </svg>
-              <span>{o.rating}</span>
+          <div className="head">
+            <Pic name={o.name} where={where} />
+            <div className="hbody">
+              <div className="name">{o.name}</div>
+              <Meta o={o} name={o.name} where={where} />
+              {o.price && <div className="price">{o.price}</div>}
             </div>
-          )}
-          {o.meta && <div className="meta">{o.meta}</div>}
+          </div>
           <div className="why">{o.why}</div>
           {o.watch && (
             <div className="watch">
@@ -405,25 +445,19 @@ export default function Block({ block, onChoose, disabled, where }) {
           background:var(--surface);border-radius:20px;padding:15px 16px;
           box-shadow:var(--sh-s);margin-bottom:9px;
         }
-        /* Price sits on its own line rather than beside the name. A real
+        /* The result row: picture, then name, score and price stacked beside
+           it. Price stays on its own line rather than beside the name — a real
            researched price is often a range with a qualifier ("typically
-           $76-117/night, deals from ~$64"), which on one row overflowed the
+           RM320-490/night, deals from ~RM270"), which on one row overflowed the
            card and squeezed the name to one word per line. */
-        .top{display:block}
+        .head{display:flex;gap:12px;align-items:flex-start}
+        .hbody{flex:1;min-width:0}
         .name{font-size:15.5px;font-weight:700;line-height:1.3}
         .price{
           font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;
-          color:var(--coral-text,#AE4715);line-height:1.35;margin-top:4px;
+          color:var(--coral-text,#AE4715);line-height:1.35;margin-top:5px;
         }
-        /* The rating sits directly under the name because it is the first
-           thing anyone looks for when choosing between three places. */
-        .rating{
-          display:flex;align-items:center;gap:5px;margin-top:5px;
-          font-size:12.5px;font-weight:650;color:var(--ink-soft);
-        }
-        .rating .star{width:13px;height:13px;flex:none;color:#E8A33D}
-        .meta{font-size:12.5px;color:var(--ink-faint);margin-top:4px}
-        .why{font-size:13.5px;line-height:1.5;color:var(--ink-soft);margin-top:9px}
+        .why{font-size:13.5px;line-height:1.5;color:var(--ink-soft);margin-top:10px}
         .watch{
           display:flex;gap:7px;align-items:flex-start;margin-top:9px;
           background:#FBE6DC;color:#8C3B14;border-radius:12px;padding:9px 11px;
@@ -435,7 +469,7 @@ export default function Block({ block, onChoose, disabled, where }) {
           font-size:11px;font-weight:600;background:var(--sage);color:var(--ink-soft);
           padding:4px 9px;border-radius:99px;
         }
-        .spot .buzz{font-size:13.5px;line-height:1.5;margin-top:7px}
+        .spot .buzz{font-size:13.5px;line-height:1.5;margin-top:10px}
         .spot .best{
           display:flex;gap:7px;align-items:center;margin-top:9px;
           font-size:12.5px;color:var(--ink-soft);font-weight:600;
