@@ -22,7 +22,10 @@ const soon = new Date(Date.now() + 40 * 86400000).toISOString().slice(0, 10);
 const later = new Date(Date.now() + 47 * 86400000).toISOString().slice(0, 10);
 const trip = () => ({
   trip: { start: soon, end: later, title: 'Rome', travellers: [{ name: 'A' }, { name: 'B' }] },
-  stays: [{ n: 'Hotel Artemide' }],
+  // draft:true is what an unbooked stay looks like. Its absence means booked —
+  // that is how the rest of the app reads it — so a fixture that omits it is
+  // describing a trip where the hotel is already sorted.
+  stays: [{ n: 'Hotel Artemide', draft: true }],
   days: [{ dow: 'Wed', dom: '14', items: [
     { _id: 'x', h: 'Colosseum', tags: ['Book ahead'] },
     { _id: 'y', h: "Jumu'ah", tags: ['Confirm in advance'] },
@@ -144,6 +147,48 @@ ok('the prompt still parses whole', P.length > 25000, P.length + ' chars');
   ok('a train trip books the train', how('train').some((w) => /train/i.test(w)), how('train').join(' | '));
   // Seats on a good departure go before hotel rooms do.
   ok('and books it before the room', /train/i.test(how('train')[0]), how('train').join(' | '));
+}
+
+
+// --- the list agrees with the rest of the app -------------------------------
+//
+// raffy, 2026-09-01: "in other pages for example the hotels already noted as
+// booked or confirmed , but im the to do page itself , the list doesn't move
+// from still to do to confirmed?"
+//
+// It was only reading filed bookings, so confirming a stay any other way — the
+// agent's confirm_stay, a booking naming no index — left the row sitting there
+// contradicting the page next to it.
+{
+  const t = trip();
+  t.stays = [{ n: 'Hotel Artemide', draft: false }];
+  console.log('');
+  ok('a stay the app calls booked is off the list',
+     !checklist(t).todo.some((x) => /Artemide/.test(x.what)), checklist(t).todo.map((x) => x.what).join(' | '));
+  ok('and shows as done instead', checklist(t).done.some((x) => /Artemide/.test(x.what)));
+
+  const draft = trip();
+  draft.stays = [{ n: 'Hotel Artemide', draft: true }];
+  ok('one still a draft stays on it', checklist(draft).todo.some((x) => /Artemide/.test(x.what)));
+}
+
+// --- their list, so they can change it --------------------------------------
+//
+// raffy: "we should let user to add and and delete their own to do . like some
+// other things like enable roaming or buy e sim etc."
+{
+  const dropped = applyEdits(trip(), toEdits([{ op: 'drop_task', id: 'd:flights' }], 1));
+  ok('a task can be taken off outright',
+     !checklist(dropped).todo.some((x) => /flight/i.test(x.what)),
+     checklist(dropped).todo.map((x) => x.what).join(' | '));
+  ok('and it does not come back as done either',
+     !checklist(dropped).done.some((x) => /flight/i.test(x.what)));
+  ok('the rest of the list is untouched', checklist(dropped).todo.length === checklist(trip()).todo.length - 1);
+
+  const mine = applyEdits(trip(), toEdits([{ op: 'add_task', task: {
+    what: 'Buy an eSIM', kind: 'admin', why: 'Cheaper than roaming and it works the moment you land.',
+  } }], 1));
+  ok('and they can add one of their own', checklist(mine).todo.some((x) => /eSIM/.test(x.what)));
 }
 
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');

@@ -957,7 +957,12 @@ export default function Home() {
                       starts empty, so an unfinished ask cannot be sent. */}
                   {!dock.sending && (
                     <div className="dwhat">
-                      <b>{dock.kind === 'booked' ? 'Booked: ' + thing(dock.what) : dock.what}</b>
+                      <b>
+                        {dock.kind === 'booked' ? 'Booked: ' + thing(dock.what)
+                          : dock.kind === 'droptask' ? 'Remove: ' + thing(dock.what)
+                            : dock.kind === 'addtask' ? 'Add to your list'
+                              : dock.what}
+                      </b>
                       {dock.when && <span>{dock.when}</span>}
                     </div>
                   )}
@@ -976,7 +981,14 @@ export default function Home() {
                       onSubmit={(e) => {
                         e.preventDefault();
                         const t = (dockRef.current ? dockRef.current.value : '').trim();
-                        if (dock.kind === 'booked') {
+                        if (dock.kind === 'addtask') {
+                          if (!t) return;
+                          send('Add this to my to-do list: ' + t);
+                        } else if (dock.kind === 'droptask') {
+                          send('Take this off my to-do list: ' + dock.what + '.'
+                            + (t ? ' ' + t : '')
+                            + ' Just remove it, no need to talk me out of it.');
+                        } else if (dock.kind === 'booked') {
                           // "I have booked it" is already a complete
                           // instruction, so this one can send with nothing
                           // typed. A reference, a date or a pasted email just
@@ -1000,7 +1012,11 @@ export default function Home() {
                         autoFocus
                         placeholder={dock.kind === 'booked'
                           ? 'Paste the reference or the confirmation email — or just send.'
-                          : 'Make it later? Somewhere else? Drop it?'}
+                          : dock.kind === 'addtask'
+                            ? 'Buy an eSIM. Sort travel insurance. Renew the passports.'
+                            : dock.kind === 'droptask'
+                              ? 'Send to remove it. Say why only if you want to.'
+                              : 'Make it later? Somewhere else? Drop it?'}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();

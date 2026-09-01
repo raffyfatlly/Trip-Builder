@@ -26,7 +26,10 @@ const tpl = zlib.gunzipSync(fs.readFileSync('public/app-template.html.gz')).toSt
 const REAL = JSON.parse(fs.readFileSync('/home/user/claude/tools/itinerary-generator/trips/danang.json', 'utf8'));
 
 const STAYS = [
-  { ...REAL.stays[0] },
+  // draft:true is what an unbooked stay looks like. Its absence means booked —
+  // that is how the whole app reads it — so a stay without it is already sorted
+  // and has no business on a to-do list.
+  { ...REAL.stays[0], draft: true },
   { ...REAL.stays[0], n: 'La Siesta Hoi An', short: 'La Siesta', dates: '12 to 14 Sep', nights: '2 nights', draft: true },
 ];
 
@@ -178,14 +181,31 @@ async function open(T, perms) {
   await ctx.route(ORIGIN + '/', (r) => r.fulfill({ contentType: 'text/html', body: html }));
   await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(700);
+  // The app no longer lands on Trip — it opens on whatever the phase calls for.
+  await page.locator('#nav button[data-view="trip"]').click();
+  await page.waitForTimeout(300);
   const foot = await page.locator('#foot').innerText().catch(() => '');
 
   console.log('');
   ok('notes: no page errors', errs.length === 0, errs.join(' / '));
   ok('the review heading is gone', !/lock this in/i.test(foot), foot.split('\n')[0]);
   ok('what is left is context, not a checklist', /worth knowing/i.test(foot), foot.split('\n')[0]);
+  // raffy, 2026-09-01: "the worth knowing part , should be in collapsed mode so
+  // it doesn't take too much space of the trip page."
+  ok('and it is folded away', (await page.locator('#foot details.wk').count()) === 1);
+  ok('closed to start', !(await page.locator('#foot details.wk').evaluate((d) => d.open)));
+  ok('saying how much is in it', /^1$/.test((await page.locator('#foot .wkn').innerText()).trim()));
+  await page.locator('#foot .wk > summary').scrollIntoViewIfNeeded();
+  await page.locator('#foot .wk > summary').click();
+  await page.waitForTimeout(250);
+  ok('and it opens', await page.locator('#foot details.wk').evaluate((d) => d.open));
+  ok('with the note inside', /mid-autumn/i.test(await page.locator('#foot .wkb').innerText()));
   ok('an unbooked stay is not repeated here', !/not booked/i.test(foot), foot);
-  ok('but something worth knowing stays', /mid-autumn/i.test(foot));
+  // Checked against the OPENED body: a closed <details> keeps its contents out
+  // of innerText, which is the point of folding it.
+  const inside = await page.locator('#foot .wkb').innerText();
+  ok('but something worth knowing stays', /mid-autumn/i.test(inside), inside.slice(0, 60));
+  ok('and the unbooked stay is not in there either', !/not booked/i.test(inside));
   // And the booking it stopped repeating is on the list that owns it.
   await page.locator('#nav button[data-view="book"]').click();
   await page.waitForTimeout(300);

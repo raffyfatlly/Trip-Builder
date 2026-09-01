@@ -373,11 +373,24 @@ export function render(T, templateSrc) {
       if(el){
         el.hidden = !notes.length && !tr.credits;
         el.innerHTML =
-          (notes.length ? '<h2>Worth knowing</h2>' : '') +
-          notes.map(function(n){
-            return '<div class="card">' + (SHELLI[n.kind === 'warn' ? 'warn' : 'info'] || '') +
-              '<div><b>' + esc(n.h || '') + '</b> ' + esc(n.p || '') + '</div></div>';
-          }).join('') +
+          // Folded away by default. raffy, 2026-09-01: "the worth knowing part ,
+          // should be in collapsed mode so it doesn't take too much space of the
+          // trip page." It is context, not a task — true all trip, needed once.
+          // A <details> is the right control here and it costs nothing: it works
+          // with no JavaScript, it is keyboard and screen-reader native, and it
+          // survives being downloaded and opened offline.
+          (notes.length
+            ? '<details class="wk"><summary><h2>Worth knowing</h2>' +
+              '<span class="wkn">' + notes.length + '</span>' +
+              '<svg class="wkc" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+              'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="m6 9 6 6 6-6"/></svg></summary><div class="wkb">' +
+              notes.map(function(n){
+                return '<div class="card">' + (SHELLI[n.kind === 'warn' ? 'warn' : 'info'] || '') +
+                  '<div><b>' + esc(n.h || '') + '</b> ' + esc(n.p || '') + '</div></div>';
+              }).join('') +
+              '</div></details>'
+            : '') +
           (tr.credits ? '<div class="credits">' + esc(tr.credits) + '</div>' : '');
       }
 
@@ -686,6 +699,16 @@ export function render(T, templateSrc) {
     '    padding:8px 13px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}',
     '  .tddone svg{width:14px;height:14px;flex:none}',
     '  .tddone:active{opacity:.6}',
+    '  .tdx{flex:none;border:0;background:none;padding:6px;cursor:pointer;color:var(--ink-faint);',
+    '    display:grid;place-items:center;order:9}',
+    '  .tdx svg{width:15px;height:15px;display:block}',
+    '  .tdx:active{opacity:.5}',
+    '  .tdadd{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;',
+    '    border:1.5px dashed var(--line);background:none;border-radius:var(--r-card);',
+    '    padding:14px;font:inherit;font-size:13.5px;font-weight:650;color:var(--ink-soft);',
+    '    cursor:pointer;margin-top:2px}',
+    '  .tdadd svg{width:16px;height:16px;flex:none}',
+    '  .tdadd:active{opacity:.6}',
     '  .tdgo svg{width:14px;height:14px;flex:none;opacity:.7}',
     '  .tdgo:active{opacity:.55}',
     '  .tdcard.is-done b{text-decoration:line-through;text-decoration-thickness:1.5px;opacity:.75}',
@@ -844,6 +867,10 @@ export function render(T, templateSrc) {
     '    // He is describing the exact loop: read the row, leave for the chat,',
     '    // lose the row, describe it from memory, come back to check. The row',
     '    // itself is the natural place to say so.',
+    '    if(LIVE) foot+=\'<button class="tdx" data-droptask="\'+esc(t.what||"")+\'" \'+',
+    '      \'aria-label="Take this off the list" title="Take this off the list">\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '      \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>\';',
     '    if(LIVE) foot+=\'<button class="tddone" data-booked="\'+esc(t.what||"")+\'">\'+',
     '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" \'+',
     '      \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>\'+',
@@ -866,6 +893,18 @@ export function render(T, templateSrc) {
     '      h+=\'<div class="sect"><h2>Still to do</h2></div>\';',
     '      h+=\'<p class="tdlead">Nearest first.</p>\';',
     '      h+=todo.map(todoRow).join("");',
+    '    }',
+    '    // Their list, so they can put things on it.',
+    '    //',
+    '    // raffy, 2026-09-01: "we should let user to add and and delete their own',
+    '    // to do . like some other things like enable roaming or buy e sim etc."',
+    '    if(LIVE){',
+    '      h+=\'<button class="tdadd" data-addtask="1">\'+',
+    '        \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '        \'stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>\'+',
+    '        \'<span>Add something of your own</span></button>\';',
+    '    }',
+    '    if(false){',
     '    } else if(need) {',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
     '        \'<b>You are all set</b><p>Nothing left to book. Have a good trip.</p></div>\';',
@@ -946,6 +985,21 @@ export function render(T, templateSrc) {
     '  // Two ways to talk to the agent from inside the trip: change this, and',
     '  // I have done this. Same bridge, different intent.',
     '  document.addEventListener("click", function(e){',
+    '    var add = e.target.closest && e.target.closest("[data-addtask]");',
+    '    if(add){',
+    '      try { window.parent.postMessage({ tripAsk: { what: "", kind: "addtask" } }, "*"); }',
+    '      catch (err) {}',
+    '      return;',
+    '    }',
+    '    var rm = e.target.closest && e.target.closest("[data-droptask]");',
+    '    if(rm){',
+    '      try {',
+    '        window.parent.postMessage({',
+    '          tripAsk: { what: rm.getAttribute("data-droptask"), kind: "droptask" },',
+    '        }, "*");',
+    '      } catch (err) {}',
+    '      return;',
+    '    }',
     '    var d = e.target.closest && e.target.closest("[data-booked]");',
     '    if(d){',
     '      try {',
@@ -1077,6 +1131,21 @@ export function render(T, templateSrc) {
     '  }',
     '',
   ].join('\n'), 'idea links helper');
+
+  insertBefore('</style>', [
+    '  .wk{margin-top:6px}',
+    '  .wk>summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none;',
+    '    padding:2px 0 10px;-webkit-tap-highlight-color:transparent}',
+    '  .wk>summary::-webkit-details-marker{display:none}',
+    '  .wk>summary h2{margin:0;flex:1;min-width:0}',
+    '  .wk .wkn{flex:none;min-width:22px;height:22px;border-radius:99px;background:var(--sage);',
+    '    color:var(--deep);font-size:12px;font-weight:800;display:grid;place-items:center;padding:0 6px}',
+    '  .wk .wkc{flex:none;width:18px;height:18px;color:var(--ink-faint);',
+    '    transition:transform 200ms var(--e-out)}',
+    '  .wk[open] .wkc{transform:rotate(180deg)}',
+    '  .wk .wkb{display:flex;flex-direction:column;gap:9px;padding-bottom:2px}',
+    '',
+  ].join('\n'), 'worth knowing, folded');
 
   insertBefore('</style>', [
     '  .ilinks{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}',
