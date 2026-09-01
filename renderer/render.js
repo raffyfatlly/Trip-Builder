@@ -1,3 +1,4 @@
+import { OUTFIT, JAKARTA, FACE } from './fonts.js';
 import { checklist, dueIn, linkFor } from '../lib/checklist.js';
 
 // The renderer. Turns one itinerary.json into a finished app.
@@ -315,9 +316,14 @@ export function render(T, templateSrc) {
         // The feature card has no coordinates of its own, so it borrows the
         // first stay's — a wider map of the area they are going to.
         var fsrc = shotFor(f) || mapTile((T.stays||[])[0], 12);
+        // The veil exists to make text readable over a photograph. With no
+        // text it is just a photograph made darker for no reason, so the card
+        // shows the picture clean instead. (The builder is told to always
+        // write the copy; this is what it looks like when it does not.)
+        var hasCopy = !!(f.h || f.p || (f.stats||[]).length);
         el.className = 'feature' + (fsrc ? '' : ' nophoto');
         el.innerHTML =
-          (fsrc ? '<img src="' + esc(fsrc) + '" alt="' + esc(f.alt||'') + '" /><div class="veil"></div>' : '') +
+          (fsrc ? '<img src="' + esc(fsrc) + '" alt="' + esc(f.alt||'') + '" />' + (hasCopy ? '<div class="veil"></div>' : '') : '') +
           '<span class="pill tiny badge coral" id="febadge"></span>' +
           '<div class="fc">' + (f.h ? '<h2>' + esc(f.h) + '</h2>' : '') +
           (f.p ? '<p>' + esc(f.p) + '</p>' : '') +
@@ -951,6 +957,21 @@ export function render(T, templateSrc) {
   // across it. Nothing beats knowing when to paint nothing.
   //
   // Plus enough clearance that the last card clears the bar at rest.
+  // The typefaces travel with the file. See renderer/fonts.js — the template
+  // asks for them by relative path, which resolves next to the Phu Quoc app and
+  // nowhere along the path a generated trip actually takes.
+  replaceOnce(
+    "@font-face{font-family:'Outfit';font-weight:100 900;font-style:normal;font-display:swap;src:url(fonts/outfit.woff2) format('woff2')}",
+    FACE('Outfit', OUTFIT, '100 900'), 'embed Outfit');
+  replaceOnce(
+    "@font-face{font-family:'Jakarta';font-weight:200 800;font-style:normal;font-display:swap;src:url(fonts/jakarta.woff2) format('woff2')}",
+    FACE('Jakarta', JAKARTA, '200 800'), 'embed Jakarta');
+
+  // The preloads pointed at the same missing files. A preload that 404s is a
+  // wasted request and a console error on every open.
+  replaceRegex(/\s*<link rel="preload" as="font"[^>]*outfit\.woff2[^>]*>/, '', 'drop the Outfit preload');
+  replaceRegex(/\s*<link rel="preload" as="font"[^>]*jakarta\.woff2[^>]*>/, '', 'drop the Jakarta preload');
+
   insertBefore('</style>', [
     '  .nav{background:#0E3125;backdrop-filter:none;-webkit-backdrop-filter:none}',
     '  .view{padding-bottom:132px}',
@@ -961,6 +982,77 @@ export function render(T, templateSrc) {
     '  .evtool.ask{color:var(--coral-text);text-decoration-color:rgba(238,123,69,.5)}',
     '',
   ].join('\n'), 'ask button css');
+
+  // Tapping an idea that belongs to no area used to do nothing at all.
+  //
+  // openIdea reads `area.t` for the sheet's subtitle, and `area` is the result
+  // of a filter — undefined for any idea without a matching area key. It threw
+  // before the sheet opened, so the tap looked ignored. Harmless in the Phu
+  // Quoc app, where every idea was hand-assigned an area; fatal here, because
+  // "Worth a look" is made ENTIRELY of the ideas that have none.
+  replaceOnce(
+    "'<h2>'+d.n+'</h2><div class=\"sub\">'+area.t+' &middot; '+d.time+'</div></div>'+",
+    "'<h2>'+d.n+'</h2><div class=\"sub\">'+[area&&area.t, d.time].filter(Boolean).join(' &middot; ')+'</div></div>'+",
+    'an idea with no area still opens');
+
+  // A missing field printed the word "undefined" into the sheet. `warn` is
+  // optional in the schema and `why` can be short — the template concatenated
+  // both straight in, because in the Phu Quoc app every idea was written by
+  // hand and always had them.
+  replaceOnce(
+    "h+='<p style=\"margin:14px 0 0;font-size:15px;color:var(--ink-soft)\">'+d.why+'</p>';",
+    "if(d.why) h+='<p style=\"margin:14px 0 0;font-size:15px;color:var(--ink-soft)\">'+esc(d.why)+'</p>';",
+    'no why, no empty paragraph');
+  replaceOnce(
+    "h+='<div class=\"note'+(d.verdict==='yes'?'':' warm')+'\">'+(d.verdict==='yes'?I.info:I.warn)+'<div>'+d.warn+'</div></div>';",
+    "if(d.warn) h+='<div class=\"note'+(d.verdict==='yes'?'':' warm')+'\">'+(d.verdict==='yes'?I.info:I.warn)+'<div>'+esc(d.warn)+'</div></div>';",
+    'no catch, no empty note');
+
+  // Links on every suggestion, wherever a suggestion appears.
+  //
+  // raffy, 2026-09-01: "everything we found , explore , all need photo and
+  // relevant link , not just map . anywhere , in expanded card or as
+  // suggestions in app."
+  //
+  // A map pin tells you where a place is. It does not let you buy the ticket,
+  // read the menu or check today's times — which is the whole reason somebody
+  // taps a suggestion they are interested in. The chat cards learned this
+  // already; the app's own ideas had only `map`.
+  replaceOnce(
+    "if(d.warn) h+='<div class=\"note'+(d.verdict==='yes'?'':' warm')+'\">'+(d.verdict==='yes'?I.info:I.warn)+'<div>'+esc(d.warn)+'</div></div>';",
+    "if(d.warn) h+='<div class=\"note'+(d.verdict==='yes'?'':' warm')+'\">'+(d.verdict==='yes'?I.info:I.warn)+'<div>'+esc(d.warn)+'</div></div>';\n"
+    + "    h+=ideaLinks(d);",
+    'links in the idea sheet');
+
+  insertBefore('  function reduce(){', [
+    '  // Everything the research turned up, then the map last and quiet — it is',
+    '  // the fallback, not the destination.',
+    '  function ideaLinks(d){',
+    '    var seen={}, rows=[];',
+    '    (d.links||[]).forEach(function(l){',
+    '      if(!l||!l.url||!/^https?:\\/\\//i.test(l.url)) return;',
+    '      var k=l.url.replace(/\\/+$/,"").toLowerCase(); if(seen[k]) return; seen[k]=1;',
+    '      rows.push({label:l.label||"Open", url:l.url});',
+    '    });',
+    '    var m=d.map||("https://www.google.com/maps/search/"+encodeURIComponent(d.n));',
+    '    if(!seen[m.replace(/\\/+$/,"").toLowerCase()]) rows.push({label:"Map", url:m, map:true});',
+    '    if(!rows.length) return "";',
+    '    return \'<div class="ilinks">\'+rows.map(function(r){',
+    '      return \'<a href="\'+esc(r.url)+\'" target="_blank" rel="noopener noreferrer"\'+',
+    '        (r.map?\' class="q"\':\'\')+\'>\'+esc(r.label)+\'</a>\';',
+    '    }).join("")+\'</div>\';',
+    '  }',
+    '',
+  ].join('\n'), 'idea links helper');
+
+  insertBefore('</style>', [
+    '  .ilinks{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}',
+    '  .ilinks a{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:var(--r-pill);',
+    '    background:var(--sage);color:var(--deep);font-size:12.5px;font-weight:700;text-decoration:none}',
+    '  .ilinks a:active{opacity:.6}',
+    '  .ilinks a.q{background:none;color:var(--ink-faint);padding-left:4px}',
+    '',
+  ].join('\n'), 'idea links css');
 
   insertBefore('  function reduce(){', BOOKINGS_JS, 'bookings renderer');
 

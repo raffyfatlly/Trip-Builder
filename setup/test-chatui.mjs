@@ -123,6 +123,7 @@ await ctx.close();
   await p2.waitForTimeout(2600);
   ok('when it finishes, the way in is in the conversation', await p2.locator('.done').count() === 1);
   ok('and it names the trip', (await p2.locator('.done').innerText()).includes('Da Nang'));
+  ok('and marks itself as new', await p2.locator('.done .new').count() === 1);
   await p2.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/ready.png' });
 
   await p2.locator('.done button').click();
@@ -131,7 +132,13 @@ await ctx.close();
 
   await p2.locator('.panehead .back').click();
   await p2.waitForTimeout(700);
-  ok('and it steps aside once seen', await p2.locator('.done').count() === 0);
+  // raffy, 2026-09-01: "that message disappear after i click open. just let it
+  // stay in the chat right." The same flag both showed the card and marked it
+  // seen, so opening the trip deleted it. It is part of the conversation, not
+  // a notification.
+  ok('the way in stays in the conversation', await p2.locator('.done').count() === 1);
+  ok('and it stops calling itself new', await p2.locator('.done .new').count() === 0);
+  ok('but still opens the trip', await p2.locator('.done button').count() === 1);
   ok('leaving the header button behind', await p2.locator('header .itbtn').count() === 1);
   await c2.close();
 }

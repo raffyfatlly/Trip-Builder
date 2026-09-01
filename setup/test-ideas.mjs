@@ -138,6 +138,25 @@ const openIdeas = async (T) => {
      /gradient/.test(await page.locator('#ideas .ipic').first().evaluate((el) => getComputedStyle(el).backgroundImage)));
   const badge = await page.locator('#ideas .ivd').first().boundingBox();
   ok('so the badge is actually visible', !!badge && badge.height > 0);
+
+  // raffy, 2026-09-01: "everything we found , explore , all need photo and
+  // relevant link , not just map . anywhere , in expanded card or as
+  // suggestions in app." A map pin says where a place is and nothing else.
+  await page.locator('#ideas .ideacard').first().click();
+  await page.waitForTimeout(400);
+  const links = await page.locator('.ilinks a').evaluateAll(
+    (a) => a.map((x) => ({ t: x.textContent.trim(), href: x.getAttribute('href') })));
+  ok('an opened idea offers somewhere to go', links.length > 0, JSON.stringify(links.map((l) => l.t)));
+  // Tapping an idea with no area used to do nothing at all: openIdea read
+  // area.t off an undefined filter result and threw before the sheet opened.
+  // Harmless in Phu Quoc, where every idea had a hand-assigned area; fatal
+  // here, because "Worth a look" is made entirely of the ones that have none.
+  ok('and an idea with no area opens at all',
+     (await page.locator('#sheet').innerText()).length > 20);
+  ok('with no stray "undefined" in it',
+     !/undefined/.test(await page.locator('#sheet').innerText()));
+  ok('the map is there but last', links[links.length - 1].t === 'Map', JSON.stringify(links.map((l) => l.t)));
+  ok('and every link actually goes somewhere', links.every((l) => /^https?:\/\//.test(l.href)));
   await page.screenshot({ path: 'shots/ideas-must.png' });
   await ctx.close();
 }
