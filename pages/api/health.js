@@ -4,7 +4,9 @@ import { placesKey } from '../../lib/photos.js';
 import { checkSources } from '../../lib/facts.js';
 import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId } from '../../lib/storage.js';
 import { agentDrift } from '../../lib/managedAgents.js';
-import { CHAT_AGENT_ID } from '../../lib/config.js';
+import { CHAT_AGENT_ID, BUILDER_AGENT_ID } from '../../lib/config.js';
+import { BUILDER_SYSTEM } from '../../lib/builderPrompt.js';
+import { TOOLS } from '../../lib/schema.js';
 import { SYSTEM } from '../../lib/prompt.js';
 import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
@@ -63,6 +65,10 @@ export default async function handler(req, res) {
       // Whether the agent people are actually talking to is running the prompt
       // and the tools in this repo. It is not automatic and no deploy does it.
       chatAgent: await agentDrift(CHAT_AGENT_ID, SYSTEM, [READ_TOOL, EDIT_TOOL, BUILD_TOOL, PRICE_TOOL]),
+      // The builder is a second persisted agent with the same trap. Its
+      // itinerary schema lives server-side too, so a new field on a trip —
+      // arriveBy, say — does nothing until it is pushed.
+      builderAgent: await agentDrift(BUILDER_AGENT_ID, BUILDER_SYSTEM, TOOLS),
     } : {}),
   });
 }
