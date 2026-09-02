@@ -161,9 +161,20 @@ await ctx.close();
      Math.round(tb.width) + ' of ' + Math.round(rb.width));
   await p3.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/composer-tall.png' });
 
+  // Deliberately latched. raffy, 2026-09-01: "as i was writing the first line,
+  // at the end, some words and letters go missing, and glitch." Going tall
+  // widens the textarea by about 96px, so text that had just wrapped fits on
+  // one line again, which says go short, which narrows it, which wraps it —
+  // thirteen switches in one line. The measurement is downstream of the thing
+  // it decides, so no threshold fixes it; the latch does. This test asserted
+  // the old flip-flopping behaviour and had been failing ever since.
   await ta3.fill('short');
   await p3.waitForTimeout(300);
-  ok('deleting it back collapses the row again', await p3.locator('.composer .row.tall').count() === 0);
+  ok('deleting back mid-sentence does not snap the box shut',
+     await p3.locator('.composer .row.tall').count() === 1);
+  await ta3.fill('');
+  await p3.waitForTimeout(300);
+  ok('but emptying it collapses the row again', await p3.locator('.composer .row.tall').count() === 0);
   await c3.close();
 }
 
@@ -198,6 +209,12 @@ await ctx.close();
   // each other in the drawer. Never again without a check.
   await p4.locator('.burger').click();
   await p4.waitForTimeout(500);
+  // The account lives inside the profile section, which starts collapsed.
+  // raffy, 2026-08-31: "for profile i prefer it we click the account and
+  // expand . not live in side bar." This test still looked for it at the top
+  // level and had been failing on a missing element rather than on layout.
+  await p4.locator('.proftoggle').click();
+  await p4.waitForTimeout(400);
   for (const [sel, name] of [['.acct .cta', 'Save your trips'], ['.drawer .act', 'New trip']]) {
     const row = p4.locator(sel).first();
     const b1 = await row.locator('b').boundingBox();

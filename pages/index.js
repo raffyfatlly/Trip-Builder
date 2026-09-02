@@ -661,6 +661,12 @@ export default function Home() {
     wasBuilding.current = building;
   }, [building, ready]);
 
+  // The most recent ready card, which is the only one that gets to say New.
+  const lastReady = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === 'ready') return i;
+    return -1;
+  })();
+
   const openSheet = () => { setSheet(true); setUnseen(false); };
 
   // The onboarding steps stand in for the empty chat, not in front of it: skip
@@ -760,8 +766,33 @@ export default function Home() {
               </div>
             )}
 
-            {messages.map((m) => (
-              m.role === 'block' ? (
+            {messages.map((m, mi) => (
+              /* The way into the trip, where the build happened. raffy,
+                 2026-09-02: "the open app file button should stay at the
+                 location where its given and not persisting to be at the
+                 bottom of chat everytime." Only the most recent one is New —
+                 a rebuild leaves the earlier card in place as a record of
+                 when that version landed, but it is not news any more. */
+              m.role === 'ready' ? (
+                ready && !building ? (
+                  <div key={m.id}
+                    className={'done' + (unseen && mi === lastReady ? ' fresh' : '')}>
+                    <div className="donetext">
+                      <b>
+                        {title ? title + ' is ready' : 'Your itinerary is ready'}
+                        {unseen && mi === lastReady && <i className="new">New</i>}
+                      </b>
+                      <span>Day by day, with times, weather and everything you can edit.</span>
+                    </div>
+                    <button onClick={openSheet}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
+                      </svg>
+                      {unseen && mi === lastReady ? 'Open it' : 'Open'}
+                    </button>
+                  </div>
+                ) : null
+              ) : m.role === 'block' ? (
                 <Block key={m.id} block={m} disabled={thinking} where={tripName} onChoose={(t) => send(t)} />
               ) : (
                 <div key={m.id} className={'msg ' + m.role}>
@@ -803,32 +834,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* A build takes minutes, so it lands while they are looking at
-                something else. Saying "it's done" in the header dot is easy to
-                miss — this puts the way in at the end of the conversation,
-                where they are already reading.
-                It used to vanish the moment they opened the trip, because the
-                same flag both showed it and marked it seen. raffy, 2026-09-01:
-                "that message disappear after i click open. just let it stay in
-                the chat right." It is part of the conversation, not a
-                notification: it stays, and only loses its NEW pip. */}
-            {ready && !building && (
-              <div className={'done' + (unseen ? ' fresh' : '')}>
-                <div className="donetext">
-                  <b>
-                    {title ? title + ' is ready' : 'Your itinerary is ready'}
-                    {unseen && <i className="new">New</i>}
-                  </b>
-                  <span>Day by day, with times, weather and everything you can edit.</span>
-                </div>
-                <button onClick={openSheet}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
-                  </svg>
-                  {unseen ? 'Open it' : 'Open'}
-                </button>
-              </div>
-            )}
           </div>
 
           {error && (

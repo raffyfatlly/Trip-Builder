@@ -104,11 +104,19 @@ await ctx.close();
   const fs = await import('fs');
   const REAL = JSON.parse(fs.readFileSync('/home/user/claude/tools/itinerary-generator/trips/danang.json', 'utf8'));
   const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  let phase = { itinerary: null, building: true };
+  // The card is a row IN the transcript now, not something appended after it.
+  // raffy, 2026-09-02: "the open app file button should stay at the location
+  // where its given and not persisting to be at the bottom of chat everytime."
+  const BUILT = [
+    { role: 'user', text: 'build it', id: 'u1' },
+    { role: 'assistant', text: 'Building it now — a couple of minutes.', id: 'a1' },
+    { role: 'ready', id: 'a1:ready' },
+  ];
+  let phase = { itinerary: null, building: true, transcript: BUILT };
   await c2.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_B' } }));
   await c2.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
   await c2.route('**/api/state**', (r) => r.fulfill({ json: {
-    transcript: [{ role: 'user', text: 'build it', id: 'u1' }],
+    transcript: phase.transcript,
     itinerary: phase.itinerary, plan: {}, agentEdits: [], memoryOps: [],
     building: phase.building, thinking: false, turns: 2 } }));
   const p2 = await c2.newPage();
@@ -119,7 +127,7 @@ await ctx.close();
   ok('while building, no ready card', await p2.locator('.done').count() === 0);
   ok('it says it is working instead', await p2.locator('.working').count() === 1);
 
-  phase = { itinerary: REAL, building: false };
+  phase = { ...phase, itinerary: REAL, building: false };
   await p2.waitForTimeout(2600);
   ok('when it finishes, the way in is in the conversation', await p2.locator('.done').count() === 1);
   ok('and it names the trip', (await p2.locator('.done').innerText()).includes('Da Nang'));
@@ -140,6 +148,24 @@ await ctx.close();
   ok('and it stops calling itself new', await p2.locator('.done .new').count() === 0);
   ok('but still opens the trip', await p2.locator('.done button').count() === 1);
   ok('leaving the header button behind', await p2.locator('header .itbtn').count() === 1);
+
+  // The correction itself: keep talking and the card must stay where it was
+  // said, not follow the conversation down. It was rendered after the whole
+  // message list, so it re-pinned itself to the bottom for ever — a
+  // notification wearing the conversation's clothes.
+  phase = { ...phase, transcript: [
+    ...BUILT,
+    { role: 'user', text: 'can we add a beach day', id: 'u2' },
+    { role: 'assistant', text: 'Added it to the Thursday.', id: 'a2' },
+  ] };
+  await p2.waitForTimeout(2600);
+  ok('it stays where it was said', await p2.locator('.done').count() === 1);
+  const order = await p2.evaluate(() => {
+    const nodes = [...document.querySelectorAll('.chat .msg, .chat .done')];
+    return nodes.map((n) => (n.classList.contains('done') ? 'ready' : 'msg'));
+  });
+  ok('with the later conversation below it',
+     order.indexOf('ready') >= 0 && order.indexOf('ready') < order.length - 1, order.join(' '));
   await c2.close();
 }
 
