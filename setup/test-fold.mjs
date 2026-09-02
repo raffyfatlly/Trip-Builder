@@ -4,10 +4,13 @@
 // like hotels suggestion. can they all be group into one expandable
 // collapsible group?"
 //
-// Five option cards is a screen and a half of scrolling before you reach the
-// next thing the agent said. Not the whole set behind a title, though — that
-// hides the recommendation, which is the part worth reading. The top two stay
-// out and the rest fold away.
+// The first attempt folded everything past the second card away, and only for
+// sets of four or more — so his set of three ideas produced no control at all.
+// raffy, 2026-09-02: "it didn't present the cards in group that can be
+// collapsed or expanded... so user dont have to scroll all . taking much
+// space." The complaint is HEIGHT, not count, so the cards collapse
+// individually now: the first stays open because it is the recommendation, and
+// the rest are one scannable line each.
 //
 //   BASE=http://localhost:3274 node setup/test-fold.mjs
 
@@ -48,44 +51,72 @@ const open = async (block, session) => {
   return { ctx, page, errs };
 };
 
-// --- five: folded ------------------------------------------------------------
+// --- five ---------------------------------------------------------------------
 {
   const { ctx, page, errs } = await open(FIVE, 'sesn_F');
   ok('no page errors', errs.length === 0, errs.join(' / '));
 
-  ok('the recommendation is still on screen', await page.locator('.opt').count() === 2,
-     (await page.locator('.opt').count()) + ' cards');
-  ok('and the rest are folded away', await page.locator('.fold').count() === 1);
-  ok('the button says how many are under it',
-     /show 3 more/i.test(await page.locator('.fold').innerText()),
-     await page.locator('.fold').innerText());
+  // raffy, 2026-09-02: "i want it all in one card , but inside that card, they
+  // are their own card." A column of separate floating cards reads as five
+  // unrelated things that happen to be adjacent.
+  ok('the whole set is one card', await page.locator('.optset').count() === 1);
+  ok('every option is inside it', await page.locator('.optset .opt').count() === 5);
+  const shadows = await page.locator('.optset .opt').evaluateAll(
+    (els) => els.map((e) => getComputedStyle(e).boxShadow));
+  ok('and none of them floats on its own', shadows.every((b) => b === 'none'), shadows[0]);
+  ok('every option is on the page', await page.locator('.opt').count() === 5);
+  ok('the recommendation is open', await page.locator('.opt:not(.row)').count() === 1);
+  ok('and the rest are one line each', await page.locator('.opt.row').count() === 4);
+  ok('a collapsed one still says what it is and what it costs',
+     /TMS/.test(await page.locator('.opt.row').first().innerText())
+     && /RM340/.test(await page.locator('.opt.row').first().innerText()),
+     (await page.locator('.opt.row').first().innerText()).replace(/\n/g, ' | '));
 
-  // The point of folding: what the agent said next is reachable without a
+  // The point of all this: what the agent said next is reachable without a
   // scroll through everything it found.
   const said = await page.locator('.msg.assistant', { hasText: 'I would take Furama' }).boundingBox();
   ok('what the agent said next is within a screen', said.y < 844, Math.round(said.y) + 'px down');
 
-  await page.locator('.fold').click();
-  await page.waitForTimeout(350);
-  ok('opening it shows all five', await page.locator('.opt').count() === 5);
-  ok('and it folds back up', /show fewer/i.test(await page.locator('.fold').innerText()));
-
-  await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/fold-open.png' });
-  await page.locator('.fold').click();
-  await page.waitForTimeout(350);
-  ok('closing it puts them away again', await page.locator('.opt').count() === 2);
   await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/fold-shut.png' });
+  await page.locator('.opt.row').first().click();
+  await page.waitForTimeout(300);
+  ok('tapping one opens it in place', await page.locator('.opt:not(.row)').count() === 2);
+  ok('with the reason it suits them', /Why TMS/.test(await page.locator('.block').innerText()));
+  await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/fold-open.png' });
+
+  await page.locator('.rshut').first().click();
+  await page.waitForTimeout(300);
+  ok('and closes again', await page.locator('.opt.row').count() === 4);
   await ctx.close();
 }
 
-// --- three: left alone -------------------------------------------------------
+// --- three: the set he actually got ------------------------------------------
 //
-// Folding one card away is a control that costs more than it saves.
+// The old threshold was "more than three", so this produced no control at all.
 {
   const { ctx, page, errs } = await open(THREE, 'sesn_T');
   ok('no page errors', errs.length === 0, errs.join(' / '));
-  ok('a short set is not folded', await page.locator('.fold').count() === 0);
-  ok('and shows every card', await page.locator('.opt').count() === 3);
+  ok('a set of three collapses too', await page.locator('.opt.row').count() === 2,
+     (await page.locator('.opt.row').count()) + ' rows');
+  ok('with the first still open', await page.locator('.opt:not(.row)').count() === 1);
+  await ctx.close();
+}
+
+// --- one: nothing to collapse ------------------------------------------------
+{
+  const ONE = { ...FIVE, items: FIVE.items.slice(0, 1) };
+  const { ctx, page } = await open(ONE, 'sesn_O');
+  ok('a single option is just shown', await page.locator('.opt.row').count() === 0);
+  await ctx.close();
+}
+
+// --- ticking several: left expanded ------------------------------------------
+//
+// Comparing five hotels through a sequence of taps is worse than scrolling.
+{
+  const { ctx, page } = await open({ ...FIVE, pick: 'many' }, 'sesn_M');
+  ok('a multi-pick set stays open', await page.locator('.opt.row').count() === 0);
+  ok('so every one can be ticked', await page.locator('.pick.tick').count() === 5);
   await ctx.close();
 }
 

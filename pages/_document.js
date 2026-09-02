@@ -44,12 +44,26 @@ export default function Document() {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#10362A" />
         <meta name="robots" content="noindex, nofollow" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
-        />
+        {/* The same two faces the generated trip carries, served from here.
+            raffy, 2026-09-02, of his Desaru app: "its not using the font I ask
+            you to fix for all app. its still using the old font."
+
+            The trip app embeds its fonts and always had them. THIS page — the
+            chrome around it, the title, the tabs — was pulling them from Google
+            Fonts over the network. On a slow phone that renders the whole shell
+            in the system font until the CSS arrives, and next to an iframe that
+            already has its own, the app looks like it is using the wrong one.
+            A face the app depends on should not be a request that can lose.
+
+            36KB for both, and they were already in the repo for the generated
+            app — so this costs nothing new and removes a third-party hop. */}
+        <link rel="preload" as="font" type="font/woff2" href="/outfit.woff2" crossOrigin="anonymous" />
+        <link rel="preload" as="font" type="font/woff2" href="/jakarta.woff2" crossOrigin="anonymous" />
+        <style dangerouslySetInnerHTML={{ __html:
+          "@font-face{font-family:'Outfit';font-weight:100 900;font-style:normal;"
+          + "font-display:swap;src:url(/outfit.woff2) format('woff2')}"
+          + "@font-face{font-family:'Plus Jakarta Sans';font-weight:200 800;font-style:normal;"
+          + "font-display:swap;src:url(/jakarta.woff2) format('woff2')}" }} />
         {DRIVE && (
           <script
             data-cmp-ab="2"

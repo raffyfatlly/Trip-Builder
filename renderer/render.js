@@ -79,6 +79,9 @@ export function render(T, templateSrc) {
     cal: heroIcons[0], pin: heroIcons[1], route: heroIcons[2],
     clock: featIcons[0], arrow: featIcons[1], hotel: featIcons[2],
     plane: planeIcon,
+    // For a trip somebody drives to. The same wheels used on a transfer row in
+    // the To do list, so the two pages say "car" the same way.
+    car: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14"/><path d="M6.5 17l-1-5 2-4h9l2 4-1 5"/><circle cx="8.5" cy="17" r="1.5"/><circle cx="15.5" cy="17" r="1.5"/></svg>',
     warn: footIcons[0], info: footIcons[1],
   };
 
@@ -93,6 +96,14 @@ export function render(T, templateSrc) {
   replaceRange(864, 868, 'var AREAS', '  var AREAS=T.areas;', 'AREAS array');
   replaceRange(804, 862, 'var IDEAS', '  var IDEAS=T.ideas;', 'IDEAS array');
   replaceRange(753, 782, 'var STAYS=[', '  var STAYS=T.stays;', 'STAYS array');
+
+  // esc(undefined) printed the WORD "undefined" into the page — visible under
+  // both ends of every leg on his Desaru trip, because a drive has no departure
+  // time. A missing value should leave a gap, not announce itself.
+  replaceOnce(
+    "function esc(t){ return String(t).replace(/&/g,'&amp;')",
+    "function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;')",
+    'esc renders nothing for a missing value');
 
   // A day with no hotel behind it.
   //
@@ -280,12 +291,33 @@ export function render(T, templateSrc) {
       return mapTile(o, zoom);
     }
 
-    function leaveVerb(){
-      return (T.trip.flights && T.trip.flights.length) ? 'fly' : 'set off';
+    // How they are getting there, from the trip itself.
+    //
+    // raffy, 2026-09-02, of his Desaru trip: "its road trip right , but in my
+    // trip page it still has that flight section. can't it able to make it so
+    // if its road trip then there's no flight section or change in to car
+    // instead of flight?"
+    //
+    // The trip already said arriveBy "drive". The builder then filled the
+    // flights array with the drive legs anyway — Kuala Lumpur to Desaru, no
+    // times — and the page believed the array rather than the field. Reading a
+    // list as an answer to a question the trip has already answered outright is
+    // how a road trip ends up with a departure gate.
+    var GOING = {
+      drive: { word: 'drive', today: 'You set off today', head: 'Getting there', icon: 'car' },
+      train: { word: 'set off', today: 'You travel today', head: 'Getting there', icon: 'car' },
+      ferry: { word: 'set off', today: 'You sail today', head: 'Getting there', icon: 'car' },
+      other: { word: 'set off', today: 'You leave today', head: 'Getting there', icon: 'car' },
+      fly: { word: 'fly', today: 'You fly today', head: 'Flights', icon: 'plane' },
+    };
+    function going(){
+      var how = T.trip.arriveBy;
+      if(GOING[how]) return GOING[how];
+      // Nothing said: a trip with flights on it flies, one without does not.
+      return (T.trip.flights && T.trip.flights.length) ? GOING.fly : GOING.other;
     }
-    function leaveToday(){
-      return (T.trip.flights && T.trip.flights.length) ? 'You fly today' : 'You leave today';
-    }
+    function leaveVerb(){ return going().word; }
+    function leaveToday(){ return going().today; }
 
     // \\b, not \b: this lives inside a template literal, where \b is a
     // backspace character rather than a word boundary. It silently compiled
@@ -390,6 +422,10 @@ export function render(T, templateSrc) {
       // Both halves have to go — the heading and the card are siblings.
       var hasFlights = !!(tr.flights && tr.flights.length);
       var fsect = document.getElementById('flights-sect');
+      // "Flights" over a drive is simply wrong, and the traveller is the one
+      // who has to reconcile it.
+      var fh = fsect && fsect.querySelector('h2');
+      if(fh) fh.textContent = going().head;
       if(fsect) fsect.hidden = !hasFlights;
       var fcard = document.getElementById('flights');
       if(fcard) fcard.hidden = !hasFlights;
@@ -453,7 +489,7 @@ export function render(T, templateSrc) {
           '<div class="flightcard">' +
             '<div class="col"><div class="code">' + esc(fl.from) + '</div>' +
               '<div class="t">' + esc(fl.dep) + '</div></div>' +
-            '<div class="mid">' + SHELLI.plane +
+            '<div class="mid">' + (going().icon === 'car' ? SHELLI.car : SHELLI.plane) +
               '<span class="d">' + esc(fl.day) + '</span></div>' +
             '<div class="col r"><div class="code">' + esc(fl.to) + '</div>' +
               '<div class="t">' + esc(fl.arr) + '</div></div>' +

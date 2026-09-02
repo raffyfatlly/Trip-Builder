@@ -124,6 +124,12 @@ ok('the links row is actually styled', icon && icon.width < 20 && icon.height < 
 ok('and it sits on one row per line, not stacked huge',
    (await links.first().boundingBox()).height < 30);
 
+// Options past the first collapse to a single line now, so open this one before
+// looking inside it. raffy, 2026-09-02: "i want it all in one card , but inside
+// that card, they are their own card."
+await page.locator('.opt.row').first().click();
+await page.waitForTimeout(400);
+
 // The score is the first thing anyone looks for. The agent is told to look it
 // up and often does not, so the card fills its own gap from Places.
 ok('a card with no rating from the agent still shows one',

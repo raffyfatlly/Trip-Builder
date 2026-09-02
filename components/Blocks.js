@@ -71,18 +71,19 @@ function usePlace(name, where) {
 // scroll rather than a comparison. A search result puts the picture beside the
 // facts precisely so the eye can run down the column — which is the whole job
 // of a card set: choosing between these, not admiring each one.
-function Pic({ name, where }) {
+function Pic({ name, where, small }) {
   const place = usePlace(name, where);
   const [dead, setDead] = useState(false);
   const live = place && place.photo && !dead;
   return (
-    <div className={'pic' + (live ? '' : ' none')}>
+    <div className={'pic' + (live ? '' : ' none') + (small ? ' sm' : '')}>
       {live && <img src={place.photo} alt="" loading="lazy" onError={() => setDead(true)} />}
       <style jsx>{`
         .pic{
           width:92px;height:92px;flex:none;border-radius:15px;overflow:hidden;
           background:var(--sage);
         }
+        .pic.sm{width:46px;height:46px;border-radius:11px}
         .pic img{width:100%;height:100%;object-fit:cover;display:block}
         /* Kept, empty, rather than removed: a card set where one place has no
            photograph should still line up as a column. */
@@ -250,13 +251,27 @@ export default function Block({ block, onChoose, disabled, where }) {
   // the part worth reading. The top two stay out, the rest fold away, and the
   // button says how many are under it. A short set is left alone: folding one
   // card away is a control that costs more than it saves.
-  const [open, setOpen] = useState(false);
+  // raffy, 2026-09-02, after trying it on a set of three: "it didn't present
+  // the cards in group that can be collapsed or expanded... so user dont have
+  // to scroll all . taking much space."
+  //
+  // The first version folded away everything past the second card, but only
+  // for sets of four or more — so his three ideas produced no control at all.
+  // Raising the count was the wrong lever: the complaint is HEIGHT, and three
+  // full cards is a screen and a half whether or not a button hides one.
+  //
+  // So the cards collapse individually instead. The first stays open, because
+  // it is the recommendation and hiding it would be hiding the answer. The rest
+  // become one scannable line each — picture, name, price — and open in place.
+  // A set of three is now a card and two rows.
+  //
+  // Except when they have to tick several: comparing five hotels through a
+  // sequence of taps is worse than scrolling past them.
+  const [shown, setShown] = useState({});
   const list = kind === 'options' ? (items || []) : kind === 'spots' ? (spots || []) : [];
-  const FOLD_OVER = 3;
-  const KEEP_OUT = 2;
-  const folds = list.length > FOLD_OVER;
-  const shown = folds && !open ? list.slice(0, KEEP_OUT) : list;
-  const hidden = list.length - shown.length;
+  const compacts = !multi && list.length > 1;
+  const isOpen = (i) => !compacts || i === 0 || !!shown[i];
+  const toggle1 = (i) => setShown((p) => ({ ...p, [i]: !p[i] }));
   const toggle = (name) =>
     setPicked((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
   const sendPicked = () => {
@@ -290,7 +305,21 @@ export default function Block({ block, onChoose, disabled, where }) {
         </div>
       )}
 
-      {kind === 'spots' && shown.map((sp, i) => (
+      {kind === 'spots' && list.length > 0 && (
+      <div className={'optset' + (compacts ? ' grouped' : '')}>
+      {list.map((sp, i) => (!isOpen(i) ? (
+        <button key={i} className="opt row" onClick={() => toggle1(i)}>
+          <Pic name={sp.name} where={where} small />
+          <span className="rbody">
+            <span className="name">{sp.name}</span>
+            {sp.meta && <span className="rsub">{sp.meta}</span>}
+          </span>
+          <svg className="rchev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      ) : (
         <div key={i} className="opt spot">
           <div className="head">
             <Pic name={sp.name} where={where} />
@@ -332,8 +361,13 @@ export default function Block({ block, onChoose, disabled, where }) {
             </button>
           </div>
           <Links o={sp} name={sp.name} where={where} />
+          {compacts && i > 0 && (
+            <button className="rshut" onClick={() => toggle1(i)}>Close</button>
+          )}
         </div>
-      ))}
+      )))}
+      </div>
+      )}
 
       {kind === 'proposal' && proposal && (
         <div className="prop">
@@ -373,7 +407,21 @@ export default function Block({ block, onChoose, disabled, where }) {
         </div>
       )}
 
-      {kind === 'options' && shown.map((o, i) => (
+      {kind === 'options' && list.length > 0 && (
+      <div className={'optset' + (compacts ? ' grouped' : '')}>
+      {list.map((o, i) => (!isOpen(i) ? (
+        <button key={i} className="opt row" onClick={() => toggle1(i)}>
+          <Pic name={o.name} where={where} small />
+          <span className="rbody">
+            <span className="name">{o.name}</span>
+            {(o.price || o.meta) && <span className="rsub">{o.price || o.meta}</span>}
+          </span>
+          <svg className="rchev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      ) : (
         <div key={i} className="opt">
           <div className="head">
             <Pic name={o.name} where={where} />
@@ -420,17 +468,12 @@ export default function Block({ block, onChoose, disabled, where }) {
             </button>
           </div>
           <Links o={o} name={o.name} where={where} />
+          {compacts && i > 0 && (
+            <button className="rshut" onClick={() => toggle1(i)}>Close</button>
+          )}
         </div>
-      ))}
-
-      {folds && (
-        <button className={'fold' + (open ? ' open' : '')} onClick={() => setOpen((v) => !v)}>
-          <span>{open ? 'Show fewer' : 'Show ' + hidden + ' more'}</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
-            strokeLinecap="round" strokeLinejoin="round">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
+      )))}
+      </div>
       )}
 
       {/* Nothing is sent until they say they are done, so a card set that
@@ -552,6 +595,49 @@ export default function Block({ block, onChoose, disabled, where }) {
         .pick.tick svg{width:13px;height:13px;flex:none;opacity:.32}
         .pick.tick.on{background:var(--deep);color:#EAF2EC}
         .pick.tick.on svg{opacity:1}
+        /* One card, with the options inside it.
+           raffy, 2026-09-02: "i want it all in one card , but inside that card,
+           they are their own card". A column of separate floating cards reads
+           as five unrelated things that happen to be adjacent; one surface with
+           hairlines between reads as one answer with five parts, which is what
+           it is. The rounding and the shadow belong to the group, so nothing
+           inside carries its own. */
+        .optset{
+          background:var(--surface);border-radius:20px;box-shadow:var(--sh-s);
+          overflow:hidden;
+        }
+        .optset .opt{
+          background:none;box-shadow:none;margin:0;border-radius:0;
+          border-top:1px solid var(--line);width:100%;
+        }
+        .optset .opt:first-child{border-top:0}
+
+        /* A collapsed option: one scannable line. The picture stays, because
+           it is how you recognise a place at a glance, and everything that
+           needs reading — why it suits them, the catch, the links — waits
+           until it is open. */
+        .opt.row{
+          display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+          border:0;font:inherit;cursor:pointer;
+          background:var(--surface);border-radius:20px;padding:10px 14px 10px 10px;
+          box-shadow:var(--sh-s);margin-bottom:9px;
+        }
+        .opt.row .rbody{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+        .opt.row .name{
+          font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;
+          line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        }
+        .opt.row .rsub{
+          font-size:12.5px;color:var(--ink-faint);overflow:hidden;
+          text-overflow:ellipsis;white-space:nowrap;
+        }
+        .opt.row .rchev{width:17px;height:17px;flex:none;color:var(--ink-faint)}
+        .opt.row:active{opacity:.65}
+        .rshut{
+          margin-top:10px;border:0;background:none;padding:4px 0 0;font:inherit;
+          font-size:12.5px;font-weight:650;color:var(--ink-faint);cursor:pointer;
+        }
+
         .fold{
           display:flex;align-items:center;justify-content:center;gap:6px;width:100%;
           margin:2px 0 0;padding:11px;border:0;border-radius:20px;
