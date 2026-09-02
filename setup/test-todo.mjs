@@ -10,7 +10,7 @@
 //   node setup/test-todo.mjs
 //   BASE=http://localhost:3220 node setup/test-todo.mjs   (also checks the tab)
 
-import { checklist, dueIn, linkFor } from '../lib/checklist.js';
+import { checklist, dueIn, linkFor, isOwn } from '../lib/checklist.js';
 import { applyEdits } from '../lib/edits.js';
 import { toEdits } from '../lib/editTools.js';
 import { flightSearchLink, hotelSearchLink, checkPrices } from '../lib/prices.js';
@@ -223,6 +223,38 @@ ok('the prompt still parses whole', P.length > 25000, P.length + ' chars');
      checklist(other).todo.length === checklist(trip()).todo.length,
      checklist(other).todo.map((x) => x.what).join(' | '));
   ok('and is still filed, not lost', checklist(other).extra.length === 1);
+}
+
+// --- their own list is not a booking list ------------------------------------
+//
+// raffy, 2026-09-02: "for their own to do they don't need that book link .
+// cause it can be as random as call my mum or whatever right."
+//
+// The link fell back to a Google search for "<whatever> booking", which put a
+// Book it button under "Call my mum" — the app confidently offering to help
+// with something it had completely misread.
+{
+  console.log('');
+  const mine = applyEdits(trip(), toEdits([
+    { op: 'add_task', task: { what: 'Call my mum', kind: 'other' } },
+    { op: 'add_task', task: { what: 'Buy an eSIM', kind: 'admin' } },
+    { op: 'add_task', task: { what: 'Apply for the e-visa', kind: 'visa', link: 'https://evisa.test' } },
+  ], 1));
+  const by = (w) => checklist(mine).todo.find((t) => t.what === w);
+
+  ok('an errand gets no booking link', linkFor(by('Call my mum'), mine) === '',
+     linkFor(by('Call my mum'), mine));
+  ok('nor does an admin job we know nothing about', linkFor(by('Buy an eSIM'), mine) === '');
+  ok('but a link the agent gave is kept', linkFor(by('Apply for the e-visa'), mine) === 'https://evisa.test');
+  ok('and a real booking still gets its search',
+     /aviasales|google\.com\/travel/.test(linkFor(by('Book the flights'), mine)),
+     linkFor(by('Book the flights'), mine));
+  ok('a stay still gets one too', !!linkFor(by('Book Hotel Artemide'), mine));
+
+  ok('what the plan implies is not theirs', !isOwn(by('Book the flights')));
+  ok('what they added is', isOwn(by('Call my mum')));
+  ok('and so is a to-do that moved off a day',
+     isOwn({ id: 'mv:renew-passport' }));
 }
 
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');

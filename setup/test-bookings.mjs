@@ -77,6 +77,11 @@ async function open(T, perms) {
         ],
         doc: { url: '/api/doc?s=sesn_A&d=aaaabbbbccccddddeeeeffff', name: 'The confirmation' } },
     ],
+    // Something they put on the list themselves, which is not a booking and
+    // must not be offered a Book it button.
+    tasks: [
+      { id: 'tk9', what: 'Call my mum before we fly', kind: 'other' },
+    ],
   };
   const { ctx, page, errs, text } = await open(T, ['clipboard-read', 'clipboard-write']);
   const t = await text();
@@ -116,6 +121,14 @@ async function open(T, perms) {
   ok('what is left comes before what is done', t.indexOf('Sorted') > 40, t.slice(0, 60).replace(/\n/g, ' '));
   // Grouped by when, because that is what decides what you do next.
   ok('grouped by when it has to happen', /this week|still to do|after that/i.test(t), t.split('\n').slice(0, 8).join(' / '));
+  // raffy, 2026-09-02: "for user own to do list , change 'after that' to
+  // something like your to do . and i think for their own to do they don't
+  // need that book link . cause it can be as random as call my mum."
+  ok('what they added themselves is its own list', /your own list/i.test(t), t.replace(/\n/g, ' ').slice(0, 200));
+  ok('and an errand on it is not offered a Book it button',
+     (await page.locator('#bookings .tdcard', { hasText: 'Call my mum' }).locator('.tdgo').count()) === 0);
+  ok('and it says To do, not To book',
+     /to do/i.test(await page.locator('#bookings .tdcard', { hasText: 'Call my mum' }).locator('.bktag').innerText()));
   ok('and it does not explain its own sorting', !/not by what it is|order it has to happen/i.test(t));
 
   // The traveller told us this flight once and filed it once. Twice is a bug.

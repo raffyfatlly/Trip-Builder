@@ -1,5 +1,5 @@
 import { OUTFIT, JAKARTA, FACE } from './fonts.js';
-import { checklist, dueIn, linkFor } from '../lib/checklist.js';
+import { checklist, dueIn, linkFor, isOwn } from '../lib/checklist.js';
 
 // The renderer. Turns one itinerary.json into a finished app.
 //
@@ -150,8 +150,8 @@ export function render(T, templateSrc) {
     // lib/checklist.js. Each entry already knows when it has to happen and
     // where it gets done.
     var TODO = ${JSON.stringify({
-      todo: LIST.todo.map((t) => ({ ...t, due: dueIn(t.by), link: linkFor(t, T) })),
-      done: LIST.done.map((t) => ({ ...t, link: linkFor(t, T) })),
+      todo: LIST.todo.map((t) => ({ ...t, due: dueIn(t.by), link: linkFor(t, T), own: isOwn(t) })),
+      done: LIST.done.map((t) => ({ ...t, link: linkFor(t, T), own: isOwn(t) })),
       extra: LIST.extra,
     })};
     var SHELLI = ${JSON.stringify(ICONS)};
@@ -905,7 +905,7 @@ export function render(T, templateSrc) {
     '    if(t.done) name=name.replace(/^(Book|Confirm|Sort|Apply for|Arrange|Get|Buy|Renew)\\s+/i,"");',
     '    h+=\'<div class="tdtop"><b>\'+esc(name)+\'</b>\'+',
     '      \'<span class="bktag \'+(t.done?"ok":(soon?"no":"ok"))+\'">\'+',
-    '      esc(t.done?"Booked":(t.due||"To book"))+\'</span></div>\';',
+    '      esc(t.done?(t.own?"Done":"Booked"):(t.due||(t.own?"To do":"To book")))+\'</span></div>\';',
     '    // Whatever is actually known, in the order somebody would want it.',
     '    var when=(b&&b.when)||t.when||"";',
     '    // s.loc is prose in the itinerary — a paragraph about the',
@@ -944,7 +944,8 @@ export function render(T, templateSrc) {
     '    var foot="";',
     '    var lk=t.link||t.site||"";',
     '    if(!t.done && lk) foot+=\'<a class="tdgo" href="\'+esc(lk)+\'" target="_blank" rel="noopener noreferrer">\'+',
-    '      \'<span>\'+(t.kind==="flight"?"Find flights":t.kind==="stay"?"Find rooms":"Book it")+\'</span>\'+',
+    '      \'<span>\'+(t.kind==="flight"?"Find flights":t.kind==="stay"?"Find rooms"',
+    '        :t.kind==="visa"?"Apply here":t.own?"Open":"Book it")+\'</span>\'+',
     '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" \'+',
     '      \'stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>\';',
     '    // The booking itself, one tap away. A reference you have to go and',
@@ -981,13 +982,24 @@ export function render(T, templateSrc) {
     '    // Grouped by when it has to happen, because that is the only thing',
     '    // that decides what you do next.',
     '    var soonish=function(t){ return t.due==="do this now"||t.due==="today"||t.due==="this week"; };',
-    '    var now=todo.filter(soonish), later=todo.filter(function(t){ return !soonish(t); });',
+    '',
+    '    // Two lists, not one. raffy, 2026-09-02: "for user own to do list,',
+    '    // change \'after that\' to something like your to do." What the trip',
+    '    // implies — the flights, each room, anything that sells out — is a',
+    '    // different kind of thing from "call my mum", and reading them as one',
+    '    // list is what made his own to-dos look like unbooked hotels.',
+    '    var plan=todo.filter(function(t){ return !t.own; });',
+    '    var mine=todo.filter(function(t){ return t.own; });',
+    '    var now=plan.filter(soonish), later=plan.filter(function(t){ return !soonish(t); });',
     '    if(now.length){',
     '      h+=\'<div class="sect"><h2>This week</h2></div>\'+now.map(todoCard).join("");',
     '    }',
     '    if(later.length){',
-    '      h+=\'<div class="sect"><h2>\'+(now.length?"After that":"Still to do")+\'</h2></div>\'+',
+    '      h+=\'<div class="sect"><h2>\'+(now.length?"After that":"Still to book")+\'</h2></div>\'+',
     '        \'<p class="tdlead">Nearest first.</p>\'+later.map(todoCard).join("");',
+    '    }',
+    '    if(mine.length){',
+    '      h+=\'<div class="sect"><h2>Your own list</h2></div>\'+mine.map(todoCard).join("");',
     '    }',
     '    if(!todo.length && need){',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
