@@ -91,6 +91,17 @@ const open = async (block, session) => {
   ok('the way out is the same arrow, turned over', (await shut.innerText()).trim() === '',
      JSON.stringify(await shut.innerText()));
   ok('and it is an arrow, not a word', (await shut.locator('svg').count()) === 1);
+
+  // raffy, 2026-09-02: "why don't u place the Chevron in same place . not
+  // different place." It was at the bottom of an open card and at the right of
+  // a closed one, so the arrow appeared to move when you used it.
+  const down = await page.locator('.opt.row .rchev').first().boundingBox();
+  const up = await shut.boundingBox();
+  ok('and it does not move when you use it',
+     Math.abs((down.x + down.width) - (up.x + up.width)) < 2,
+     'closed right edge ' + Math.round(down.x + down.width) + ', open ' + Math.round(up.x + up.width));
+  ok('at the same size', Math.abs(down.width - up.width) < 2,
+     down.width + ' vs ' + up.width);
   ok('it says what it does for a screen reader',
      (await shut.getAttribute('aria-label')) === 'Close');
   await shut.click();

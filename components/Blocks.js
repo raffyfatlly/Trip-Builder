@@ -239,12 +239,18 @@ function Shut({ onClick }) {
         <path d="m6 15 6-6 6 6" />
       </svg>
       <style jsx>{`
+        /* The same slot the collapsed row's chevron occupies: last child of the
+           head row, right edge, centred on it. raffy, 2026-09-02: "why don't u
+           place the Chevron in same place . not different place." It was at the
+           bottom of the open card and at the right of the closed one, so the
+           two never read as one switch — the arrow appeared to move when you
+           used it. Same place, same size, only the direction changes. */
         .rshut{
-          display:flex;align-items:center;justify-content:center;width:100%;
-          margin-top:10px;border:0;background:none;padding:6px 0 0;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;flex:none;
+          align-self:center;border:0;background:none;padding:0;cursor:pointer;
           color:var(--ink-faint);
         }
-        .rshut svg{width:17px;height:17px}
+        .rshut svg{width:17px;height:17px;display:block}
         .rshut:active{opacity:.5}
       `}</style>
     </button>
@@ -354,6 +360,7 @@ export default function Block({ block, onChoose, disabled, where }) {
               <div className="name">{sp.name}</div>
               <Meta o={sp} name={sp.name} where={where} />
             </div>
+            {compacts && i > 0 && <Shut onClick={() => toggle1(i)} />}
           </div>
           <div className="buzz">{sp.buzz}</div>
           {sp.best && (
@@ -388,7 +395,6 @@ export default function Block({ block, onChoose, disabled, where }) {
             </button>
           </div>
           <Links o={sp} name={sp.name} where={where} />
-          {compacts && i > 0 && <Shut onClick={() => toggle1(i)} />}
         </div>
       )))}
       </div>
@@ -455,6 +461,7 @@ export default function Block({ block, onChoose, disabled, where }) {
               <Meta o={o} name={o.name} where={where} />
               {o.price && <div className="price">{o.price}</div>}
             </div>
+            {compacts && i > 0 && <Shut onClick={() => toggle1(i)} />}
           </div>
           <div className="why">{o.why}</div>
           {o.watch && (
@@ -493,7 +500,6 @@ export default function Block({ block, onChoose, disabled, where }) {
             </button>
           </div>
           <Links o={o} name={o.name} where={where} />
-          {compacts && i > 0 && <Shut onClick={() => toggle1(i)} />}
         </div>
       )))}
       </div>
@@ -546,6 +552,11 @@ export default function Block({ block, onChoose, disabled, where }) {
            RM320-490/night, deals from ~RM270"), which on one row overflowed the
            card and squeezed the name to one word per line. */
         .head{display:flex;gap:12px;align-items:flex-start}
+        /* The chevron centres on the head row even though the text tops out,
+           and the open card's right inset matches the closed row's so the
+           arrow lands on exactly the same pixel in both states. */
+        .optset.grouped .head{align-items:center}
+        .optset.grouped .opt:not(.row){padding-right:14px}
         .hbody{flex:1;min-width:0}
         .name{font-size:15.5px;font-weight:700;line-height:1.3}
         .price{
