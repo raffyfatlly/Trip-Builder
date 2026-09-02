@@ -25,9 +25,17 @@ import { Html, Head, Main, NextScript } from 'next/document';
 // Making it a runtime read would mean giving `/` getServerSideProps — paying a
 // server render on every visit, for every visitor, for ever, to save one
 // rebuild of a tag that is meant to be temporary. Not worth it.
+// ON, temporarily and deliberately, so their verifier can see it. It comes
+// straight back out the moment the dashboard lets him in — that removal is
+// mine to remember, not his.
+const DRIVE_DEFAULT = 'https://emrld.ltd/NTY5NjIy.js?t=569622';
+
 const DRIVE = (() => {
-  const u = (process.env.TRAVELPAYOUTS_DRIVE
-    || process.env.NEXT_PUBLIC_TRAVELPAYOUTS_DRIVE || '').trim();
+  const set = process.env.TRAVELPAYOUTS_DRIVE
+    ?? process.env.NEXT_PUBLIC_TRAVELPAYOUTS_DRIVE;
+  // An env var set to anything, including empty, wins — that is the off switch
+  // if this needs killing before the next deploy.
+  const u = (set === undefined ? DRIVE_DEFAULT : set).trim();
   return /^https:\/\/[\w.-]+\/[\w./?=&-]*$/.test(u) ? u : '';
 })();
 
