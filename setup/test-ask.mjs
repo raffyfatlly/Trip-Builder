@@ -178,6 +178,76 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 
+// --- the list is theirs too: adding and removing their own rows -------------
+//
+// raffy, 2026-09-02: "we should let user to add and and delete their own to do
+// . like some other things like enable roaming or buy e sim" — and then, of the
+// button that was supposed to do it: "i cant click the add something on my
+// own". It was emitted from inside a branch that a rewrite had left unreachable,
+// and the listener behind it had been deleted twice by rewrites of the same
+// block. Both are load-bearing enough to assert.
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const sent3 = [];
+  await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_C' } }));
+  await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
+    transcript: [{ role: 'user', text: 'hi', id: 'u1' }],
+    itinerary: REAL, plan: {}, agentEdits: [], memoryOps: [],
+    building: false, thinking: false, turns: 1 } }));
+  await ctx.route('**/api/send', (r) => { sent3.push(JSON.parse(r.request().postData() || '{}')); r.fulfill({ json: { ok: true } }); });
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('itin.session.v1', 'sesn_C'));
+  await page.goto(B, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(1800);
+
+  // On a phone the trip is a sheet over the chat, so it has to be opened
+  // before anything in it can be tapped.
+  await page.locator('.itbtn').click();
+  await page.waitForTimeout(600);
+
+  const frame = page.frameLocator('iframe[title="Itinerary preview"]');
+  await frame.locator('#nav button[data-view="book"]').click();
+  await page.waitForTimeout(500);
+
+  console.log('');
+  const add = frame.locator('.tdadd');
+  ok('the list can be added to', (await add.count()) === 1);
+  ok('and it is on screen, not clipped by the nav', await add.isVisible());
+  await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/todo-mobile.png', fullPage: false });
+
+  await add.click();
+  await page.waitForTimeout(400);
+  ok('tapping it opens the composer', (await page.locator('.dock').count()) === 1);
+  ok('and says what it is for', /add to your list/i.test(await page.locator('.dock .dwhat').innerText()));
+  ok('with examples of the kind of thing', /esim|insurance|passport/i.test(await page.locator('.dock textarea').getAttribute('placeholder')));
+
+  // An empty add is not an add.
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  ok('an empty one cannot be sent', sent3.length === 0);
+
+  await page.locator('.dock textarea').fill('buy an esim before we fly');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(500);
+  ok('typing one sends it', sent3.length === 1, JSON.stringify(sent3.map((x) => x.text)));
+  ok('as an instruction the agent can act on',
+     /^Add this to my to-do list: buy an esim before we fly$/.test((sent3[0] || {}).text || ''), (sent3[0] || {}).text);
+
+  await page.locator('.dock .dx').click();
+  await page.waitForTimeout(300);
+  const x = frame.locator('.tdx');
+  ok('every row can be taken off the list', (await x.count()) > 0, (await x.count()) + ' rows');
+  await x.first().click();
+  await page.waitForTimeout(400);
+  ok('and removing one asks before it goes', /^Remove: /.test(await page.locator('.dock .dwhat b').innerText()));
+
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  await ctx.close();
+}
+
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

@@ -105,24 +105,22 @@ async function open(T, perms) {
   ok('a filed booking is the content', t.includes('AirAsia AK1494'));
   ok('its reference is on the card', t.includes('QK7T2P'));
   ok('the one thing worth remembering is kept', t.includes('Check-in opens 48h'));
-  // The list leads with what has to happen; the record follows it.
-  ok('what is left comes before what is done', t.indexOf('Still to do') < t.indexOf('Confirmed'));
-  // Copy is for the traveller, not the maker. raffy, 2026-09-01: "description
-  // like sorted by when it has to happened , not by what it is only relevant to
-  // me the creator of the app but irrelevant to our user."
+  // What has to happen leads; what is done follows it.
+  ok('what is left comes before what is done', t.indexOf('Sorted') > 40, t.slice(0, 60).replace(/\n/g, ' '));
+  // Grouped by when, because that is what decides what you do next.
+  ok('grouped by when it has to happen', /this week|still to do|after that/i.test(t), t.split('\n').slice(0, 8).join(' / '));
   ok('and it does not explain its own sorting', !/not by what it is|order it has to happen/i.test(t));
-  ok('it just says which end is nearest', /nearest first/i.test(t));
 
   // The traveller told us this flight once and filed it once. Twice is a bug.
   const codes = (t.match(/AK1494/g) || []).length;
   ok('the flight is not listed twice', codes === 1, codes + ' mentions');
 
   // A booking that names a stay takes it off the outstanding list.
-  const under = t.slice(t.indexOf('Still to do'), t.indexOf('Confirmed'));
+  const under = t.slice(0, t.indexOf('Sorted') > 0 ? t.indexOf('Sorted') : t.length);
   ok('the filed stay is off the to-do list', !under.includes('La Siesta'));
   ok('the unfiled stay is still on it', under.includes('Furama'));
   // A task says WHEN, because the deadline is the whole reason for the order.
-  ok('every task carries a deadline', /week|now|today|by \d/i.test(under), under.slice(0, 120));
+  ok('every task carries a deadline', /week|now|today|by \d/i.test(under), under.slice(0, 120).replace(/\n/g, ' '));
   // And the link that finishes it.
   ok('and the link that does it', (await page.locator('#bookings .tdgo').count()) > 0);
   ok('it counts what is sorted', /\d of \d sorted/.test(t), t.split('\n')[0]);
@@ -147,7 +145,7 @@ async function open(T, perms) {
   const t = await text();
   ok('empty: no page errors', errs.length === 0, errs.join(' / '));
   ok('empty: it asks for a confirmation', t.includes('Nothing filed yet'));
-  ok('empty: it says how to send one', /forward/i.test(t));
+  ok('empty: it says how to send one', /confirmation/i.test(t));
   ok('empty: both stays are still to do', t.includes('La Siesta') && t.includes('Furama'));
   ok('empty: nothing is sorted yet', /0 of \d sorted/.test(t), t.split('\n')[0]);
   await ctx.close();

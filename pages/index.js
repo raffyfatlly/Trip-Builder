@@ -282,7 +282,12 @@ export default function Home() {
   useEffect(() => {
     const onAsk = (e) => {
       const ask = e && e.data && e.data.tripAsk;
-      if (!ask || typeof ask !== 'object' || !ask.what) return;
+      if (!ask || typeof ask !== 'object') return;
+      // "Add something of your own" is the one ask with nothing named yet —
+      // that is the whole point of it. raffy, 2026-09-02: "i cant click the add
+      // something on my own". The button worked; this guard threw its message
+      // away for having an empty `what`.
+      if (!ask.what && ask.kind !== 'addtask') return;
       // Stay on the trip. raffy, 2026-09-01: "for mobile we need to find better
       // way where chat can exist in the same page , especially on the change
       // this part... i just want the chat continues to live in the app."

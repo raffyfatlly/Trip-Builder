@@ -191,5 +191,39 @@ ok('the prompt still parses whole', P.length > 25000, P.length + ' chars');
   ok('and they can add one of their own', checklist(mine).todo.some((x) => /eSIM/.test(x.what)));
 }
 
+// --- a filed confirmation closes the row it confirms -------------------------
+//
+// The duplicate this whole file exists to prevent, found on screen: "Book
+// Furama Resort Danang" still sitting in the list with a booking titled
+// "Furama Resort Danang" filed beside it under Sorted. A confirmation is
+// matched by task id when the agent sends one and by the name of the thing
+// when it does not, because what actually arrives is a booking email.
+{
+  console.log('');
+  const t = trip();
+  t.bookings = [{ id: 'bk1', kind: 'activity', title: 'Colosseum', ref: 'CL-99' }];
+  const c = checklist(t);
+  ok('a confirmation named after the thing ticks its row off',
+     !c.todo.some((x) => /Colosseum/.test(x.what)), c.todo.map((x) => x.what).join(' | '));
+  ok('and the thing appears once, not twice',
+     c.done.filter((x) => /Colosseum/i.test(x.what)).length === 1
+     && !c.extra.some((b) => /Colosseum/i.test(b.title)),
+     'done ' + c.done.length + ' extra ' + c.extra.length);
+  ok('with its reference on the row it closed',
+     (c.done.find((x) => /Colosseum/.test(x.what)) || {}).booking?.ref === 'CL-99');
+
+  const byId = trip();
+  byId.bookings = [{ id: 'bk2', kind: 'flight', title: 'AK 1494', task: 'd:flights', ref: 'ZZ1' }];
+  ok('and an id closes it outright', !checklist(byId).todo.some((x) => /flight/i.test(x.what)));
+
+  // Forgiving, not credulous: a short or unrelated title must not swallow a row.
+  const other = trip();
+  other.bookings = [{ id: 'bk3', kind: 'other', title: 'Airport parking' }];
+  ok('an unrelated confirmation closes nothing',
+     checklist(other).todo.length === checklist(trip()).todo.length,
+     checklist(other).todo.map((x) => x.what).join(' | '));
+  ok('and is still filed, not lost', checklist(other).extra.length === 1);
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
