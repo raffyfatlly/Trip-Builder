@@ -113,8 +113,14 @@ ok('and an overdue one is blunt', dueIn('2020-01-01') === 'do this now');
 // --- prices, with nothing configured ---------------------------------------
 delete process.env.TRAVELPAYOUTS_TOKEN;
 const noTok = await checkPrices({ flights: [{ from: 'KUL', to: 'FCO', date: soon }] });
-ok('without a token it refuses to quote', /cannot quote a fare/i.test(noTok));
+ok('without a token it refuses to quote', /cannot quote a rate/i.test(noTok));
 ok('and forbids the estimate outright', /do NOT estimate/i.test(noTok));
+// "Do not estimate" was not enough on its own: told it could not quote, the
+// agent web-searched nightly rates and put aggregator numbers on the cards as
+// if they were the hotel's price — one of them for a different property in the
+// same town. A rate scraped from a search result is not a live rate.
+ok('and closes the web-search loophole too', /do NOT go and find one by web search/i.test(noTok));
+ok('and points at the hotel\'s own page for one property', /place_details/i.test(noTok));
 ok('but still hands over a real search link', noTok.includes('aviasales.com/search/'), noTok.split('\n').pop());
 ok('an empty request is answered, not thrown', (await checkPrices({})) === 'Nothing to price.');
 ok('a link needs real IATA codes', flightSearchLink({ from: 'Kuala Lumpur', to: 'Rome', date: soon }) === '');
@@ -123,6 +129,10 @@ ok('and a hotel link needs somewhere to go', hotelSearchLink({ where: '' }) === 
 // --- what the agent is told --------------------------------------------------
 const { SYSTEM: P } = await import('../lib/prompt.js');
 ok('the prompt explains the arranging phase', /three phases/i.test(P) && P.includes('To do'));
+ok('and that a price search takes a town, not a hotel name',
+   /never a hotel name/i.test(P) && /different town/i.test(P));
+ok('and not to go hunting a rate by web search when it cannot quote one',
+   /do not go and find a rate by web search/i.test(P));
 ok('and that most of the list writes itself', /writes itself/i.test(P));
 ok('and not to pad it', /Do not pad it/.test(P));
 ok('and never to estimate a fare', /Never estimate a fare/.test(P));
@@ -255,6 +265,38 @@ ok('the prompt still parses whole', P.length > 25000, P.length + ' chars');
   ok('what they added is', isOwn(by('Call my mum')));
   ok('and so is a to-do that moved off a day',
      isOwn({ id: 'mv:renew-passport' }));
+}
+
+// --- a room search that lands in the right town ------------------------------
+//
+// raffy, 2026-09-02, on his Desaru trip: "its giving me pricing option in other
+// places too . not desaru." We were putting the property name into hotellook's
+// `destination`, which takes a PLACE — given a hotel name it cannot place, it
+// fuzzy-matches to whatever it can, and a Desaru search comes back showing
+// hotels somewhere else.
+{
+  console.log('');
+  ok('a city search names the city',
+     /destination=Desaru\+Coast/.test(hotelSearchLink({ city: 'Desaru Coast, Johor' })),
+     hotelSearchLink({ city: 'Desaru Coast, Johor' }));
+  ok('a hotel name alone builds no link at all',
+     hotelSearchLink({ hotel: 'Mandarin Oriental Desaru Coast' }) === '',
+     JSON.stringify(hotelSearchLink({ hotel: 'Mandarin Oriental Desaru Coast' })));
+
+  const t = trip();
+  t.trip.title = 'Desaru Coast';
+  t.stays = [{ n: 'Mandarin Oriental, Desaru Coast', draft: true }];
+  const room = linkFor(checklist(t).todo.find((x) => /Mandarin/.test(x.what)), t);
+  ok('Find rooms searches the town, not the hotel name',
+     /destination=Desaru\+Coast/.test(room) && !/Mandarin/.test(room), room);
+
+  // Their own booking page is the actual hotel on the actual dates. An
+  // aggregator search is a guess at which property you meant.
+  const own = { ...t, stays: [{ n: 'Mandarin Oriental, Desaru Coast', draft: true,
+    site: ['Their site', 'https://www.mandarinoriental.com/desaru-coast'] }] };
+  ok('but their own booking page wins when there is one',
+     linkFor(checklist(own).todo.find((x) => /Mandarin/.test(x.what)), own)
+       === 'https://www.mandarinoriental.com/desaru-coast');
 }
 
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
