@@ -13,7 +13,7 @@
 //
 //   node setup/test-misfiled.mjs
 
-import { applyEdits, looksLikeTask } from '../lib/edits.js';
+import { applyEdits, countStale, looksLikeTask } from '../lib/edits.js';
 import { toEdits } from '../lib/editTools.js';
 import { checklist } from '../lib/checklist.js';
 
@@ -101,6 +101,34 @@ const HIS = [
      checklist(applyEdits(shifted, [
        { type: 'task.set', id: 'mv:renew-passport', task: { done: true }, ts: 2 },
      ])).done.some((t) => t.what === 'Renew passport'));
+}
+
+// --- the stale count must survive a task edit --------------------------------
+//
+// countStale held a copy of applyEdits' task handler, pasted into a function
+// that has no `out`. It sat unreachable until to-dos started being routed as
+// tasks, and then the first one threw ReferenceError on load and took the
+// whole app down — a white screen on his phone.
+//
+// The rule it should have been written to: a task or a booking is never
+// orphaned, because neither is addressed by a day id, and a day id is the only
+// thing a rebuild invalidates.
+{
+  console.log('');
+  const it = trip();
+  const edits = [
+    ...toEdits(HIS.map((item) => ({ op: 'add', day: 0, item })), 1),
+    { type: 'task.set', id: 'tk1', task: { done: true }, ts: 2 },
+    { type: 'booking.set', id: 'bk1', booking: { kind: 'stay', title: 'Hotel Mediterraneo' }, ts: 3 },
+  ];
+  let threw = null;
+  try { countStale(it, edits); } catch (e) { threw = e.message; }
+  ok('counting stale edits does not throw on a task', !threw, threw || '');
+  ok('and a task edit is never counted stale', countStale(it, edits) === 0, String(countStale(it, edits)));
+
+  // The real orphan it exists to find still gets found.
+  ok('an edit pointing at a day that is gone still counts',
+     countStale(it, [{ type: 'item.update', day: 9, id: 'x', patch: { t: '1pm' } }]) === 1);
 }
 
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
