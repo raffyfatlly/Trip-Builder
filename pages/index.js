@@ -307,9 +307,28 @@ export default function Home() {
   const thing = (what) => String(what || '').replace(/^(book|confirm|sort|apply for)\s+/i, '');
 
   const dockRef = useRef(null);
-  // What the agent last said, trimmed to something that fits a dock. The point
-  // of answering here is that the reply does not happen offscreen.
-  const lastAgentLine = (() => {
+
+  // How many things the agent has said. The dock uses it to tell an answer to
+  // THIS ask from the one before it.
+  const saidCount = messages.filter((m) => m.role === 'assistant' && m.text).length;
+
+  // What the agent last said, trimmed to something that fits a dock — but only
+  // if it said it after they asked.
+  //
+  // raffy, 2026-09-02: "the chat field sometimes show old messages from the
+  // chat... it should just focus on the new msg or process its producing at
+  // that moment . like a glitch."
+  //
+  // It was showing the last assistant line whenever `thinking` was false, and
+  // `thinking` is a server flag that takes a poll to turn on. So for the second
+  // between pressing send and the server admitting it was working, the dock
+  // displayed the PREVIOUS answer — an old message flashing up as though it
+  // were the reply. It read as a glitch because it was one.
+  //
+  // Counting is the fix, not a longer delay: an answer either exists or it does
+  // not, and a count says which without asking a flag that lags.
+  const answerSince = (n) => {
+    if (!Number.isInteger(n) || saidCount <= n) return '';
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
       if (m.role !== 'assistant' || !m.text) continue;
@@ -317,7 +336,7 @@ export default function Home() {
       return line.length > 130 ? line.slice(0, 128) + '…' : line;
     }
     return '';
-  })();
+  };
 
 
   const undoEdits = useCallback(() => {
@@ -978,9 +997,9 @@ export default function Home() {
                   )}
                   {dock.sending ? (
                     <div className="dsay">
-                      {thinking
-                        ? <><i className="dd" /><i className="dd" /><i className="dd" /><span>Working on it</span></>
-                        : <span>{lastAgentLine || 'Done — have a look.'}</span>}
+                      {answerSince(dock.said)
+                        ? <span>{answerSince(dock.said)}</span>
+                        : <><i className="dd" /><i className="dd" /><i className="dd" /><span>Working on it</span></>}
                       <button className="dfull" onClick={() => { setDock(null); setSheet(false); }}>
                         Open chat
                       </button>
@@ -1013,7 +1032,10 @@ export default function Home() {
                           send('Change "' + dock.what + '"'
                             + (dock.when ? ' on ' + dock.when : '') + ': ' + t);
                         }
-                        setDock({ ...dock, sending: true });
+                        // Remember what the conversation looked like at the
+                        // moment of asking, so an older answer cannot be
+                        // mistaken for this one.
+                        setDock({ ...dock, sending: true, said: saidCount });
                       }}
                     >
                       <textarea

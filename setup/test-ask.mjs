@@ -52,8 +52,13 @@ const browser = await chromium.launch();
   const sent = [];
   await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_A' } }));
   await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
+  // A conversation that already has an answer in it. Without one there is
+  // nothing stale for the dock to flash, and the glitch cannot reproduce.
   await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
-    transcript: [{ role: 'user', text: 'hi', id: 'u1' }],
+    transcript: [
+      { role: 'user', text: 'where should we stay', id: 'u1' },
+      { role: 'assistant', text: 'Good dates — that is shoulder season, so the beach still works.', id: 'a1' },
+    ],
     itinerary: REAL, plan: {}, agentEdits: [], memoryOps: [],
     building: false, thinking: false, turns: 1 } }));
   await ctx.route('**/api/send', (r) => { sent.push(JSON.parse(r.request().postData() || '{}')); r.fulfill({ json: { ok: true } }); });
@@ -109,6 +114,20 @@ const browser = await chromium.launch();
   ok('finishing it sends one message', sent.length === 1, JSON.stringify(sent.map((x) => x.text)));
   ok('and the message is whole', /^Change "[^"]+" on \w+ \d+: make it later$/.test((sent[0] || {}).text || ''), (sent[0] || {}).text);
   ok('and the answer comes back here, not offscreen', (await page.locator('.dock .dsay').count()) === 1);
+
+  // raffy, 2026-09-02: "the chat field sometimes show old messages from the
+  // chat... it should just focus on the new msg or process its producing at
+  // that moment . like a glitch."
+  //
+  // The dock used to show the last assistant line whenever `thinking` was
+  // false, and `thinking` is a server flag that takes a poll to turn on — so
+  // for a second after sending it displayed the PREVIOUS answer as if it were
+  // the reply. This transcript's one assistant line is that previous answer.
+  const said = (await page.locator('.dock .dsay').innerText()).replace(/\n/g, ' ');
+  ok('it does not flash the answer to the last question',
+     !/shoulder season|Furama/i.test(said), said);
+  ok('it says it is working instead', /working on it/i.test(said), said);
+  ok('with the dots to prove it', (await page.locator('.dock .dsay .dd').count()) === 3);
   ok('with a way through to the whole conversation', (await page.locator('.dock .dfull').count()) === 1);
   ok('the trip never left the screen', await page.locator('.phone iframe').isVisible());
 

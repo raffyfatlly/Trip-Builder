@@ -93,6 +93,22 @@ export function render(T, templateSrc) {
   replaceRange(864, 868, 'var AREAS', '  var AREAS=T.areas;', 'AREAS array');
   replaceRange(804, 862, 'var IDEAS', '  var IDEAS=T.ideas;', 'IDEAS array');
   replaceRange(753, 782, 'var STAYS=[', '  var STAYS=T.stays;', 'STAYS array');
+
+  // A day with no hotel behind it.
+  //
+  // renderDay reads `s.short` for the "Furama, day 2 of 4" pill, and s is the
+  // stay covering that day. A trip with no stays at all — a day trip, or one
+  // where they have not chosen a hotel yet — made s undefined and took the
+  // whole page down with it. Found by a test for something else entirely,
+  // which is the usual way.
+  replaceOnce(
+    "'<span class=\"pill tiny\">'+s.short+', day '+ord+' of '+ds.length+'</span>'+",
+    "(s?'<span class=\"pill tiny\">'+s.short+', day '+ord+' of '+ds.length+'</span>':'')+",
+    'day pill survives a trip with no stays');
+  replaceOnce(
+    "    if(s.draft && (i===0||DAYS[i-1].stay!==d.stay))",
+    "    if(s && s.draft && (i===0||DAYS[i-1].stay!==d.stay))",
+    'unbooked-stay note survives a trip with no stays');
   replaceRange(746, 750, 'var P = {', '  var P=T.photos;', 'photo map');
 
   // The illustrated map is Phu Quoc's and does not generalise: an OSM polygon
@@ -316,11 +332,47 @@ export function render(T, templateSrc) {
         // out. So drop the img entirely and let CSS restack the card.
         // The feature card has no coordinates of its own, so it borrows the
         // first stay's — a wider map of the area they are going to.
-        var fsrc = shotFor(f) || mapTile((T.stays||[])[0], 12);
+        var fsrc = shotFor(f) || ((T.stays||[])[0] ? mapTile(T.stays[0], 12) : '');
         // The veil exists to make text readable over a photograph. With no
         // text it is just a photograph made darker for no reason, so the card
         // shows the picture clean instead. (The builder is told to always
         // write the copy; this is what it looks like when it does not.)
+        // A feature card that is only a photograph.
+        //
+        // raffy, 2026-09-02, of his Desaru trip: "in trip page do it like in the
+        // photo reference . now just photo no short description and some pill
+        // shape thingy". His Sorrento card has a heading, a paragraph and three
+        // pills; Desaru came out as a bare picture. The schema requires them and
+        // the prompt insists on them, and the builder shipped one without.
+        //
+        // So the card fills its own gaps from the trip. Every value here is a
+        // FACT already on the page — how many nights, how many hotels, which
+        // ones — not a sentence invented to fill a slot. The paragraph is
+        // deliberately not derived: a description is editorial, and a made-up
+        // one is filler, which is worse than a card with none.
+        if(!f.h && !(f.stats||[]).length){
+          var st = T.stays || [];
+          // \\d, not \d: this whole block lives inside a template literal, so a
+          // single backslash is eaten before it ever reaches the generated app
+          // and the regex arrives as /(d+)/ — which matches the letter d and
+          // nothing else. The nights pill was silently always zero.
+          var nightsOf = function(x){ var m = /(\\d+)/.exec((x && x.nights) || ''); return m ? +m[1] : 0; };
+          var total = st.reduce(function(a,x){ return a + nightsOf(x); }, 0);
+          var names = st.map(function(x){ return x.short || x.n; }).filter(Boolean);
+
+          // The shape of the trip, said with its own names: one base, or the
+          // order you move between them.
+          if(names.length === 1) f.h = (total ? total + (total===1?' night':' nights') + ' at ' : '') + names[0];
+          else if(names.length > 1) f.h = names.slice(0,3).join(', then ') + (names.length>3 ? ', and on' : '');
+
+          var stats = [];
+          if(total) stats.push({ icon:'clock', text: total + (total===1?' night':' nights') });
+          if(st.length) stats.push({ icon:'hotel', text: st.length + (st.length===1?' hotel':' hotels') });
+          var dn = (T.days||[]).length;
+          if(dn) stats.push({ icon:'route', text: dn + (dn===1?' day planned':' days planned') });
+          f.stats = stats;
+        }
+
         var hasCopy = !!(f.h || f.p || (f.stats||[]).length);
         el.className = 'feature' + (fsrc ? '' : ' nophoto');
         el.innerHTML =
