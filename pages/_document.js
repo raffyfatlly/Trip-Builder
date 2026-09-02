@@ -16,8 +16,18 @@ import { Html, Head, Main, NextScript } from 'next/document';
 // is gone — no code change, no leftover third-party script on the page where
 // people type their travel plans. The reason this is an acceptable trade at
 // all is that the app has no real users yet; it would not be later.
+// Either name works. Neither is read at request time, though — measured, not
+// assumed: `/` is statically prerendered, so _document runs during the BUILD
+// and its HTML is then served as a file. Turning this on or off therefore needs
+// a real rebuild, and a Vercel redeploy that reuses the build cache will
+// silently change nothing. Uncheck the build cache.
+//
+// Making it a runtime read would mean giving `/` getServerSideProps — paying a
+// server render on every visit, for every visitor, for ever, to save one
+// rebuild of a tag that is meant to be temporary. Not worth it.
 const DRIVE = (() => {
-  const u = (process.env.NEXT_PUBLIC_TRAVELPAYOUTS_DRIVE || '').trim();
+  const u = (process.env.TRAVELPAYOUTS_DRIVE
+    || process.env.NEXT_PUBLIC_TRAVELPAYOUTS_DRIVE || '').trim();
   return /^https:\/\/[\w.-]+\/[\w./?=&-]*$/.test(u) ? u : '';
 })();
 
