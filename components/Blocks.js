@@ -238,6 +238,25 @@ export default function Block({ block, onChoose, disabled, where }) {
   // until they say they are done.
   const multi = choose && block.pick === 'many';
   const [picked, setPicked] = useState([]);
+
+  // A researched answer arrives as five cards, and five cards is a screen and a
+  // half of scrolling before the next thing they said.
+  //
+  // raffy, 2026-09-02: "sometimes it gives lots of cards recommendation right.
+  // like hotels suggestion. can they all be group into one expandable
+  // collapsible group?"
+  //
+  // Not the whole set behind a title — that hides the recommendation, which is
+  // the part worth reading. The top two stay out, the rest fold away, and the
+  // button says how many are under it. A short set is left alone: folding one
+  // card away is a control that costs more than it saves.
+  const [open, setOpen] = useState(false);
+  const list = kind === 'options' ? (items || []) : kind === 'spots' ? (spots || []) : [];
+  const FOLD_OVER = 3;
+  const KEEP_OUT = 2;
+  const folds = list.length > FOLD_OVER;
+  const shown = folds && !open ? list.slice(0, KEEP_OUT) : list;
+  const hidden = list.length - shown.length;
   const toggle = (name) =>
     setPicked((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
   const sendPicked = () => {
@@ -271,7 +290,7 @@ export default function Block({ block, onChoose, disabled, where }) {
         </div>
       )}
 
-      {kind === 'spots' && (spots || []).map((sp, i) => (
+      {kind === 'spots' && shown.map((sp, i) => (
         <div key={i} className="opt spot">
           <div className="head">
             <Pic name={sp.name} where={where} />
@@ -354,7 +373,7 @@ export default function Block({ block, onChoose, disabled, where }) {
         </div>
       )}
 
-      {kind === 'options' && (items || []).map((o, i) => (
+      {kind === 'options' && shown.map((o, i) => (
         <div key={i} className="opt">
           <div className="head">
             <Pic name={o.name} where={where} />
@@ -403,6 +422,16 @@ export default function Block({ block, onChoose, disabled, where }) {
           <Links o={o} name={o.name} where={where} />
         </div>
       ))}
+
+      {folds && (
+        <button className={'fold' + (open ? ' open' : '')} onClick={() => setOpen((v) => !v)}>
+          <span>{open ? 'Show fewer' : 'Show ' + hidden + ' more'}</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+            strokeLinecap="round" strokeLinejoin="round">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      )}
 
       {/* Nothing is sent until they say they are done, so a card set that
           needs two answers gets two. */}
@@ -523,6 +552,16 @@ export default function Block({ block, onChoose, disabled, where }) {
         .pick.tick svg{width:13px;height:13px;flex:none;opacity:.32}
         .pick.tick.on{background:var(--deep);color:#EAF2EC}
         .pick.tick.on svg{opacity:1}
+        .fold{
+          display:flex;align-items:center;justify-content:center;gap:6px;width:100%;
+          margin:2px 0 0;padding:11px;border:0;border-radius:20px;
+          background:var(--surface);box-shadow:var(--sh-s);
+          font:inherit;font-size:13px;font-weight:650;color:var(--ink-soft);cursor:pointer;
+        }
+        .fold svg{width:15px;height:15px;transition:transform 220ms var(--e)}
+        .fold.open svg{transform:rotate(180deg)}
+        .fold:active{opacity:.6}
+
         .confirm{
           display:flex;align-items:center;justify-content:space-between;gap:10px;
           margin-top:8px;padding:9px 10px 9px 15px;border-radius:99px;
