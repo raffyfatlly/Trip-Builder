@@ -3,6 +3,12 @@ import { orBuilderReady, MODEL } from '../../lib/orBuilder.js';
 import { placesKey } from '../../lib/photos.js';
 import { checkSources } from '../../lib/facts.js';
 import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId } from '../../lib/storage.js';
+import { agentDrift } from '../../lib/managedAgents.js';
+import { CHAT_AGENT_ID } from '../../lib/config.js';
+import { SYSTEM } from '../../lib/prompt.js';
+import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
+import { BUILD_TOOL } from '../../lib/brief.js';
+import { PRICE_TOOL } from '../../lib/prices.js';
 
 // What is actually switched on in this deployment.
 //
@@ -51,6 +57,12 @@ export default async function handler(req, res) {
     // The bucket it would use. Whether it EXISTS is a different question,
     // and only ?sources=1 answers it — a name resolving is not a bucket.
     docsBucket: storageConfigured() ? bucket() : false,
-    ...(sources ? { sources, docStore: await checkDocStore() } : {}),
+    ...(sources ? {
+      sources,
+      docStore: await checkDocStore(),
+      // Whether the agent people are actually talking to is running the prompt
+      // and the tools in this repo. It is not automatic and no deploy does it.
+      chatAgent: await agentDrift(CHAT_AGENT_ID, SYSTEM, [READ_TOOL, EDIT_TOOL, BUILD_TOOL, PRICE_TOOL]),
+    } : {}),
   });
 }

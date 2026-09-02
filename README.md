@@ -38,6 +38,14 @@ Agents are persisted objects, created once:
 Ids live in `lib/config.js`. `ANTHROPIC_API_KEY` is read from the environment
 if set, with a fallback in `lib/config.js`.
 
+**The agent's prompt and tool schemas live on Anthropic's servers, not in the
+deploy.** Editing `lib/prompt.js`, `lib/editTools.js` or any other tool schema
+changes nothing anybody can see until `update-agent.js` runs. No build step
+does it and a Vercel deploy will not. This has twice produced a change that
+looks shipped, reads shipped in the diff, and is inert — so
+`GET /api/health?sources=1` reports `chatAgent`, which is either `ok (vN)` or
+tells you exactly what has drifted and to run the script.
+
 ## Tests
 
     node --env-file=.env setup/test-builder.js   # builder alone
