@@ -244,6 +244,20 @@ const browser = await chromium.launch();
   await page.waitForTimeout(400);
   ok('and removing one asks before it goes', /^Remove: /.test(await page.locator('.dock .dwhat b').innerText()));
 
+  // raffy, 2026-09-02: "place the x on the own list to the end right . just
+  // like sorted section." A card with a link got it there for free — .tdgo is
+  // flex:1 and eats the slack — but an errand has no link, so nothing pushed
+  // and the remove sat tucked against Done it.
+  await page.locator('.dock .dx').click();
+  await page.waitForTimeout(300);
+  const rows = await frame.locator('.tdcard .tdfoot').evaluateAll((els) => els.map((f) => {
+    const x = f.querySelector('.tdx');
+    if (!x) return null;
+    return Math.round(f.getBoundingClientRect().right - x.getBoundingClientRect().right);
+  }).filter((v) => v !== null));
+  ok('every remove sits at the right edge of its card', rows.length > 0 && rows.every((g) => g < 3),
+     rows.join(', ') + ' px from the edge');
+
   ok('no page errors', errs.length === 0, errs.join(' / '));
   await ctx.close();
 }

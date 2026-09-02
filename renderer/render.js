@@ -714,8 +714,14 @@ export function render(T, templateSrc) {
     '    padding:8px 13px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}',
     '  .tddone svg{width:14px;height:14px;flex:none}',
     '  .tddone:active{opacity:.6}',
+    // Always the far right, whatever else is on the row. raffy, 2026-09-02:
+    // "place the x on the own list to the end right . just like sorted
+    // section." A card with a link got it there for free — .tdgo is flex:1 and
+    // eats the slack — but an errand has no link, so nothing pushed and the
+    // remove sat tucked against Done it. margin-left:auto puts it at the edge
+    // on every card, which is where a destructive control belongs anyway.
     '  .tdx{flex:none;border:0;background:none;padding:6px;cursor:pointer;color:var(--ink-faint);',
-    '    display:grid;place-items:center;order:9}',
+    '    display:grid;place-items:center;order:9;margin-left:auto}',
     '  .tdx svg{width:15px;height:15px;display:block}',
     '  .tdx:active{opacity:.5}',
     '  .tdadd{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;',
