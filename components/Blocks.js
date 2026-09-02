@@ -224,6 +224,33 @@ function Source({ text }) {
   );
 }
 
+// The same chevron the collapsed row shows, turned over.
+//
+// raffy, 2026-09-02: "the close button (collapsed) doesn't feel like a good
+// design . just do up button after click down button." He is right: a word is a
+// different control from an arrow, so the way out looked unrelated to the way
+// in. One shape that points down to open and up to close reads as a single
+// switch, and needs no reading at all.
+function Shut({ onClick }) {
+  return (
+    <button className="rshut" onClick={onClick} aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+        strokeLinecap="round" strokeLinejoin="round">
+        <path d="m6 15 6-6 6 6" />
+      </svg>
+      <style jsx>{`
+        .rshut{
+          display:flex;align-items:center;justify-content:center;width:100%;
+          margin-top:10px;border:0;background:none;padding:6px 0 0;cursor:pointer;
+          color:var(--ink-faint);
+        }
+        .rshut svg{width:17px;height:17px}
+        .rshut:active{opacity:.5}
+      `}</style>
+    </button>
+  );
+}
+
 export default function Block({ block, onChoose, disabled, where }) {
   const { kind, title, intro, items, facts, spots, choose, proposal } = block;
 
@@ -361,9 +388,7 @@ export default function Block({ block, onChoose, disabled, where }) {
             </button>
           </div>
           <Links o={sp} name={sp.name} where={where} />
-          {compacts && i > 0 && (
-            <button className="rshut" onClick={() => toggle1(i)}>Close</button>
-          )}
+          {compacts && i > 0 && <Shut onClick={() => toggle1(i)} />}
         </div>
       )))}
       </div>
@@ -468,9 +493,7 @@ export default function Block({ block, onChoose, disabled, where }) {
             </button>
           </div>
           <Links o={o} name={o.name} where={where} />
-          {compacts && i > 0 && (
-            <button className="rshut" onClick={() => toggle1(i)}>Close</button>
-          )}
+          {compacts && i > 0 && <Shut onClick={() => toggle1(i)} />}
         </div>
       )))}
       </div>
@@ -633,10 +656,10 @@ export default function Block({ block, onChoose, disabled, where }) {
         }
         .opt.row .rchev{width:17px;height:17px;flex:none;color:var(--ink-faint)}
         .opt.row:active{opacity:.65}
-        .rshut{
-          margin-top:10px;border:0;background:none;padding:4px 0 0;font:inherit;
-          font-size:12.5px;font-weight:650;color:var(--ink-faint);cursor:pointer;
-        }
+        /* .rshut styles itself — styled-jsx scopes by the component that
+           DECLARES the rules, so a selector left here would stop matching the
+           moment the markup moved into a child. That has already cost this
+           file one silently unstyled row. */
 
         .fold{
           display:flex;align-items:center;justify-content:center;gap:6px;width:100%;

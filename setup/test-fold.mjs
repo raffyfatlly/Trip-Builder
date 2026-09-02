@@ -84,7 +84,16 @@ const open = async (block, session) => {
   ok('with the reason it suits them', /Why TMS/.test(await page.locator('.block').innerText()));
   await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/fold-open.png' });
 
-  await page.locator('.rshut').first().click();
+  // raffy, 2026-09-02: "the close button (collapsed) doesn't feel like a good
+  // design . just do up button after click down button." A word is a different
+  // control from an arrow, so the way out looked unrelated to the way in.
+  const shut = page.locator('.rshut').first();
+  ok('the way out is the same arrow, turned over', (await shut.innerText()).trim() === '',
+     JSON.stringify(await shut.innerText()));
+  ok('and it is an arrow, not a word', (await shut.locator('svg').count()) === 1);
+  ok('it says what it does for a screen reader',
+     (await shut.getAttribute('aria-label')) === 'Close');
+  await shut.click();
   await page.waitForTimeout(300);
   ok('and closes again', await page.locator('.opt.row').count() === 4);
   await ctx.close();
