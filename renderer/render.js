@@ -1,4 +1,3 @@
-import { OUTFIT, JAKARTA, FACE } from './fonts.js';
 import { checklist, dueIn, linkFor, isOwn } from '../lib/checklist.js';
 
 // The renderer. Turns one itinerary.json into a finished app.
@@ -1236,15 +1235,22 @@ export function render(T, templateSrc) {
   // across it. Nothing beats knowing when to paint nothing.
   //
   // Plus enough clearance that the last card clears the bar at rest.
-  // The typefaces travel with the file. See renderer/fonts.js — the template
-  // asks for them by relative path, which resolves next to the Phu Quoc app and
-  // nowhere along the path a generated trip actually takes.
-  replaceOnce(
-    "@font-face{font-family:'Outfit';font-weight:100 900;font-style:normal;font-display:swap;src:url(fonts/outfit.woff2) format('woff2')}",
-    FACE('Outfit', OUTFIT, '100 900'), 'embed Outfit');
-  replaceOnce(
-    "@font-face{font-family:'Jakarta';font-weight:200 800;font-style:normal;font-display:swap;src:url(fonts/jakarta.woff2) format('woff2')}",
-    FACE('Jakarta', JAKARTA, '200 800'), 'embed Jakarta');
+  // The typefaces are IN the template now, not spliced in here.
+  //
+  // raffy, 2026-09-02, on the third round of this: "still not the font I want.
+  // bake it in the structure."
+  //
+  // They were embedded at render time, which meant the fonts a trip got
+  // depended on the version of THIS FILE that produced it — and this file ships
+  // in the browser bundle. A phone holding a cached bundle from before the fix
+  // fetched a fresh template from the server, ran an old renderer over it, and
+  // got a trip pointing at fonts/outfit.woff2 — a path that resolves nowhere.
+  // The chrome around it, server-rendered and always fresh, looked right. One
+  // app, two typefaces, and no amount of redeploying changed it.
+  //
+  // In the template the fonts cannot be missed by anything: an old renderer, a
+  // new one, or none at all still produces a file that carries its own faces.
+  // The splice was a step that could be skipped; a structure cannot be.
 
   // The preloads pointed at the same missing files. A preload that 404s is a
   // wasted request and a console error on every open.
