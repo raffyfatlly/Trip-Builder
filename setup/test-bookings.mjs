@@ -68,7 +68,14 @@ async function open(T, perms) {
       { id: 'bk1', at: 1, kind: 'flight', title: 'AirAsia AK1494, KUL to DAD', ref: 'QK7T2P',
         when: '10 Sep, 06:40', where: 'KLIA2', note: 'Check-in opens 48h before. 20kg each.' },
       { id: 'bk2', at: 2, kind: 'stay', title: 'La Siesta Hoi An', ref: 'HB-99231',
-        when: '12 to 14 Sep', stay: 1 },
+        when: '12 to 14 Sep', stay: 1, who: 'Raffy Fatlly',
+        details: [
+          { k: 'Room', v: 'Deluxe Balcony, king bed' },
+          { k: 'Board', v: 'Breakfast included' },
+          { k: 'Total', v: 'VND 4,120,000 paid' },
+          { k: 'Free cancellation until', v: '9 Sep' },
+        ],
+        doc: { url: '/api/doc?s=sesn_A&d=aaaabbbbccccddddeeeeffff', name: 'The confirmation' } },
     ],
   };
   const { ctx, page, errs, text } = await open(T, ['clipboard-read', 'clipboard-write']);
@@ -123,6 +130,22 @@ async function open(T, perms) {
   ok('every task carries a deadline', /week|now|today|by \d/i.test(under), under.slice(0, 120).replace(/\n/g, ' '));
   // And the link that finishes it.
   ok('and the link that does it', (await page.locator('#bookings .tdgo').count()) > 0);
+
+  // raffy, 2026-09-02: "if the booking contains like room type etc will it be
+  // displayed too on the confirmed cards ? or can we also put the link or
+  // button to open the file too?"
+  //
+  // It carried the reference and threw the rest away, which makes the card a
+  // bookmark rather than the booking. Everything the confirmation said is on
+  // it now, and the confirmation itself is one tap from it.
+  ok('a confirmation puts its specifics on the card',
+     /Deluxe Balcony/.test(t) && /Breakfast included/.test(t), t.replace(/\n/g, ' ').slice(0, 160));
+  ok('labelled, so it reads as a record', (await page.locator('#bookings .tddl dt').count()) >= 4);
+  ok('including who it is under', /Raffy Fatlly/.test(t));
+  ok('and the confirmation itself opens from the card',
+     (await page.locator('#bookings a.tdgo[href*="/api/doc"]').count()) === 1);
+  ok('saying what it opens',
+     /the confirmation/i.test(await page.locator('#bookings a.tdgo[href*="/api/doc"]').innerText()));
   ok('it counts what is sorted', /\d of \d sorted/.test(t), t.split('\n')[0]);
 
   // Copying is what you actually do with a reference at a counter.

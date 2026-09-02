@@ -508,7 +508,7 @@ export default function Home() {
         const r = await fetch('/api/upload', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: f.name, type: f.type, data }),
+          body: JSON.stringify({ name: f.name, type: f.type, data, session }),
         });
         const d = await r.json();
         if (d.file_id) setPending((p) => [...p, d]);

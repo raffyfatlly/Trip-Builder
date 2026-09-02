@@ -29,11 +29,25 @@ export default async function handler(req, res) {
     }
 
     const content = [];
+    const kept = [];
     for (const f of files || []) {
       if (!f || !f.file_id) continue;
       content.push(f.kind === 'image'
         ? { type: 'image', source: { type: 'file', file_id: f.file_id } }
         : { type: 'document', source: { type: 'file', file_id: f.file_id }, title: f.name || 'file' });
+      if (f.doc && f.doc.url) kept.push(f.doc);
+    }
+    // The agent reads the attachment through the Files API, which gives it no
+    // URL — so the link to the copy the app kept has to be told to it, or the
+    // booking it files will have every detail off the confirmation except the
+    // way back to the confirmation.
+    if (kept.length) {
+      content.push({ type: 'text', text:
+        'The app has kept a copy of ' + (kept.length === 1 ? 'this attachment' : 'these attachments')
+        + '. If you file a booking from '
+        + (kept.length === 1 ? 'it' : 'them') + ', put the matching link on it as doc.url so they can open it '
+        + 'from the card:\n'
+        + kept.map((d) => '- ' + (d.name || 'attachment') + ': ' + d.url).join('\n') });
     }
     if (text && text.trim()) content.push({ type: 'text', text: text.trim() });
 

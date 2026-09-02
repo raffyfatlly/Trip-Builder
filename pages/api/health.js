@@ -2,6 +2,7 @@ import { storeConfigured } from '../../lib/db.js';
 import { orBuilderReady, MODEL } from '../../lib/orBuilder.js';
 import { placesKey } from '../../lib/photos.js';
 import { checkSources } from '../../lib/facts.js';
+import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId } from '../../lib/storage.js';
 
 // What is actually switched on in this deployment.
 //
@@ -16,6 +17,22 @@ import { checkSources } from '../../lib/facts.js';
 // actually work is to ask the deployment that can reach them. It costs a few
 // real requests, so it is opt-in.
 
+// A real round trip: write a small object, read it back, delete it. Anything
+// less answers "is it configured", which is not the question — the question is
+// whether the service account can actually write to the bucket.
+async function checkDocStore() {
+  if (!storageConfigured()) return 'no bucket configured';
+  try {
+    const id = newDocId();
+    await putDoc('health', { id, name: 'health', type: 'text/plain', bytes: Buffer.from('ok') });
+    const back = await getDoc('health', id);
+    await dropDoc('health', id);
+    return back && back.body.toString() === 'ok' ? 'ok (' + bucket() + ')' : 'wrote but could not read back';
+  } catch (err) {
+    return String(err.message || err).slice(0, 160);
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   const sources = req.query && req.query.sources ? await checkSources() : undefined;
@@ -28,6 +45,12 @@ export default async function handler(req, res) {
     // False means the signing key is the deployment id, so every deploy signs
     // everyone out. That was the "why do I keep typing my email" bug.
     sessionsSurviveDeploys: !!(process.env.AUTH_SECRET || process.env.FIREBASE_SERVICE_ACCOUNT),
-    ...(sources ? { sources } : {}),
+    // Whether a confirmation somebody sends in can be handed back to them as
+    // a link. Needs a bucket and the service account holding Storage Object
+    // Admin on it; `?sources=1` proves it rather than assuming it.
+    // The bucket it would use. Whether it EXISTS is a different question,
+    // and only ?sources=1 answers it — a name resolving is not a bucket.
+    docsBucket: storageConfigured() ? bucket() : false,
+    ...(sources ? { sources, docStore: await checkDocStore() } : {}),
   });
 }

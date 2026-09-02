@@ -3,6 +3,7 @@
 
 import { apiKey } from '../../lib/config.js';
 import { fetchWith } from '../../lib/net.js';
+import { putDoc, storageConfigured, docUrl } from '../../lib/storage.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '12mb' } } };
 
@@ -11,7 +12,7 @@ const MIME_OK = /^(image\/(png|jpeg|webp|gif)|application\/pdf|text\/plain)$/;
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const { name, type, data } = req.body || {};
+  const { name, type, data, session } = req.body || {};
   if (!data || !type) return res.status(400).json({ error: 'file required' });
   if (!MIME_OK.test(type)) {
     return res.status(400).json({ error: 'Images, PDFs and text files only.' });
@@ -39,10 +40,30 @@ export default async function handler(req, res) {
     if (!r.ok) throw new Error(r.status + ' ' + text);
 
     const file = JSON.parse(text);
+
+    // The same bytes, kept somewhere we can serve them back from.
+    //
+    // The Files API is for the model to read, and it will not hand a
+    // user-uploaded file back — `downloadable: false`. So a booking confirmed
+    // from an emailed PDF had a reference on its card and no way to open the
+    // PDF it came from, which is exactly the errand this app exists to save.
+    // Storing it is best-effort: failing to file a copy must never cost
+    // somebody the ability to send the confirmation at all.
+    let doc = null;
+    if (session && storageConfigured()) {
+      try {
+        const put = await putDoc(session, { name, type, bytes });
+        doc = { id: put.id, name: put.name, url: docUrl(session, put.id) };
+      } catch (err) {
+        console.error('doc store failed:', err);
+      }
+    }
+
     res.status(200).json({
       file_id: file.id,
       name: name || 'file',
       kind: type.startsWith('image/') ? 'image' : 'document',
+      doc,
     });
   } catch (err) {
     console.error('upload failed:', err);
