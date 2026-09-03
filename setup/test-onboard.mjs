@@ -56,6 +56,16 @@ ok('the composer is out of the way while onboarding', await page.locator('.compo
 await page.locator('.obchip:has-text("Da Nang")').click();
 await page.locator('.obnext').click();
 await page.waitForTimeout(300);
+
+// raffy, 2026-09-04: "some people might go for a trip for business, leisure or
+// personal... that would make the context better."
+ok('it asks what kind of trip this is', await page.locator('.paces.one .pace').count() === 3);
+await page.locator('.paces.one .pace:has-text("Holiday")').click();
+await page.waitForTimeout(150);
+ok('and takes exactly one answer', await page.locator('.paces.one .pace.on').count() === 1);
+await page.locator('.obnext').click();
+await page.waitForTimeout(300);
+
 await page.locator('input[type=date]').first().fill('2026-09-10');
 await page.locator('input[type=date]').nth(1).fill('2026-09-14');
 await page.locator('.obnext').click();
@@ -130,6 +140,8 @@ await ctx.close();
 
   await p4.locator('.obchip:has-text("Da Nang")').click();
   await p4.locator('.obnext').click();
+  await p4.waitForTimeout(250);
+  await p4.locator('.obnext').click();          // kind: skipped
   await p4.waitForTimeout(250);
   await p4.locator('.obnext').click();          // dates: skipped
   await p4.waitForTimeout(300);

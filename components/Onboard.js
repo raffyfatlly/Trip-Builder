@@ -9,7 +9,7 @@ import { ageNow } from '../lib/memory.js';
 // give the first reply something to work with — not to gate anything.
 
 const blank = {
-  destination: '', when: { start: '', end: '', rough: '' },
+  destination: '', kind: '', when: { start: '', end: '', rough: '' },
   who: { list: [{ name: '', age: '' }] }, about: [],
   // `asked` separates "nothing booked" from "never answered" — the first is an
   // answer worth putting in the opening message, the second is not.
@@ -64,6 +64,7 @@ export default function Onboard({ onStart, onSkip, memory }) {
   // Enough to be worth answering. An empty step is a skip, not an error.
   const answered = {
     destination: !!a.destination.trim(),
+    kind: !!a.kind,
     when: !!(a.when.start || a.when.rough),
     who: (a.who.list || []).some((p) => p.name.trim() || p.age),
     ready: !!(a.ready.pace || a.ready.have.length || a.ready.asked),
@@ -225,9 +226,24 @@ export default function Onboard({ onStart, onSkip, memory }) {
           </div>
         )}
 
+        {step.type === 'one' && (
+          <div className="paces one">
+            {step.options.map((o) => (
+              <button
+                key={o.key}
+                className={'pace' + (a.kind === o.key ? ' on' : '')}
+                onClick={() => set('kind', a.kind === o.key ? '' : o.key)}
+              >
+                <b>{o.label}</b>
+                <em>{o.hint}</em>
+              </button>
+            ))}
+          </div>
+        )}
+
         {step.type === 'multi' && (
           <div className="chiprow wrap">
-            {step.options.map((o) => (
+            {((step.byKind && step.byKind[a.kind]) || step.options).map((o) => (
               <button
                 key={o}
                 className={'obchip' + (a.about.includes(o) ? ' on' : '')}
@@ -315,6 +331,13 @@ export default function Onboard({ onStart, onSkip, memory }) {
         .pace em{font-style:normal;font-size:11.5px;line-height:1.35;color:var(--ink-faint)}
         .pace.on{background:var(--deep);color:#EAF2EC}
         .pace.on em{color:#B9CFC2}
+        /* The kind of trip gets the same three cards, stacked, because the
+           labels here are sentences rather than one word and three of those
+           side by side on a phone is three columns of two-letter lines. */
+        .paces.one{flex-direction:column;gap:9px}
+        .paces.one .pace{flex-direction:row;align-items:baseline;gap:10px;padding:14px 15px}
+        .paces.one .pace b{flex:none;font-size:15px}
+        .paces.one .pace em{font-size:12px}
 
         /* A saved person is a chip with their age on it, so the whole step can
            be read at a glance and answered without the keyboard opening. */

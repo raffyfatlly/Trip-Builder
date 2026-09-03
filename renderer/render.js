@@ -271,12 +271,8 @@ export function render(T, templateSrc) {
       var img = e.target;
       if(!img || img.tagName !== 'IMG') return;
       var fig = img.closest && img.closest('figure.evshot');
-      if(fig){
-        // The credit now sits outside the figure, so it has to go with it.
-        var cr = fig.parentNode && fig.parentNode.querySelector('.evcr');
-        if(cr) cr.remove();
-        fig.remove(); return;
-      }
+      // The credit is the figure's own caption now, so it leaves with it.
+      if(fig){ fig.remove(); return; }
       var card = img.closest && img.closest('.staycard');
       if(card){ img.outerHTML = '<div class="ph"></div>'; return; }   // gradient instead
       var feat = img.closest && img.closest('.feature');
@@ -2114,6 +2110,19 @@ export function render(T, templateSrc) {
       { id: 'pwr', t: 'Chargers and a power bank' },
     ];
     if ((T.trip.flights || []).length) out.push({ id: 'bp', t: 'Boarding passes saved offline' });
+    // What the trip is FOR changes what goes in the bag more than where it is
+    // does. raffy, 2026-09-04, on adding it to onboarding: "that would make the
+    // context better."
+    if (T.trip.kind === 'business') {
+      out.push({ id: 'work', t: 'Laptop, charger, and the adapter for it' });
+      out.push({ id: 'smart', t: 'Something smart enough for the room you will be in' });
+      if (has('conference', 'meeting', 'client', 'office', 'summit', 'expo')) {
+        out.push({ id: 'cards', t: 'Business cards, and the badge if there is one' });
+      }
+    }
+    if (T.trip.kind === 'personal' && has('wedding', 'ceremony', 'reception')) {
+      out.push({ id: 'formal', t: 'What you are wearing to the wedding' });
+    }
     const wet = has('boat', 'snorkel', 'kayak', 'ferry', 'speedboat', 'dive');
     if (has('beach', 'pool', 'swim', 'lagoon') || wet) {
       out.push({ id: 'swim', t: wet ? 'Swimwear, and a dry bag for the boat days' : 'Swimwear' });
@@ -2723,10 +2732,7 @@ export function render(T, templateSrc) {
     "        }",
     "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
     "          'aria-expanded=\"false\">'+r.it.h+'</h3>'+" + CHEV + ";\n" +
-    "        if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';\n" +
-    "        if(r.it.photo){\n" +
-    "          if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';\n" +
-    "        }",
+    "        if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';",
     'the title opens the item');
 
   // An Explore idea dropped onto a day works the same way.
@@ -2747,9 +2753,16 @@ export function render(T, templateSrc) {
   // The figure used to lead so a right float would start at the top of the
   // block. The chevron is pinned to that corner now, and the paragraph is what
   // the picture should sit beside anyway, so it follows the text instead.
-  const FIG =
+  // raffy, 2026-09-04, of the open state: "id prefer the photo to be presented
+  // like this" — full width under the words, with the credit written on the
+  // picture rather than under it. So the caption lives inside the figure, which
+  // is also the only way to lay it over the image.
+  const FIG_WAS =
     "        if(r.it.photo) h+='<figure class=\"evshot\"><img src=\"'+P[r.it.photo]+'\" alt=\"\"></figure>';";
-  replaceOnce(FIG + '\n', '', 'photo stops leading');
+  const FIG =
+    "        if(r.it.photo) h+='<figure class=\"evshot\"><img src=\"'+P[r.it.photo]+'\" alt=\"\">'+\n" +
+    "          (creditOf(r.it)?'<figcaption class=\"evcr\">'+creditOf(r.it)+'</figcaption>':'')+'</figure>';";
+  replaceOnce(FIG_WAS + '\n', '', 'photo stops leading');
   // Between the title and the paragraph. Above them the float started at the
   // top of the block, which is where the chevron now lives; below them it began
   // on the line after a clamped paragraph and sat in sixty pixels of nothing.
@@ -2790,7 +2803,7 @@ export function render(T, templateSrc) {
     '  .ev > .tmrow{grid-column:1;grid-row:1}',
     '  .ev > .evh{grid-column:1;grid-row:2}',
     '  .ev > .evp{grid-column:1;grid-row:3}',
-    '  .ev > .evcr{grid-column:1;grid-row:4}',
+
     '  .ev > .evchips{grid-column:1/-1}',
     '  .ev > .evshot{grid-column:2;grid-row:2/span 2;float:none;margin:0;align-self:start}',
     '  .evh{display:block;cursor:pointer}',
@@ -2819,11 +2832,20 @@ export function render(T, templateSrc) {
     '  }',
     '  .ev:not(.open) .evcr,',
     '  .ev:not(.open) .evchips{display:none}',
+    // Open, the picture stops being a thumbnail: full width under the words,
+    // with the credit written across the bottom of it.
+    '  .ev.open > .evshot{grid-column:1/-1;grid-row:4;width:100%;margin-top:12px}',
+    '  .ev.open .evshot img{width:100%;height:auto;aspect-ratio:16/10}',
+    '  .ev.open .evcr{',
+    '    position:absolute;left:0;right:0;bottom:0;margin:0;padding:26px 12px 9px;',
+    '    text-align:right;font-size:10.5px;line-height:1.4;color:#E4EEE8;',
+    '    background:linear-gradient(180deg,transparent,rgba(6,26,19,.78));',
+    '  }',
     '  .ev .evchips{margin-top:10px}',
     '  .ev .evtools{gap:14px;margin-top:12px}',
     '  .ev:not(.open) .evshot{width:58px;border-radius:13px}',
     '  .ev:not(.open) .evshot img{width:58px;height:58px}',
-    '  .ev.open .evshot{width:86px;border-radius:16px}',
+    '  .ev.open .evshot{border-radius:16px}',
     // A row of five items is a list now, so it can be tighter than a stack of
     // paragraphs was. The stride between two closed items was 69px for 17px of
     // content.
