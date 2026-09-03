@@ -2642,7 +2642,33 @@ export function render(T, templateSrc) {
     '  .bktag{font-size:9px;letter-spacing:.09em;padding:4px 8px}',
     '  .tdcard .bkbody b{font-size:14.5px;line-height:1.28}',
     '  .tdcard{padding:14px}',
-    '  .tdgo{font-size:12.5px}',
+    // raffy, 2026-09-03: "improve the design of the bottom part of the new to
+    // do group cards. the pills, x button etc. scale nicely those details."
+    //
+    // The action row was built before the type came down and never followed:
+    // a 33px pill and a 27px cross under a 14.5px title, which makes the row
+    // read as the point of the card rather than the footer of it. Everything
+    // here is one step quieter than the thing it serves.
+    '  .tdfoot{gap:8px;margin-top:11px;padding:10px 0 0}',
+    '  .tdgo{font-size:12px;letter-spacing:-.005em}',
+    '  .tdgo svg{width:12.5px;height:12.5px;opacity:.6}',
+    '  .tddone{',
+    '    gap:5px;padding:6px 11px;font-size:11.5px;letter-spacing:.005em;',
+    '    box-shadow:inset 0 0 0 1px rgba(12,36,27,.06);',
+    '  }',
+    '  .tddone svg{width:12.5px;height:12.5px}',
+    // A destructive control gets a full touch target and none of the weight.
+    '  .tdx{padding:5px;border-radius:8px;opacity:.45}',
+    '  .tdx svg{width:13px;height:13px}',
+    '  .tdx:active{opacity:1;background:var(--sage)}',
+    '  .tddl{gap:8px 14px;margin-top:8px;padding-top:8px}',
+    '  .tddl dt{font-size:9.5px;letter-spacing:.08em}',
+    '  .tddl dd{font-size:12.5px}',
+    '  .tdm{font-size:12px;margin-top:4px}',
+    '  .tdm svg{width:12.5px;height:12.5px}',
+    '  .tdwhy{font-size:12px;margin-top:6px}',
+    '  .tdadd{padding:12px;font-size:12.5px;border-radius:16px}',
+    '  .tdadd svg{width:14px;height:14px}',
     '  .pkrow{padding:9px 0}',
     '  .pkbox{width:19px;height:19px;border-radius:6px}',
     '',
@@ -2663,49 +2689,92 @@ export function render(T, templateSrc) {
   //
   // Short ones do not get a button. A toggle over eleven words costs more than
   // it saves, and a row of Mores down a day reads as work.
+  // The title is the control, and everything under it travels together.
+  //
+  // raffy, 2026-09-03: "include the pills and everything below the title. the
+  // goal is user can see everything nicely summarized for the day."
+  //
+  // A separate More button under a clamped line was still four things per item.
+  // Closed, an item is now a time and a title; the paragraph, the chips and the
+  // tools all come back at once when you open it.
+  const CHEV = "'<svg class=\"evchev\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" '+" +
+    "'stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\">'+" +
+    "'<path d=\"M6 9l6 6 6-6\"/></svg>'";
+
   replaceOnce(
     "        h+='<h3>'+r.it.h+'</h3><p>'+r.it.p+'</p>';\n" +
     "        if(r.it.photo){\n" +
     "          if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';\n" +
     "        }",
-    "        h+='<h3>'+r.it.h+'</h3>';\n" +
-    "        var pr=String(r.it.p==null?'':r.it.p), lng=pr.length>92;\n" +
-    "        if(pr) h+='<p class=\"evp\">'+pr+'</p>';\n" +
-    "        if(lng) h+='<button class=\"evmoreb\" data-more=\"'+r.id+'\" '+\n" +
-    "          'aria-expanded=\"false\"><span>More</span>'+\n" +
-    "          '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" '+\n" +
-    "          'stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\">'+\n" +
-    "          '<path d=\"M6 9l6 6 6-6\"/></svg></button>';\n" +
+    "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "          'aria-expanded=\"false\"><span>'+r.it.h+'</span>'+" + CHEV + "+'</h3>';\n" +
+    "        if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';\n" +
     "        if(r.it.photo){\n" +
     "          if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';\n" +
     "        }",
-    'collapse the long day copy');
+    'the title opens the item');
+
+  // An Explore idea dropped onto a day works the same way.
+  replaceOnce(
+    "        h+='<h3>'+r.idea.n+'</h3><p>'+r.idea.one+'. '+r.idea.time+'.</p>';",
+    "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "          'aria-expanded=\"false\"><span>'+r.idea.n+'</span>'+" + CHEV + "+'</h3>'+\n" +
+    "          '<p class=\"evp\">'+r.idea.one+'. '+r.idea.time+'.</p>';",
+    'a planned idea opens the same way');
+
+  // The tools row shares .evchips with the real chips, so it needs its own
+  // name before either can be styled independently.
+  replaceOnce(
+    "'<div class=\"evchips\" style=\"gap:14px\">'",
+    "'<div class=\"evchips evtools\">'",
+    'name the tools row');
 
   insertBefore('  renderDuo();', [
-    '  document.addEventListener("click",function(e){',
-    '    var b=e.target.closest&&e.target.closest("[data-more]"); if(!b) return;',
+    '  function evToggle(b){',
     '    var ev=b.closest(".ev"); if(!ev) return;',
-    '    var open=ev.classList.toggle("open");',
-    '    b.setAttribute("aria-expanded",open?"true":"false");',
-    '    var l=b.querySelector("span"); if(l) l.textContent=open?"Less":"More";',
+    '    b.setAttribute("aria-expanded", ev.classList.toggle("open")?"true":"false");',
+    '  }',
+    '  document.addEventListener("click",function(e){',
+    '    var b=e.target.closest&&e.target.closest("[data-more]"); if(b) evToggle(b);',
+    '  });',
+    '  document.addEventListener("keydown",function(e){',
+    '    if(e.key!=="Enter" && e.key!==" ") return;',
+    '    var b=e.target.closest&&e.target.closest("[data-more]"); if(!b) return;',
+    '    e.preventDefault(); evToggle(b);',
     '  });',
     '',
   ].join('\n'), 'expand a day item');
 
   insertBefore('</style>', [
-    '  /* One line of why, and a way to ask for the rest. */',
-    '  .ev .evp{',
-    '    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;',
-    '    overflow:hidden;',
+    '  /* A closed item is a time and a title. That is the day. */',
+    '  .evh{display:flex;align-items:flex-start;gap:10px;cursor:pointer}',
+    '  .evh > span{flex:1;min-width:0}',
+    '  .evchev{',
+    '    flex:none;width:15px;height:15px;margin-top:2px;color:var(--ink-faint);',
+    '    transition:transform 180ms var(--e-out);',
     '  }',
-    '  .ev.open .evp{display:block;-webkit-line-clamp:unset;overflow:visible}',
-    '  .evmoreb{',
-    '    display:inline-flex;align-items:center;gap:4px;margin-top:7px;padding:2px 0;',
-    '    font-size:11.5px;font-weight:700;letter-spacing:.01em;color:var(--ink-faint);',
-    '  }',
-    '  .evmoreb svg{width:12px;height:12px;transition:transform 180ms var(--e-out)}',
-    '  .ev.open .evmoreb svg{transform:rotate(180deg)}',
-    '  @media (prefers-reduced-motion:reduce){.evmoreb svg{transition:none}}',
+    '  .ev.open .evchev{transform:rotate(180deg)}',
+    '  @media (prefers-reduced-motion:reduce){.evchev{transition:none}}',
+    '  .evh:focus-visible{outline:2.5px solid var(--coral);outline-offset:4px;border-radius:8px}',
+    '  .ev:not(.open) .evp,',
+    '  .ev:not(.open) .evcr,',
+    '  .ev:not(.open) .evchips{display:none}',
+    '  .ev .evp{margin-top:7px}',
+    '  .ev .evchips{margin-top:9px}',
+    '  .ev .evtools{gap:14px;margin-top:11px}',
+    // The photograph goes with the detail too. Floated, it narrowed the title
+    // row it sat beside, so the chevron landed at a different x on that one
+    // item and the column of them stopped being a column.
+    '  .ev:not(.open) .evshot{display:none}',
+    // A row of five items is a list now, so it can be tighter than a stack of
+    // paragraphs was. The stride between two closed items was 69px for 17px of
+    // content.
+    '  .ev{padding-bottom:15px}',
+    '  .ev.open{padding-bottom:20px}',
+    '  .dchip{width:52px;height:70px;border-radius:18px}',
+    '  .stepnav button{min-height:44px;font-size:13px}',
+    '  .stepnav svg{width:15px;height:15px}',
+    '  .stepnav{gap:9px;margin-top:14px}',
     // The credit names the photograph, which is detail, so it travels with the
     // detail rather than sitting under a clamped line explaining nothing.
     '  .ev .evcr{display:none}',
