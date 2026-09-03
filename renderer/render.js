@@ -1201,16 +1201,25 @@ export function render(T, templateSrc) {
     '    var plan=todo.filter(function(t){ return !t.own; });',
     '    var mine=todo.filter(function(t){ return t.own; });',
     '    var now=plan.filter(soonish), later=plan.filter(function(t){ return !soonish(t); });',
-    '    if(now.length){',
-    '      h+=\'<div class="sect"><h2>This week</h2></div>\'+now.map(todoCard).join("");',
+    // raffy, 2026-09-03: "under each list its listed as like raw cards. need
+    // some better design like grouping. so we can feel there's distinction...
+    // notice how they arrange the grouping of cards into sections?"
+    //
+    // Four white rectangles under a heading do not read as a group, they read
+    // as four things that happen to be near each other. So a section is one
+    // panel with hairlines between its rows, the heading carries a count, and
+    // a coloured edge says at a glance which kind of section it is: coral for
+    // what is urgent, sage for what is done.
+    '    function group(title, rows, tone, lead){',
+    '      if(!rows.length) return "";',
+    '      return \'<div class="sect"><h2>\'+esc(title)+\'</h2>\'+',
+    '        \'<span class="scount">\'+rows.length+\'</span></div>\'+',
+    '        (lead?\'<p class="tdlead">\'+esc(lead)+\'</p>\':"")+',
+    '        \'<div class="tgroup\'+(tone?" "+tone:"")+\'">\'+rows.join("")+\'</div>\';',
     '    }',
-    '    if(later.length){',
-    '      h+=\'<div class="sect"><h2>\'+(now.length?"After that":"Still to book")+\'</h2></div>\'+',
-    '        \'<p class="tdlead">Nearest first.</p>\'+later.map(todoCard).join("");',
-    '    }',
-    '    if(mine.length){',
-    '      h+=\'<div class="sect"><h2>Your own list</h2></div>\'+mine.map(todoCard).join("");',
-    '    }',
+    '    h+=group("This week", now.map(todoCard), "hot");',
+    '    h+=group(now.length?"After that":"Still to book", later.map(todoCard), "", "Nearest first.");',
+    '    h+=group("Your own list", mine.map(todoCard), "");',
     '    if(!todo.length && need){',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
     '        \'<b>You are all set</b><p>Nothing left to book. Have a good trip.</p></div>\';',
@@ -1223,9 +1232,9 @@ export function render(T, templateSrc) {
     '    }',
     '',
     '    if(done.length||extra.length){',
-    '      h+=\'<div class="sect"><h2>Sorted</h2></div>\';',
-    '      h+=done.map(todoCard).join("");',
-    '      h+=extra.map(function(b){ return todoCard({ what:b.title, kind:b.kind||"other", done:true, booking:b }); }).join("");',
+    '      h+=group("Sorted", done.map(todoCard).concat(',
+    '        extra.map(function(b){ return todoCard({ what:b.title, kind:b.kind||"other", done:true, booking:b }); })',
+    '      ), "ok");',
     '    } else if(need) {',
     '      h+=\'<div class="sect"><h2>Sorted</h2></div>\';',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
@@ -2601,6 +2610,30 @@ export function render(T, templateSrc) {
     '     whose subject is the words next to them. */',
     '  .bkicon{width:38px;height:38px;border-radius:12px}',
     '  .bkicon svg{width:17px;height:17px}',
+    '  /* ---- a section as one panel, not four loose cards ---- */',
+    '  .tgroup{',
+    '    position:relative;background:var(--surface);border-radius:18px;',
+    '    box-shadow:var(--sh-s);overflow:hidden;',
+    '  }',
+    // The edge is what says which section this is without a second label.
+    '  .tgroup::before{',
+    '    content:"";position:absolute;left:0;top:0;bottom:0;width:3px;',
+    '    background:var(--line);border-radius:3px 0 0 3px;',
+    '  }',
+    '  .tgroup.hot::before{background:var(--coral)}',
+    '  .tgroup.ok::before{background:var(--deep)}',
+    '  .tgroup .tdcard{',
+    '    background:none;box-shadow:none;border-radius:0;margin:0;',
+    '    padding:14px 15px 14px 17px;',
+    '  }',
+    '  .tgroup .tdcard + .tdcard{border-top:1px solid var(--line)}',
+    '  .sect .scount{',
+    "    margin-left:auto;font-family:'Outfit',sans-serif;font-size:11px;font-weight:800;",
+    '    color:var(--ink-faint);background:var(--sage);border-radius:var(--r-pill);',
+    '    padding:3px 9px;letter-spacing:.02em;',
+    '  }',
+    '  .tdlead{margin:-4px 0 9px;font-size:11.5px;color:var(--ink-faint);font-weight:500}',
+    '',
     '  .bkshot{',
     '    flex:none;width:52px;height:52px;border-radius:14px;overflow:hidden;display:block;',
     '    background:linear-gradient(160deg,var(--deep),var(--deep-2));',
@@ -2614,6 +2647,71 @@ export function render(T, templateSrc) {
     '  .pkbox{width:19px;height:19px;border-radius:6px}',
     '',
   ].join('\n'), 'the type scale');
+
+  // --- a day you can read at a glance -----------------------------------------
+  //
+  // raffy, 2026-09-03: "the day section, maybe can also make the activity
+  // collapsible... just the content i mean the long description. but the main
+  // one stays and summarized well so maybe user can see their full day ahead
+  // well. cause or else its going to take them to scroll and read lots of
+  // text. only if they want to see the details they choose to expand."
+  //
+  // The time, the heading and the chips are the day. The paragraph is why, and
+  // it is four lines of why per item on a day with six of them. So the
+  // paragraph clamps to one line with a More under it, and the whole day fits
+  // on a screen or two instead of five.
+  //
+  // Short ones do not get a button. A toggle over eleven words costs more than
+  // it saves, and a row of Mores down a day reads as work.
+  replaceOnce(
+    "        h+='<h3>'+r.it.h+'</h3><p>'+r.it.p+'</p>';\n" +
+    "        if(r.it.photo){\n" +
+    "          if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';\n" +
+    "        }",
+    "        h+='<h3>'+r.it.h+'</h3>';\n" +
+    "        var pr=String(r.it.p==null?'':r.it.p), lng=pr.length>92;\n" +
+    "        if(pr) h+='<p class=\"evp\">'+pr+'</p>';\n" +
+    "        if(lng) h+='<button class=\"evmoreb\" data-more=\"'+r.id+'\" '+\n" +
+    "          'aria-expanded=\"false\"><span>More</span>'+\n" +
+    "          '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" '+\n" +
+    "          'stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\">'+\n" +
+    "          '<path d=\"M6 9l6 6 6-6\"/></svg></button>';\n" +
+    "        if(r.it.photo){\n" +
+    "          if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';\n" +
+    "        }",
+    'collapse the long day copy');
+
+  insertBefore('  renderDuo();', [
+    '  document.addEventListener("click",function(e){',
+    '    var b=e.target.closest&&e.target.closest("[data-more]"); if(!b) return;',
+    '    var ev=b.closest(".ev"); if(!ev) return;',
+    '    var open=ev.classList.toggle("open");',
+    '    b.setAttribute("aria-expanded",open?"true":"false");',
+    '    var l=b.querySelector("span"); if(l) l.textContent=open?"Less":"More";',
+    '  });',
+    '',
+  ].join('\n'), 'expand a day item');
+
+  insertBefore('</style>', [
+    '  /* One line of why, and a way to ask for the rest. */',
+    '  .ev .evp{',
+    '    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;',
+    '    overflow:hidden;',
+    '  }',
+    '  .ev.open .evp{display:block;-webkit-line-clamp:unset;overflow:visible}',
+    '  .evmoreb{',
+    '    display:inline-flex;align-items:center;gap:4px;margin-top:7px;padding:2px 0;',
+    '    font-size:11.5px;font-weight:700;letter-spacing:.01em;color:var(--ink-faint);',
+    '  }',
+    '  .evmoreb svg{width:12px;height:12px;transition:transform 180ms var(--e-out)}',
+    '  .ev.open .evmoreb svg{transform:rotate(180deg)}',
+    '  @media (prefers-reduced-motion:reduce){.evmoreb svg{transition:none}}',
+    // The credit names the photograph, which is detail, so it travels with the
+    // detail rather than sitting under a clamped line explaining nothing.
+    '  .ev .evcr{display:none}',
+    '  .ev.open .evcr{display:block}',
+    '',
+  ].join('\n'), 'collapsible day copy css');
 
   // --- boot ------------------------------------------------------------------
 
