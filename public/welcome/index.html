@@ -145,7 +145,8 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
   display:flex;align-items:center;gap:8px;white-space:nowrap;
 }
 .chip svg{width:15px;height:15px;flex:none;color:var(--coral)}
-.chip.a{right:-10px;top:68%}
+.chip.a{right:-14px;top:15%}
+.chip.b{right:-14px;top:68%}
 /* On a phone the mockup nearly fills the column, so a chip sitting at the
    same offsets as desktop lands on the day's heading instead of beside it.
    Narrow the mockup, push the chips further out, and drop them onto the two
@@ -153,7 +154,8 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 @media (max-width:620px){
   .phone{width:min(310px,74vw)}
   .chip{font-size:11.5px;padding:7px 10px;border-radius:12px}
-  .chip.a{right:-22px;top:66%}
+  .chip.a{right:-20px;top:14%}
+  .chip.b{right:-20px;top:66%}
 }
 /* Scroll-driven parallax on the two mockups. Runs off the view timeline, so
    there is no scroll listener and nothing happens where it is unsupported. */
@@ -335,8 +337,12 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
           <img src="/welcome/days.png" width="780" height="1626" alt="A day in a trip to Desaru Coast, with the drive time from Kuala Lumpur and the real sunrise and sunset." fetchpriority="high" />
         </div>
         <div class="chip a float">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
-          Checked, not guessed
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 12 22l-9-9V4a1 1 0 0 1 1-1h9z"/><circle cx="7.5" cy="7.5" r="1.4"/></svg>
+          Live room rates
+        </div>
+        <div class="chip b float d2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Live drive times
         </div>
 
       </div>
