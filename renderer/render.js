@@ -378,13 +378,31 @@ export function render(T, templateSrc) {
         '<div class="sub" id="countdown">' + esc(tr.sub) + '</div></div>' +
         '<span class="pill tiny" id="tripstate">' + esc(tr.statePill) + '</span>';
 
+      // The trip opens on a photograph, the way the landing page does.
+      //
+      // raffy, 2026-09-03: "look at my landing page. that's really nice . but
+      // the app produce is not nice." The landing page opens on Moraine Lake.
+      // The app opened on two lines of 58px type, five pills and a row of
+      // initials — six hundred pixels before a single picture. It is the same
+      // photograph the card below was already using; it just belongs at the
+      // top, with the name of the place on it.
       el = document.getElementById('hero');
+      var hf = tr.feature || {};
+      // No photo yet is the normal state of a fresh trip, so fall back to the
+      // map of where they are going before falling back to a plain gradient.
+      var hsrc = shotFor(hf) || ((T.stays||[])[0] ? mapTile(T.stays[0], 12) : '');
+      var hbits = [];
+      if(tr.titleSub) hbits.push(esc(tr.titleSub));
+      (tr.heroChips||[]).forEach(function(c){ if(c && c.text) hbits.push(esc(c.text)); });
       if(el) el.innerHTML =
-        '<span class="pill tiny ghost">' + esc(tr.flag) + '</span>' +
-        '<h1 style="margin-top:14px">' + esc(tr.title) +
-          '<span class="h2">' + esc(tr.titleSub) + '</span></h1>' +
-        '<div class="herochips">' +
-          (tr.heroChips||[]).map(function(c){ return pill(c.icon, c.text); }).join('') +
+        '<div class="thero' + (hsrc ? '' : ' nophoto') + '">' +
+          (hsrc ? '<img src="' + esc(hsrc) + '" alt="' + esc(hf.alt||'') + '" />' : '') +
+          '<div class="tveil"></div>' +
+          (tr.flag ? '<span class="pill tiny ghost tflag">' + esc(tr.flag) + '</span>' : '') +
+          '<div class="tbody">' +
+            '<h1>' + esc(tr.title) + '</h1>' +
+            (hbits.length ? '<p class="tmeta">' + hbits.join(' &middot; ') + '</p>' : '') +
+          '</div>' +
         '</div>' +
         '<div class="crew"><div class="faces">' +
           (tr.travellers||[]).map(function(p){
@@ -442,11 +460,15 @@ export function render(T, templateSrc) {
           f.stats = stats;
         }
 
-        var hasCopy = !!(f.h || f.p || (f.stats||[]).length);
-        el.className = 'feature' + (fsrc ? '' : ' nophoto');
+        // White, not near-black. The photograph moved to the hero, so what
+        // is left here is words, and words on a dark slab in the middle of a
+        // light page was the other half of why this did not look like the
+        // landing page. The date chip goes with it: it was a full-width
+        // orange bar, which is most of the coral on the screen spent on the
+        // one thing the header already says.
+        el.className = 'fcard';
         el.innerHTML =
-          (fsrc ? '<img src="' + esc(fsrc) + '" alt="' + esc(f.alt||'') + '" />' + (hasCopy ? '<div class="veil"></div>' : '') : '') +
-          '<span class="pill tiny badge coral" id="febadge"></span>' +
+          '<span class="fbadge" id="febadge" hidden></span>' +
           '<div class="fc">' + (f.h ? '<h2>' + esc(f.h) + '</h2>' : '') +
           (f.p ? '<p>' + esc(f.p) + '</p>' : '') +
           '<div class="fstats">' +
@@ -605,10 +627,10 @@ export function render(T, templateSrc) {
   '  .feature .veil{z-index:1}\n' +
   '  .feature .fc{position:relative;z-index:2;padding:54px 20px 20px}\n' +
   '  .feature .badge{z-index:3}\n' +
-  '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#1B4732);padding-top:18px;min-height:0}\n' +
+  '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#0A2A20);padding-top:18px;min-height:0}\n' +
     '  .feature.nophoto .fc{position:static;padding:16px 20px 20px}\n' +
     '  .feature.nophoto .badge{position:static;display:inline-flex;margin-left:20px}\n' +
-    '  .staycard .ph{width:100%;height:100%;background:linear-gradient(160deg,var(--deep),#1B4732)}\n' +
+    '  .staycard .ph{width:100%;height:100%;background:linear-gradient(160deg,var(--deep),#0A2A20)}\n' +
     // .sect is display:flex, which outranks the UA [hidden] rule, so the
     // Flights heading stayed visible with its card hidden beneath it.
     '  [hidden]{display:none!important}',
@@ -1323,7 +1345,7 @@ export function render(T, templateSrc) {
   replaceRegex(/\s*<link rel="preload" as="font"[^>]*jakarta\.woff2[^>]*>/, '', 'drop the Jakarta preload');
 
   insertBefore('</style>', [
-    '  .nav{background:#23583F;backdrop-filter:none;-webkit-backdrop-filter:none}',
+    '  .nav{background:#10362A;backdrop-filter:none;-webkit-backdrop-filter:none}',
     '  .view{padding-bottom:132px}',
     '',
   ].join('\n'), 'solid nav');
@@ -1631,7 +1653,7 @@ export function render(T, templateSrc) {
     '        (hmy+hdx*0.12).toFixed(1)+","+s0.x.toFixed(1)+" "+s0.y.toFixed(1);',
     '      line+=\'<path d="\'+hd+\'" fill="none" stroke="#FFFFFF" stroke-width="7" \'+',
     '        \'stroke-linecap="round" opacity=".85"/>\'+',
-    '        \'<path d="\'+hd+\'" fill="none" stroke="#23583F" stroke-width="2.5" \'+',
+    '        \'<path d="\'+hd+\'" fill="none" stroke="#10362A" stroke-width="2.5" \'+',
     '        \'stroke-linecap="round" stroke-dasharray="7 8" opacity=".55"/>\';',
     '    }',
     '    if(xy.length>1){',
@@ -1670,7 +1692,7 @@ export function render(T, templateSrc) {
     '          \'<image href="\'+q.pic+\'" x="-\'+R+\'" y="-\'+R+\'" width="\'+(R*2)+\'" \'+',
     '          \'height="\'+(R*2)+\'" preserveAspectRatio="xMidYMid slice" \'+',
     '          \'clip-path="url(#pc\'+q.i+\')"/>\'+',
-    '          (xy.length>1?\'<circle cx="\'+(R-4)+\'" cy="-\'+(R-4)+\'" r="13" fill="#23583F" \'+',
+    '          (xy.length>1?\'<circle cx="\'+(R-4)+\'" cy="-\'+(R-4)+\'" r="13" fill="#10362A" \'+',
     '            \'stroke="#FFFFFF" stroke-width="2.5"/>\'+',
     '            \'<text x="\'+(R-4)+\'" y="-\'+(R-9)+\'" text-anchor="middle" \'+',
     '            \'font-family="Outfit,sans-serif" font-size="14" font-weight="800" \'+',
@@ -1698,7 +1720,7 @@ export function render(T, templateSrc) {
     '        ap.y.toFixed(1)+\'" fill="none" stroke="#FFFFFF" stroke-width="6" \'+',
     '        \'stroke-linecap="round" opacity=".8"/>\'+',
     '        \'<path d="M\'+ap.bx.toFixed(1)+\' \'+ap.by.toFixed(1)+\' L\'+ap.x.toFixed(1)+\' \'+',
-    '        ap.y.toFixed(1)+\'" fill="none" stroke="#23583F" stroke-width="2.5" \'+',
+    '        ap.y.toFixed(1)+\'" fill="none" stroke="#10362A" stroke-width="2.5" \'+',
     '        \'stroke-linecap="round" stroke-dasharray="7 8" opacity=".5"/>\'+',
     '        (ap.from?\'<text x="\'+(ap.x+(ap.bx-ap.x)*0.74).toFixed(1)+\'" y="\'+',
     '          (ap.y+(ap.by-ap.y)*0.74-10).toFixed(1)+\'" \'+',
@@ -1711,8 +1733,8 @@ export function render(T, templateSrc) {
     '      // used to wipe it.',
     '      airpin+=\'<g class="airpin" transform="translate(\'+ap.x.toFixed(1)+\',\'+ap.y.toFixed(1)+\')">\'+',
     '        \'<circle r="15" fill="#FFFFFF"/>\'+',
-    '        \'<circle r="15" fill="none" stroke="#23583F" stroke-width="1.5" opacity=".25"/>\'+',
-    '        \'<g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#23583F" \'+',
+    '        \'<circle r="15" fill="none" stroke="#10362A" stroke-width="1.5" opacity=".25"/>\'+',
+    '        \'<g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#10362A" \'+',
     '        \'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\'+',
     '        \'<path d="M12 2.5c.9 0 1.6.8 1.6 1.7v5.1l7.4 4.3v2.1l-7.4-2.3v4.7l2.6 1.9v1.6L12 20.5\'+',
     '        \'l-4.2 1.1v-1.6l2.6-1.9v-4.7L3 15.7v-2.1l7.4-4.3V4.2c0-.9.7-1.7 1.6-1.7z"/></g>\'+',
@@ -2137,7 +2159,7 @@ export function render(T, templateSrc) {
     '  .stayrow:active{transform:scale(.985)}',
     '  .srph{',
     '    position:relative;display:block;width:74px;height:74px;border-radius:18px;',
-    '    overflow:hidden;background:linear-gradient(160deg,var(--deep),#1B4732);',
+    '    overflow:hidden;background:linear-gradient(160deg,var(--deep),#0A2A20);',
     '  }',
     '  .srph img{width:100%;height:100%;object-fit:cover;display:block}',
     '  .srn{',
@@ -2209,6 +2231,87 @@ export function render(T, templateSrc) {
     '      <p id="dayssub" style="margin:9px 0 0;font-size:14.5px;color:var(--ink-soft)"></p>\n' +
     '      <div id="todayjump" style="margin-top:14px"></div>',
     'days view header');
+
+  // --- the Trip view looks like the landing page now --------------------------
+  //
+  // raffy, 2026-09-03: "look at my landing page. that's really nice . but the
+  // app produce is not nice . and not like in reference photo feel."
+  //
+  // Three things separated them, and none of them was the data. The landing
+  // page opens on a photograph and the app opened on type. The landing page
+  // spends coral once, on the button; the app spent it on a full-width date
+  // bar, every tag, every time and the nav. And the reference puts its numbers
+  // in one bordered row under a white card, where the app had glass pills on a
+  // near-black slab.
+  insertBefore('</style>', [
+    '  .hero{margin-top:16px}',
+    '  .thero{',
+    '    position:relative;border-radius:var(--r-card);overflow:hidden;aspect-ratio:4/3;',
+    '    box-shadow:var(--sh-m);background:linear-gradient(160deg,var(--deep),var(--deep-2));',
+    '  }',
+    '  .thero img{width:100%;height:100%;object-fit:cover;display:block}',
+    '  .thero .tveil{',
+    '    position:absolute;inset:0;',
+    // Deep enough that the title holds over a bright sky. The first version
+    // stopped at .46 across the band the words actually sit in, and over water
+    // at midday that is not a background, it is a fight.
+    '    background:linear-gradient(180deg,rgba(6,26,19,.32) 0%,rgba(6,26,19,0) 30%,',
+    '      rgba(6,26,19,.58) 60%,rgba(6,26,19,.92) 100%);',
+    '  }',
+    // Without a picture there is nothing to hold a 4:3 box open, and an empty
+    // one just pushes the title off the bottom of a phone.
+    '  .thero.nophoto{aspect-ratio:auto;min-height:196px}',
+    '  .tflag{position:absolute;top:14px;left:14px;z-index:2}',
+    '  .tbody{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:18px}',
+    "  .hero .tbody h1{font-size:clamp(34px,10.5vw,48px);font-weight:800;color:#fff;",
+    '    letter-spacing:-.035em;line-height:1.02;text-shadow:0 2px 18px rgba(6,26,19,.45)}',
+    '  .tmeta{margin:9px 0 0;font-size:13.5px;font-weight:600;color:#DCEAE1;',
+    '    text-shadow:0 1px 12px rgba(6,26,19,.5)}',
+    '  .hero .crew{margin-top:16px}',
+    '',
+    '  /* the summary, as a card of words rather than a slab of dark */',
+    '  .fcard{',
+    '    margin-top:22px;background:var(--surface);border-radius:var(--r-card);',
+    '    box-shadow:var(--sh-s);padding:18px;',
+    '  }',
+    '  .fbadge{',
+    '    display:inline-flex;align-items:center;margin-bottom:12px;padding:5px 11px;',
+    '    border-radius:var(--r-pill);background:var(--sage);color:var(--deep);',
+    '    font-size:10.5px;font-weight:800;letter-spacing:.085em;text-transform:uppercase;',
+    '  }',
+    '  .fcard h2{font-size:22px;font-weight:700;letter-spacing:-.025em;line-height:1.14}',
+    '  .fcard p{margin:9px 0 0;font-size:14.5px;line-height:1.55;color:var(--ink-soft)}',
+    // The reference's stat row: one bordered strip, hairlines between, no pills.
+    '  .fcard .fstats{display:flex;margin:16px -18px -18px;border-top:1px solid var(--line)}',
+    '  .fcard .fstats:empty{display:none}',
+    '  .fcard .fstats .pill{',
+    '    flex:1;min-width:0;justify-content:center;border-radius:0;background:none;',
+    '    box-shadow:none;padding:13px 6px;font-size:12px;font-weight:650;color:var(--ink-soft);',
+    '  }',
+    '  .fcard .fstats .pill + .pill{border-left:1px solid var(--line)}',
+    '  .fcard .fstats .pill svg{color:var(--ink-faint)}',
+    '',
+  ].join('\n'), 'trip hero css');
+
+  // The error handler knew about .feature and .staycard. The hero is neither,
+  // and a photo that 404s there left a broken-image glyph behind the title.
+  replaceOnce(
+    "      var card = img.closest && img.closest('.staycard');",
+    "      var th = img.closest && img.closest('.thero');\n" +
+    "      if(th){ img.remove(); th.className = 'thero nophoto'; return; }\n" +
+    "      var card = img.closest && img.closest('.staycard');",
+    'hero photo fallback');
+
+  // renderLive writes the date range into #febadge on every tick. It is hidden
+  // until there is something to show, otherwise an empty sage chip sits above
+  // the heading on a trip the clock has nothing to say about.
+  replaceOnce(
+    "  function badge(t){ var b=document.getElementById('febadge'); if(b) b.textContent=t; }",
+    "  function badge(t){\n" +
+    "    var b=document.getElementById('febadge'); if(!b) return;\n" +
+    "    b.textContent=t||''; b.hidden=!t;\n" +
+    "  }",
+    'badge shows only when it says something');
 
   // --- boot ------------------------------------------------------------------
 

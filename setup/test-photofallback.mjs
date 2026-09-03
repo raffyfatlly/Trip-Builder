@@ -53,8 +53,10 @@ await page.waitForTimeout(1200);
 ok('no page errors', errs.length === 0, errs.join(' / '));
 ok('the feature card shows the area rather than nothing', asked.some((u) => u.includes('osm-intl,12')));
 ok('an unbooked stay still gets a picture', asked.some((u) => u.includes('osm-intl,15')));
+// The photograph moved to the hero when the Trip view was rebuilt around one,
+// so the map fallback lands there now rather than on the card below it.
 const src = await page.evaluate(() => {
-  const i = document.querySelector('#feature img');
+  const i = document.querySelector('.thero img') || document.querySelector('#feature img');
   return i && i.getAttribute('src');
 });
 ok('and it is a map of the right place', !!src && src.includes('maps.wikimedia.org'), String(src));

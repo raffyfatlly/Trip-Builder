@@ -15,8 +15,8 @@
 @font-face{font-family:'Jakarta';font-weight:200 800;font-style:normal;font-display:swap;src:url(/jakarta.woff2) format('woff2')}
 
 :root{
-  --deep:#23583F;
-  --deep-2:#1B4732;
+  --deep:#0E2E23;
+  --deep-2:#123829;
   --ink:#15271F;
   --ink-soft:#4A6058;
   --ink-faint:#7B8F87;
@@ -138,7 +138,7 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 }
 .heroph{
   position:absolute;right:-8px;bottom:-38px;width:136px;z-index:3;
-  border-radius:26px;background:#1B4732;padding:6px;box-shadow:var(--shadow-lift);
+  border-radius:26px;background:#0B241B;padding:6px;box-shadow:var(--shadow-lift);
 }
 .heroph .screen{position:relative;border-radius:21px;overflow:hidden;height:240px}
 .heroph img{width:100%;display:block}
@@ -181,12 +181,12 @@ section{padding:66px 0}
 @media (min-width:900px){section{padding:104px 0}}
 .dark{background:var(--deep);color:#E7EFE8}
 .dark h2,.dark h3{color:#F2F7F2}
-.dark .lede{color:#BDD2C6}
+.dark .lede{color:#A9C0B4}
 .eyebrow{
   font-family:'Outfit',sans-serif;font-size:12px;font-weight:750;letter-spacing:.14em;
   text-transform:uppercase;color:var(--coral);margin-bottom:14px;
 }
-.dark .eyebrow{color:#F6BFA0}
+.dark .eyebrow{color:#F2A882}
 .headrow{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:26px}
 
 /* destination cards */
@@ -251,7 +251,7 @@ section{padding:66px 0}
 @media (min-width:960px){.proofgrid{grid-template-columns:.92fr 1.08fr;gap:60px;align-items:center}}
 .proofshot{position:relative;justify-self:center}
 .phone{
-  position:relative;width:min(300px,78vw);border-radius:40px;background:#1B4732;
+  position:relative;width:min(300px,78vw);border-radius:40px;background:#0B241B;
   padding:9px;box-shadow:var(--shadow-lift);
 }
 .phone img{border-radius:32px;display:block;width:100%;height:auto}
@@ -261,9 +261,9 @@ section{padding:66px 0}
 .note:first-child{border-top:0;padding-top:0}
 .note b{display:block;font-family:'Outfit',sans-serif;font-size:17px;font-weight:750;letter-spacing:-.012em;margin-bottom:5px}
 .note span{font-size:14.8px;line-height:1.55;color:var(--ink-soft)}
-.dark .note span{color:#BDD2C6}
+.dark .note span{color:#A9C0B4}
 .note .q{color:var(--coral);font-weight:700}
-.dark .note .q{color:#F6BFA0}
+.dark .note .q{color:#F2A882}
 
 /* the two panels */
 .diff{display:grid;gap:18px}
@@ -289,7 +289,7 @@ section{padding:66px 0}
 /* wide band with a shot */
 .bandgrid{display:grid;gap:34px}
 @media (min-width:960px){.bandgrid{grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}}
-.shotcard{border-radius:var(--r-lg);overflow:hidden;background:#1B4732;padding:8px;box-shadow:var(--shadow-lift);max-width:330px;justify-self:center}
+.shotcard{border-radius:var(--r-lg);overflow:hidden;background:#0B241B;padding:8px;box-shadow:var(--shadow-lift);max-width:330px;justify-self:center}
 .shotcard img{border-radius:22px}
 .crop{border-radius:22px;overflow:hidden;background:var(--paper)}
 .crop img{width:100%;display:block;object-fit:cover;object-position:center 64%;height:min(430px,58vh)}
@@ -312,18 +312,18 @@ section{padding:66px 0}
 .dark .tier{color:var(--ink)}
 .dark .tier .tname,.dark .tier .tprice{color:var(--ink)}
 .dark .tier li{color:var(--ink)}
-.dark .tier.best,.tier.best{background:#163D2C;border-color:rgba(255,255,255,.14);color:#E7EFE8;box-shadow:var(--shadow-lift)}
+.dark .tier.best,.tier.best{background:#0A241B;border-color:rgba(255,255,255,.14);color:#E7EFE8;box-shadow:var(--shadow-lift)}
 .dark .tier.best .tname,.dark .tier.best .tprice,.dark .tier.best li{color:#F2F7F2}
 .tier .tname{font-family:'Outfit',sans-serif;font-weight:750;font-size:16px;letter-spacing:-.01em}
 .tier .tprice{font-family:'Outfit',sans-serif;font-weight:800;font-size:44px;letter-spacing:-.03em;line-height:1;margin:14px 0 4px}
 .tier .tunit{font-size:13.5px;color:var(--ink-faint);font-weight:600}
 .tier.best .tunit{color:#8FAF9F}
 .tier .tsub{font-size:14.5px;color:var(--ink-soft);margin-top:14px;line-height:1.55}
-.tier.best .tsub{color:#BDD2C6}
+.tier.best .tsub{color:#A9C0B4}
 .tier ul{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:10px}
 .tier li{font-size:14.5px;display:flex;gap:10px;align-items:flex-start;line-height:1.5}
 .tier li svg{width:15px;height:15px;flex:none;margin-top:3px;color:var(--coral)}
-.tier.best li svg{color:#F6BFA0}
+.tier.best li svg{color:#F2A882}
 .tier .btn{width:100%;margin-top:24px}
 .tag{display:inline-flex;align-items:center;border-radius:var(--r-pill);padding:5px 11px;font-size:11.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;background:var(--coral);color:#fff;margin-left:9px;font-family:'Outfit',sans-serif}
 .credits{margin-top:26px;border-radius:var(--r);border:1px solid var(--line);background:var(--paper-2);padding:20px 22px}
@@ -584,10 +584,10 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
 
     <div class="credits rv" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12);color:#E7EFE8">
       <div class="ch">What a credit buys</div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#BDD2C6">Planning a whole trip</span><span>50</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#BDD2C6">Redoing it after your plans change</span><span>20</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#BDD2C6">Looking up hotels, food or a day out</span><span>3</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#BDD2C6">Changing something yourself</span><span>Free</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Planning a whole trip</span><span>50</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Redoing it after your plans change</span><span>20</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Looking up hotels, food or a day out</span><span>3</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Changing something yourself</span><span>Free</span></div>
     </div>
   </div>
 </section>
