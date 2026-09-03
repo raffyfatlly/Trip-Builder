@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Trip Builder</title>
+<meta name="description" content="A travel agent that goes and checks. Real drive times, real opening hours, real prices, then an app for the trip." />
+<meta name="theme-color" content="#0E2E23" />
+
+<link rel="preload" as="font" type="font/woff2" href="/outfit.woff2" crossorigin />
+<link rel="preload" as="font" type="font/woff2" href="/jakarta.woff2" crossorigin />
+
+<style>
+@font-face{font-family:'Outfit';font-weight:100 900;font-style:normal;font-display:swap;src:url(/outfit.woff2) format('woff2')}
+@font-face{font-family:'Jakarta';font-weight:200 800;font-style:normal;font-display:swap;src:url(/jakarta.woff2) format('woff2')}
+
+:root{
+  --deep:#0E2E23;
+  --deep-2:#123829;
+  --ink:#15271F;
+  --ink-soft:#4A6058;
+  --ink-faint:#7B8F87;
+  --paper:#EAF0EA;
+  --paper-2:#F3F7F2;
+  --surface:#FFFFFF;
+  --sage:#D7E4DA;
+  --line:#DCE6DD;
+  --coral:#E8734A;
+  --coral-deep:#C2542F;
+  --r:20px;
+  --r-lg:28px;
+  --r-pill:999px;
+  --shadow:0 1px 2px rgba(16,54,42,.05),0 12px 34px -14px rgba(16,54,42,.22);
+  --shadow-lift:0 2px 4px rgba(16,54,42,.06),0 40px 80px -28px rgba(16,54,42,.36);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:'Jakarta',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+
+.wrap{width:100%;max-width:1180px;margin:0 auto;padding:0 22px}
+@media (min-width:900px){.wrap{padding:0 40px}}
+
+h1,h2,h3,.dsp{font-family:'Outfit',sans-serif;font-weight:800;letter-spacing:-.022em;margin:0}
+h1{font-size:clamp(38px,8.4vw,74px);line-height:1.02}
+h2{font-size:clamp(29px,5.6vw,50px);line-height:1.06}
+h3{font-size:clamp(19px,2.4vw,23px);line-height:1.2;font-weight:700;letter-spacing:-.014em}
+p{margin:0}
+.lede{font-size:clamp(16px,2.1vw,19px);line-height:1.6;color:var(--ink-soft);max-width:36ch}
+
+/* ---------- nav ---------- */
+header.nav{
+  position:sticky;top:0;z-index:60;
+  background:rgba(234,240,234,.86);backdrop-filter:blur(14px);
+  border-bottom:1px solid transparent;transition:border-color .25s ease;
+}
+header.nav.stuck{border-bottom-color:var(--line)}
+.navin{height:66px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:9px;font-family:'Outfit',sans-serif;font-weight:800;font-size:17px;letter-spacing:-.02em;text-decoration:none}
+.brand .mk{width:26px;height:26px;border-radius:8px;background:var(--deep);display:grid;place-items:center;flex:none}
+.brand .mk svg{width:15px;height:15px;color:#EAF0EA}
+.navlinks{display:none;gap:28px;align-items:center}
+@media (min-width:860px){.navlinks{display:flex}}
+.navlinks a{font-size:14.5px;font-weight:600;color:var(--ink-soft);text-decoration:none;transition:color .18s}
+.navlinks a:hover{color:var(--ink)}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;
+  border:0;border-radius:var(--r-pill);cursor:pointer;text-decoration:none;
+  font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;letter-spacing:-.008em;
+  padding:13px 24px;transition:transform .16s cubic-bezier(.2,.9,.3,1),background .18s,box-shadow .18s;
+}
+.btn:active{transform:scale(.975)}
+/* White on the bright coral is 3.0:1, which fails AA at button text sizes.
+   The deeper coral already in the palette clears 4.5:1 and keeps the hue. */
+.btn-primary{background:var(--coral-deep);color:#fff;box-shadow:0 10px 24px -12px rgba(194,84,47,.85)}
+.btn-primary:hover{background:#A9481F}
+.btn-ghost{background:var(--sage);color:var(--deep)}
+.btn-ghost:hover{background:#CBDCCF}
+.btn-onDark{background:#EAF0EA;color:var(--deep)}
+.btn-onDark:hover{background:#fff}
+.btn-sm{padding:10px 18px;font-size:14px}
+
+/* ---------- reveal ---------- */
+.rv{opacity:0;transform:translateY(22px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+.rv.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
+
+/* ---------- hero ---------- */
+.hero{position:relative;padding:38px 0 0;overflow:hidden}
+.hero::before{
+  content:"";position:absolute;left:50%;top:-380px;width:1100px;height:760px;
+  transform:translateX(-50%);pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse 50% 50% at 50% 50%,rgba(215,228,218,.95),rgba(234,240,234,0) 70%);
+}
+.herogrid{position:relative;z-index:1;display:grid;gap:30px}
+@media (min-width:960px){
+  .hero{padding-top:56px}
+  .herogrid{grid-template-columns:1fr 0.86fr;gap:44px;align-items:center}
+}
+.herocopy{max-width:620px}
+h1 .soft{color:var(--ink-soft);font-weight:700}
+.herosub{margin-top:20px}
+.herocta{display:flex;flex-wrap:wrap;gap:11px;margin-top:28px}
+
+/* phone */
+.stage{position:relative;display:flex;justify-content:center;padding-top:6px}
+.phone{
+  position:relative;width:min(310px,80vw);border-radius:40px;background:#0B241B;
+  padding:9px;box-shadow:var(--shadow-lift);
+}
+.phone img{border-radius:32px;display:block;width:100%;height:auto}
+/* The hero shows the top of the screen only, down through the drive line and
+   the sunrise pills. A whole phone screenshot at readable width is 670px tall
+   and pushes the headline out of the first viewport. */
+.hero .phone .screen{
+  position:relative;border-radius:32px;overflow:hidden;
+  height:clamp(360px,52vh,470px);
+}
+.hero .phone .screen img{height:auto;width:100%}
+.hero .phone .screen::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:74px;
+  background:linear-gradient(to bottom,rgba(240,245,240,0),#EEF3EE);
+  pointer-events:none;
+}
+.phone::after{
+  content:"";position:absolute;left:50%;top:15px;transform:translateX(-50%);
+  width:78px;height:5px;border-radius:99px;background:rgba(255,255,255,.16);
+}
+@media (min-width:960px){.phone{width:330px}}
+
+/* floating proof chips around the phone */
+.chip{
+  position:absolute;z-index:3;background:var(--surface);border-radius:14px;
+  padding:9px 13px;box-shadow:var(--shadow);border:1px solid var(--line);
+  font-size:12.5px;font-weight:650;line-height:1.35;color:var(--ink);
+  display:flex;align-items:center;gap:8px;white-space:nowrap;
+}
+.chip svg{width:15px;height:15px;flex:none;color:var(--coral)}
+.chip.a{right:-10px;top:57%}
+.chip.b{left:-12px;top:76%}
+/* On a phone the mockup nearly fills the column, so a chip sitting at the
+   same offsets as desktop lands on the day's heading instead of beside it.
+   Narrow the mockup, push the chips further out, and drop them onto the two
+   lines they actually annotate. */
+@media (max-width:620px){
+  .phone{width:min(310px,74vw)}
+  .chip{font-size:11.5px;padding:7px 10px;border-radius:12px}
+  .chip.a{right:-22px;top:66%}
+  .chip.b{left:-18px;top:76%}
+}
+/* Scroll-driven parallax on the two mockups. Runs off the view timeline, so
+   there is no scroll listener and nothing happens where it is unsupported. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) and (min-width:760px) {
+    .stage .phone, .proofshot .phone{
+      animation:drift linear both;
+      animation-timeline:view();
+      animation-range:entry 10% cover 60%;
+    }
+  }
+}
+@keyframes drift{from{transform:translateY(26px)}to{transform:translateY(-14px)}}
+.float{animation:bob 7s ease-in-out infinite}
+.float.d2{animation-delay:-2.4s}
+.float.d3{animation-delay:-4.6s}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@media (prefers-reduced-motion:reduce){.float{animation:none}}
+
+/* ---------- strip under hero ---------- */
+.strip{margin-top:46px;border-top:1px solid var(--line);padding:22px 0 0}
+.striprow{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
+.strip .lbl{font-size:12.5px;color:var(--ink-faint);font-weight:650}
+.srcs{display:flex;flex-wrap:wrap;gap:8px}
+.src{
+  font-size:12.5px;font-weight:650;color:var(--ink-soft);background:var(--paper-2);
+  border:1px solid var(--line);border-radius:var(--r-pill);padding:6px 13px;
+}
+
+/* ---------- sections ---------- */
+section{padding:76px 0}
+@media (min-width:900px){section{padding:110px 0}}
+.dark{background:var(--deep);color:#E7EFE8}
+.dark h2,.dark h3{color:#F2F7F2}
+.dark .lede{color:#A9C0B4}
+
+.eyebrow{
+  font-family:'Outfit',sans-serif;font-size:12px;font-weight:750;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px;
+}
+.dark .eyebrow{color:#7FA192}
+
+/* proof: annotated screenshot */
+.proofgrid{display:grid;gap:34px}
+@media (min-width:960px){.proofgrid{grid-template-columns:.92fr 1.08fr;gap:60px;align-items:center}}
+.proofshot{position:relative;justify-self:center}
+.proofshot .phone{width:min(300px,78vw)}
+.notes{display:grid;gap:0}
+.note{padding:20px 0;border-top:1px solid var(--line)}
+.dark .note{border-top-color:rgba(255,255,255,.13)}
+.note:first-child{border-top:0;padding-top:0}
+.note b{display:block;font-family:'Outfit',sans-serif;font-size:17px;font-weight:750;letter-spacing:-.012em;margin-bottom:5px}
+.note span{font-size:14.8px;line-height:1.55;color:var(--ink-soft)}
+.dark .note span{color:#A9C0B4}
+.note .q{color:var(--coral);font-weight:700}
+.dark .note .q{color:#F2A882}
+
+/* the difference: two panels, not three cards */
+.diff{display:grid;gap:18px}
+@media (min-width:860px){.diff{grid-template-columns:1fr 1fr;gap:20px}}
+.panel{border-radius:var(--r-lg);padding:28px 26px;border:1px solid var(--line);background:var(--paper-2)}
+.panel.hot{background:var(--surface);box-shadow:var(--shadow);border-color:transparent}
+.panel h3{margin-bottom:10px}
+.panel p{font-size:15px;color:var(--ink-soft);line-height:1.6}
+.pmark{
+  width:34px;height:34px;border-radius:11px;display:grid;place-items:center;margin-bottom:16px;
+  background:var(--sage);color:var(--deep);
+}
+.panel.hot .pmark{background:var(--coral);color:#fff}
+.pmark svg{width:18px;height:18px}
+.plist{margin:16px 0 0;padding:0;list-style:none;display:grid;gap:9px}
+.plist li{font-size:14.5px;color:var(--ink-soft);display:flex;gap:9px;align-items:flex-start;line-height:1.5}
+.plist svg{width:15px;height:15px;flex:none;margin-top:3px;color:var(--ink-faint)}
+.panel.hot .plist svg{color:var(--coral)}
+
+/* keeps working: wide band with shot */
+.bandgrid{display:grid;gap:34px}
+@media (min-width:960px){.bandgrid{grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}}
+.shotcard{
+  border-radius:var(--r-lg);overflow:hidden;background:#0B241B;padding:8px;
+  box-shadow:var(--shadow-lift);max-width:330px;justify-self:center;
+}
+.shotcard img{border-radius:22px}
+.crop{border-radius:22px;overflow:hidden;background:var(--paper)}
+.crop img{width:100%;display:block;object-fit:cover;object-position:center 64%;height:min(430px,58vh)}
+.crop.top img{object-position:center top}
+
+/* pricing */
+.tiers{display:grid;gap:16px;margin-top:34px}
+@media (min-width:860px){.tiers{grid-template-columns:1fr 1fr;gap:20px;align-items:start}}
+/* A white card inside the dark section: it must set its own ink, or it
+   inherits the section's light text and prints white on white. */
+.tier{border-radius:var(--r-lg);padding:30px 26px;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.dark .tier{color:var(--ink)}
+.dark .tier .tname,.dark .tier .tprice{color:var(--ink)}
+.dark .tier li{color:var(--ink)}
+.dark .tier.best,.tier.best{background:#0A241B;border-color:rgba(255,255,255,.14);color:#E7EFE8;box-shadow:var(--shadow-lift)}
+.dark .tier.best .tname,.dark .tier.best .tprice,.dark .tier.best li{color:#F2F7F2}
+.tier .tname{font-family:'Outfit',sans-serif;font-weight:750;font-size:16px;letter-spacing:-.01em}
+.tier .tprice{font-family:'Outfit',sans-serif;font-weight:800;font-size:44px;letter-spacing:-.03em;line-height:1;margin:14px 0 4px}
+.tier .tunit{font-size:13.5px;color:var(--ink-faint);font-weight:600}
+.tier.best .tunit{color:#8FAF9F}
+.tier .tsub{font-size:14.5px;color:var(--ink-soft);margin-top:14px;line-height:1.55}
+.tier.best .tsub{color:#A9C0B4}
+.tier ul{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:10px}
+.tier li{font-size:14.5px;display:flex;gap:10px;align-items:flex-start;line-height:1.5}
+.tier li svg{width:15px;height:15px;flex:none;margin-top:3px;color:var(--coral)}
+.tier.best li svg{color:#F2A882}
+.tier .btn{width:100%;margin-top:24px}
+.tag{
+  display:inline-flex;align-items:center;border-radius:var(--r-pill);padding:5px 11px;
+  font-size:11.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;
+  background:var(--coral);color:#fff;margin-left:9px;font-family:'Outfit',sans-serif;
+}
+.credits{
+  margin-top:26px;border-radius:var(--r);border:1px solid var(--line);background:var(--paper-2);
+  padding:20px 22px;
+}
+.credits .ch{font-family:'Outfit',sans-serif;font-weight:750;font-size:15px;margin-bottom:12px}
+.crow{display:flex;justify-content:space-between;gap:16px;font-size:14.5px;padding:9px 0;border-top:1px solid var(--line)}
+.crow:first-of-type{border-top:0}
+.crow span:first-child{color:var(--ink-soft)}
+.crow span:last-child{font-family:'Outfit',sans-serif;font-weight:700;white-space:nowrap}
+
+/* closing */
+.close{text-align:center;max-width:660px;margin:0 auto}
+.close .lede{margin:18px auto 0;max-width:44ch}
+.close .herocta{justify-content:center}
+
+footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-faint);font-size:13.5px}
+.footrow{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center}
+.footrow a{text-decoration:none;font-weight:600;color:var(--ink-soft)}
+</style>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="wrap navin">
+    <a class="brand" href="#top">
+      <span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
+      Trip Builder
+    </a>
+    <nav class="navlinks">
+      <a href="#proof">How it works</a>
+      <a href="#difference">What makes it different</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="/">Plan a trip</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap herogrid">
+    <div class="herocopy rv">
+      <h1>A travel agent<br>that actually<br><span class="soft">goes and checks.</span></h1>
+      <p class="lede herosub">It looks up the drive time, the opening hours, the sunset. Then it builds you an app for the trip.</p>
+      <div class="herocta">
+        <a class="btn btn-primary" href="/">Plan a trip</a>
+        <a class="btn btn-ghost" href="#proof">See what it checked</a>
+      </div>
+    </div>
+
+    <div class="stage rv">
+      <div class="phone">
+        <div class="screen">
+          <img src="/welcome/days.png" width="780" height="1626" alt="A day in a trip to Desaru Coast, with the drive time from Kuala Lumpur and the real sunrise and sunset." fetchpriority="high" />
+        </div>
+        <div class="chip a float">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Live traffic
+        </div>
+        <div class="chip b float d2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18"/></svg>
+          Real sunset
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="strip rv">
+      <div class="striprow">
+        <span class="lbl">Checks its facts against</span>
+        <div class="srcs">
+          <span class="src">Google Places</span>
+          <span class="src">Google Routes</span>
+          <span class="src">Live fares</span>
+          <span class="src">Weather on your dates</span>
+          <span class="src">Public holidays</span>
+          <span class="src">Today's exchange rate</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROOF ============ -->
+<section id="proof" class="dark">
+  <div class="wrap">
+    <div class="rv" style="max-width:640px;margin-bottom:44px">
+      <p class="eyebrow">One screen, four lookups</p>
+      <h2>Every line here came from somewhere.</h2>
+      <p class="lede" style="margin-top:16px">This is one day of a real trip. Nothing on it was guessed, and none of it was typed by the person going.</p>
+    </div>
+
+    <div class="proofgrid">
+      <div class="proofshot rv">
+        <div class="phone">
+          <img src="/welcome/days.png" width="780" height="1626" alt="The same day, showing a 389km drive, sunrise at 6:55am, and a warning that the stay is not booked." loading="lazy" />
+        </div>
+      </div>
+
+      <div class="notes rv">
+        <div class="note">
+          <b><span class="q">389km, about 4.5 hours</span></b>
+          <span>Asked Google for the real driving time on that route, with the traffic it expects on a Sunday morning. Not an estimate from memory.</span>
+        </div>
+        <div class="note">
+          <b><span class="q">Sunrise 6:55am, sunset 7:23pm</span></b>
+          <span>Pulled for those exact dates and that exact coastline, so a plan that ends at the beach ends while there is still light.</span>
+        </div>
+        <div class="note">
+          <b><span class="q">This stay is not booked yet</span></b>
+          <span>It knows which parts of the trip are real and which are still a proposal, and it says so on the day that depends on it.</span>
+        </div>
+        <div class="note">
+          <b><span class="q">Inside Raes's good hours</span></b>
+          <span>Raes is nine months old. The drive is scheduled around a baby's day because it was told there is a baby.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DIFFERENCE ============ -->
+<section id="difference">
+  <div class="wrap">
+    <div class="rv" style="max-width:620px;margin-bottom:38px">
+      <h2>A conversation ends. A trip does not.</h2>
+      <p class="lede" style="margin-top:16px">Planning a holiday is weeks of small decisions, most of them made when you are tired. The hard part was never writing the itinerary.</p>
+    </div>
+
+    <div class="diff">
+      <div class="panel rv">
+        <div class="pmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3>Asking gets you words</h3>
+        <p>You get a good answer, in a wall of text, in a thread you will not find again. Then you open six tabs to check whether any of it is true, and paste the survivors into a note.</p>
+        <ul class="plist">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Prices that were right last year</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>A restaurant that closed in March</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>No idea what you already booked</li>
+        </ul>
+      </div>
+
+      <div class="panel hot rv">
+        <div class="pmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
+        <h3>This goes and does the work</h3>
+        <p>It calls the same services a good agent would, then hands you something that keeps existing: your days, your rooms, your bookings, and the short list of what is still not sorted.</p>
+        <ul class="plist">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Rates for your dates, in ringgit</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Opening hours it looked up today</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Every booking filed with its reference</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE CHAT MOMENT ============ -->
+<section style="background:var(--paper-2)">
+  <div class="wrap bandgrid">
+    <div class="rv">
+      <p class="eyebrow">Choosing</p>
+      <h2>Three hotels, one card, one tap.</h2>
+      <p class="lede" style="margin-top:16px">It researches, then shows you the one it would pick and why. The rest fold away as a line each, so a good answer never costs you a screen of scrolling.</p>
+      <ul class="plist" style="margin-top:22px;max-width:34ch">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Its reason names your family, not the brochure</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Every place links straight to its own booking page</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Pick one and it rebuilds the days around it</li>
+      </ul>
+    </div>
+    <div class="shotcard rv">
+      <div class="crop">
+        <img src="/welcome/chat-cards.png" width="780" height="1688" alt="A grouped card of three Desaru hotels with prices, and the agent recommending one of them." loading="lazy" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ARRANGING ============ -->
+<section>
+  <div class="wrap bandgrid" style="direction:rtl">
+    <div class="rv" style="direction:ltr">
+      <p class="eyebrow">The weeks before you go</p>
+      <h2>It holds the list you keep forgetting.</h2>
+      <p class="lede" style="margin-top:16px">Flights, each room, anything that sells out. Sorted by when it has to happen rather than what it is, with the deadline worked backwards from your departure.</p>
+      <ul class="plist" style="margin-top:22px;max-width:34ch">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Send a confirmation and it files itself</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>The reference is one tap from your pocket</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Add your own, right down to renewing the road tax</li>
+      </ul>
+    </div>
+    <div class="shotcard rv" style="direction:ltr">
+      <div class="crop top">
+        <img src="/welcome/todo.png" width="780" height="1626" alt="A to-do list for a trip showing what still needs booking, with deadlines." loading="lazy" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section id="pricing" class="dark">
+  <div class="wrap">
+    <div class="rv" style="max-width:620px;margin-bottom:10px">
+      <h2>Pay for trips, not for months.</h2>
+      <p class="lede" style="margin-top:16px">Credits, because the work is real. Looking things up costs a little, building a whole trip costs more. Nothing expires while you are still going somewhere.</p>
+    </div>
+
+    <div class="tiers">
+      <div class="tier rv">
+        <div class="tname">Traveller</div>
+        <div class="tprice">RM29</div>
+        <div class="tunit">120 credits, one payment</div>
+        <p class="tsub">Enough for one proper trip, built and rebuilt as your plans move.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>About 2 full trips</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Unlimited chat on trips you have built</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Your apps stay yours, offline included</li>
+        </ul>
+        <a class="btn btn-ghost" href="/">Start here</a>
+      </div>
+
+      <div class="tier best rv">
+        <div class="tname">Frequent <span class="tag">Best value</span></div>
+        <div class="tprice">RM89</div>
+        <div class="tunit">500 credits, one payment</div>
+        <p class="tsub">For the year you actually travel. Credits go further and the heavy lookups stop counting.</p>
+        <ul>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>About 9 full trips</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Live prices and place lookups included</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Trips for other people, on your account</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Credits roll over while a trip is open</li>
+        </ul>
+        <a class="btn btn-onDark" href="/">Start here</a>
+      </div>
+    </div>
+
+    <div class="credits rv" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12);color:#E7EFE8">
+      <div class="ch">What a credit buys</div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Building a trip, start to finish</span><span>50</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Rebuilding after a change of plan</span><span>20</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Researching hotels, food or a day out</span><span>3</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Editing what is already there</span><span>Free</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CLOSE ============ -->
+<section>
+  <div class="wrap close rv">
+    <h2>Tell it where you are going.</h2>
+    <p class="lede">Say it the way you would say it to a friend. It will ask what it needs and then go to work.</p>
+    <div class="herocta">
+      <a class="btn btn-primary" href="/">Plan a trip</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap footrow">
+    <span>Trip Builder</span>
+    <a href="/">Open the app</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var els = document.querySelectorAll('.rv');
+  if (reduce || !('IntersectionObserver' in window)) {
+    els.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        // A fast scroll or an anchor jump can carry an element past the
+        // viewport without a visible intersection. If it is now above the
+        // fold, show it rather than leaving it invisible on the way back up.
+        if (!e.isIntersecting && e.boundingClientRect.top > 0) return;
+        var sibs = Array.prototype.slice.call(e.target.parentNode.children).filter(function (n) {
+          return n.classList && n.classList.contains('rv');
+        });
+        var i = Math.max(0, sibs.indexOf(e.target));
+        e.target.style.transitionDelay = Math.min(i * 90, 270) + 'ms';
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -12% 0px', threshold: 0.12 });
+    els.forEach(function (el) {
+      // Already on screen when the page opens: show it now rather than waiting
+      // for an intersection that has already happened.
+      if (el.getBoundingClientRect().top < window.innerHeight * 0.95) el.classList.add('in');
+      else io.observe(el);
+    });
+  }
+
+  // Hairline under the nav once the page has moved. IntersectionObserver on a
+  // sentinel rather than a scroll listener, which would run on every frame.
+  var sentinel = document.createElement('div');
+  sentinel.style.cssText = 'position:absolute;top:0;height:1px;width:1px';
+  document.body.prepend(sentinel);
+  new IntersectionObserver(function (e) {
+    document.getElementById('nav').classList.toggle('stuck', !e[0].isIntersecting);
+  }).observe(sentinel);
+})();
+</script>
+</body>
+</html>
