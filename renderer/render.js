@@ -605,10 +605,10 @@ export function render(T, templateSrc) {
   '  .feature .veil{z-index:1}\n' +
   '  .feature .fc{position:relative;z-index:2;padding:54px 20px 20px}\n' +
   '  .feature .badge{z-index:3}\n' +
-  '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#0C2A20);padding-top:18px;min-height:0}\n' +
+  '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#1B4732);padding-top:18px;min-height:0}\n' +
     '  .feature.nophoto .fc{position:static;padding:16px 20px 20px}\n' +
     '  .feature.nophoto .badge{position:static;display:inline-flex;margin-left:20px}\n' +
-    '  .staycard .ph{width:100%;height:100%;background:linear-gradient(160deg,var(--deep),#0C2A20)}\n' +
+    '  .staycard .ph{width:100%;height:100%;background:linear-gradient(160deg,var(--deep),#1B4732)}\n' +
     // .sect is display:flex, which outranks the UA [hidden] rule, so the
     // Flights heading stayed visible with its card hidden beneath it.
     '  [hidden]{display:none!important}',
@@ -1323,7 +1323,7 @@ export function render(T, templateSrc) {
   replaceRegex(/\s*<link rel="preload" as="font"[^>]*jakarta\.woff2[^>]*>/, '', 'drop the Jakarta preload');
 
   insertBefore('</style>', [
-    '  .nav{background:#0E3125;backdrop-filter:none;-webkit-backdrop-filter:none}',
+    '  .nav{background:#23583F;backdrop-filter:none;-webkit-backdrop-filter:none}',
     '  .view{padding-bottom:132px}',
     '',
   ].join('\n'), 'solid nav');
@@ -1631,7 +1631,7 @@ export function render(T, templateSrc) {
     '        (hmy+hdx*0.12).toFixed(1)+","+s0.x.toFixed(1)+" "+s0.y.toFixed(1);',
     '      line+=\'<path d="\'+hd+\'" fill="none" stroke="#FFFFFF" stroke-width="7" \'+',
     '        \'stroke-linecap="round" opacity=".85"/>\'+',
-    '        \'<path d="\'+hd+\'" fill="none" stroke="#10362A" stroke-width="2.5" \'+',
+    '        \'<path d="\'+hd+\'" fill="none" stroke="#23583F" stroke-width="2.5" \'+',
     '        \'stroke-linecap="round" stroke-dasharray="7 8" opacity=".55"/>\';',
     '    }',
     '    if(xy.length>1){',
@@ -1670,7 +1670,7 @@ export function render(T, templateSrc) {
     '          \'<image href="\'+q.pic+\'" x="-\'+R+\'" y="-\'+R+\'" width="\'+(R*2)+\'" \'+',
     '          \'height="\'+(R*2)+\'" preserveAspectRatio="xMidYMid slice" \'+',
     '          \'clip-path="url(#pc\'+q.i+\')"/>\'+',
-    '          (xy.length>1?\'<circle cx="\'+(R-4)+\'" cy="-\'+(R-4)+\'" r="13" fill="#10362A" \'+',
+    '          (xy.length>1?\'<circle cx="\'+(R-4)+\'" cy="-\'+(R-4)+\'" r="13" fill="#23583F" \'+',
     '            \'stroke="#FFFFFF" stroke-width="2.5"/>\'+',
     '            \'<text x="\'+(R-4)+\'" y="-\'+(R-9)+\'" text-anchor="middle" \'+',
     '            \'font-family="Outfit,sans-serif" font-size="14" font-weight="800" \'+',
@@ -1698,7 +1698,7 @@ export function render(T, templateSrc) {
     '        ap.y.toFixed(1)+\'" fill="none" stroke="#FFFFFF" stroke-width="6" \'+',
     '        \'stroke-linecap="round" opacity=".8"/>\'+',
     '        \'<path d="M\'+ap.bx.toFixed(1)+\' \'+ap.by.toFixed(1)+\' L\'+ap.x.toFixed(1)+\' \'+',
-    '        ap.y.toFixed(1)+\'" fill="none" stroke="#10362A" stroke-width="2.5" \'+',
+    '        ap.y.toFixed(1)+\'" fill="none" stroke="#23583F" stroke-width="2.5" \'+',
     '        \'stroke-linecap="round" stroke-dasharray="7 8" opacity=".5"/>\'+',
     '        (ap.from?\'<text x="\'+(ap.x+(ap.bx-ap.x)*0.74).toFixed(1)+\'" y="\'+',
     '          (ap.y+(ap.by-ap.y)*0.74-10).toFixed(1)+\'" \'+',
@@ -1711,8 +1711,8 @@ export function render(T, templateSrc) {
     '      // used to wipe it.',
     '      airpin+=\'<g class="airpin" transform="translate(\'+ap.x.toFixed(1)+\',\'+ap.y.toFixed(1)+\')">\'+',
     '        \'<circle r="15" fill="#FFFFFF"/>\'+',
-    '        \'<circle r="15" fill="none" stroke="#10362A" stroke-width="1.5" opacity=".25"/>\'+',
-    '        \'<g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#10362A" \'+',
+    '        \'<circle r="15" fill="none" stroke="#23583F" stroke-width="1.5" opacity=".25"/>\'+',
+    '        \'<g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#23583F" \'+',
     '        \'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\'+',
     '        \'<path d="M12 2.5c.9 0 1.6.8 1.6 1.7v5.1l7.4 4.3v2.1l-7.4-2.3v4.7l2.6 1.9v1.6L12 20.5\'+',
     '        \'l-4.2 1.1v-1.6l2.6-1.9v-4.7L3 15.7v-2.1l7.4-4.3V4.2c0-.9.7-1.7 1.6-1.7z"/></g>\'+',
@@ -1937,6 +1937,275 @@ export function render(T, templateSrc) {
     '  }',
     '',
   ].join('\n'), 'must-go css');
+
+  // --- Trip view, reorganised -------------------------------------------------
+  //
+  // raffy, 2026-09-03, pointing at the reference again: "love how the reference
+  // app structure their app. its much more organized... just do all that i ask.
+  // to make it look nice like the reference photo."
+  //
+  // The reference's trip page reads top to bottom as one answer to "am I ready
+  // and what happens first": boarding pass, where you sleep, two small cards of
+  // status side by side, then a packing checklist. Ours had the same material
+  // in a different order — stays in a horizontal rail you had to discover by
+  // swiping, flights below them, and no status anywhere — so the page listed
+  // things instead of answering anything.
+  //
+  // Four changes, in the order they appear on the page.
+
+  // 1. Order: how you get there comes before where you sleep, and two status
+  //    cards sit above both. A rail hides whatever does not fit the screen;
+  //    four stays in a column are all visible at once and each one gets room
+  //    for its dates and its side of the island.
+  replaceRegex(
+    /    <div class="sect">\n      <h2>Your stays<\/h2>[\s\S]*?<div id="flights"><\/div>/,
+    [
+      '    <div class="tduo" id="tduo"></div>',
+      '',
+      '    <div class="sect" id="flights-sect"><h2>Flights</h2></div>',
+      '    <div id="flights"></div>',
+      '',
+      '    <div class="sect">',
+      '      <h2>Your stays</h2>',
+      '      <span class="note" style="background:none;padding:0;font-size:12.5px">Tap for details</span>',
+      '    </div>',
+      '    <div class="stayrows" id="stayrail"></div>',
+      '',
+      '    <div id="packing"></div>',
+    ].join('\n'),
+    'trip view order');
+
+  // 2. The stays themselves. Same button, same data-stay hook the map and the
+  //    sheet already listen for — a row rather than a tile, so the photo stops
+  //    being the whole card and the words get to be readable.
+  replaceOnce(
+    "    b.className='staycard'; b.setAttribute('data-stay',i);",
+    "    b.className='staycard stayrow'; b.setAttribute('data-stay',i);",
+    'stay row class');
+  replaceOnce(
+    "      '<span class=\"num\">'+(i+1)+'</span>'+\n" +
+    "      (s.draft?'<span class=\"draft\">DRAFT</span>':'')+\n" +
+    "      '<div class=\"sc\"><h3>'+s.short+'</h3><div class=\"meta\">'+s.side+'<br>'+s.dates+', '+s.nights+'</div></div>';",
+    "      '<i class=\"srn\">'+(i+1)+'</i></span>'+\n" +
+    "      '<span class=\"srb\"><span class=\"srk\">'+(s.draft?'NOT BOOKED':'STAY '+(i+1))+'</span>'+\n" +
+    "      '<span class=\"srt\">'+s.short+'</span>'+\n" +
+    "      '<span class=\"srm\">'+s.dates+' &middot; '+s.nights+'</span>'+\n" +
+    "      '<span class=\"srm\">'+s.side+'</span></span>'+\n" +
+    "      '<span class=\"srg\">'+I.chev+'</span>';",
+    'stay row body');
+  // The photo guard above already emits the <img> or a .ph gradient; both now
+  // need wrapping so the row can size them as a thumbnail.
+  replaceOnce(
+    "    b.innerHTML=(function(){var q=shotFor(s);return q?",
+    "    b.innerHTML='<span class=\"srph\">'+(function(){var q=shotFor(s);return q?",
+    'stay row thumb open');
+
+  // 3. The two status cards. Left is the same ring To do draws, because "how
+  //    much is booked" is the first thing you want off this page. Right is
+  //    where the trip is in time — days to go, which day you are on, or done.
+  //    Both read off state the app already has; neither invents a number.
+  insertBefore('  renderBookings();', [
+    '  function renderDuo(){',
+    '    var el=document.getElementById("tduo"); if(!el) return;',
+    '    var td=(TODO&&TODO.todo)||[], dn=(TODO&&TODO.done)||[];',
+    '    var need=td.length+dn.length, sorted=dn.length;',
+    '    var pct=need?Math.round(sorted/need*100):0, C=137.4;',
+    '    var h="";',
+    '    if(need) h+=\'<div class="tmini"><span class="tk">Getting ready</span>\'+',
+    '      \'<div class="tmr"><svg viewBox="0 0 62 62" aria-hidden="true">\'+',
+    '      \'<circle class="trk" cx="31" cy="31" r="21.9"></circle>\'+',
+    '      \'<circle class="run" cx="31" cy="31" r="21.9" stroke-dasharray="\'+C+\'" \'+',
+    '      \'stroke-dashoffset="\'+(C-C*pct/100)+\'"></circle></svg><b>\'+pct+\'%</b></div>\'+',
+    '      \'<span class="tv">\'+sorted+\' of \'+need+\' sorted</span></div>\';',
+    '',
+    '    // Counted the same way the greeting line counts it: a calendar-day',
+    '    // difference read 7 where the header read 6, on the same screen.',
+    '    var idx=pqIndex(pqNow()), n=DAYS.length, big, small;',
+    '    if(idx<0){',
+    '      var dd=Math.max(0,Math.floor((DEPART-Date.now())/86400000));',
+    '      if(dd===0){ big="Today"; small="you "+leaveVerb(); }',
+    '      else { big=dd+""; small=(dd===1?"day":"days")+" to go"; }',
+    '    }',
+    '    else if(idx<n){ big=(idx+1)+""; small="of "+n+" days in"; }',
+    '    else { big=n+""; small="days, done"; }',
+    '    h+=\'<div class="tmini"><span class="tk">\'+(idx<0?"Counting down":(idx<n?"Right now":"That was it"))+\'</span>\'+',
+    '      \'<span class="tbig">\'+big+\'</span><span class="tv">\'+small+\'</span></div>\';',
+    '    el.innerHTML=h;',
+    '    el.style.gridTemplateColumns="repeat("+(need?2:1)+",1fr)";',
+    '  }',
+    '',
+  ].join('\n'), 'trip status pair');
+
+  // 4. The packing checklist. Every line is derived from something the trip
+  //    actually says — a flight on it, a beach in a day, a drive in a chip —
+  //    so it is the trip's list rather than a generic one stapled on. Ticks go
+  //    in the same local store as the times he overrides; nothing is shared.
+  const packList = (() => {
+    const hay = JSON.stringify(T).toLowerCase();
+    const has = (...w) => w.some((x) => hay.includes(x));
+    const out = [
+      { id: 'ids', t: 'Passports and IDs' },
+      { id: 'pay', t: 'Cards, and some cash to land with' },
+      { id: 'pwr', t: 'Chargers and a power bank' },
+    ];
+    if ((T.trip.flights || []).length) out.push({ id: 'bp', t: 'Boarding passes saved offline' });
+    const wet = has('boat', 'snorkel', 'kayak', 'ferry', 'speedboat', 'dive');
+    if (has('beach', 'pool', 'swim', 'lagoon') || wet) {
+      out.push({ id: 'swim', t: wet ? 'Swimwear, and a dry bag for the boat days' : 'Swimwear' });
+    }
+    if (has('sunset', 'beach', 'pool')) out.push({ id: 'sun', t: 'Sunscreen, hat, sunglasses' });
+    if (has('hike', 'trek', 'trail', 'temple', 'old town', 'market')) {
+      out.push({ id: 'shoe', t: 'Shoes you can walk all day in' });
+    }
+    if (has('rain', 'monsoon', 'wet season')) out.push({ id: 'rain', t: 'A light rain layer' });
+    // Only when he is the one driving. "drive 25 minutes" is a taxi, and it
+    // was putting a licence on the list of every trip with a transfer on it.
+    if (has('self-drive', 'rent a car', 'rental car', 'car hire', 'hire a car', 'driving licence')) {
+      out.push({ id: 'lic', t: 'Driving licence' });
+    }
+    out.push({ id: 'med', t: 'Any medication, in hand luggage' });
+    out.push({ id: 'plug', t: 'Plug adapter' });
+    return out;
+  })();
+
+  insertBefore('  renderBookings();', [
+    '  var PACK=' + JSON.stringify(packList) + ';',
+    '  var TICK=\'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" \'+',
+    '    \'stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>\';',
+    '  function renderPack(){',
+    '    var el=document.getElementById("packing"); if(!el||!PACK.length) return;',
+    '    var st=store(), on=0;',
+    '    PACK.forEach(function(x){ if(st.pack[x.id]) on++; });',
+    '    var pc=Math.round(on/PACK.length*100);',
+    '    el.innerHTML=\'<div class="sect"><h2>Packing</h2></div>\'+',
+    '      \'<div class="pack"><div class="pkhd"><b>\'+on+\' of \'+PACK.length+\' packed</b>\'+',
+    '      \'<span>\'+(on===PACK.length?"All in the bag":PACK.length-on+" to go")+\'</span></div>\'+',
+    '      \'<div class="pkbar"><i style="width:\'+pc+\'%"></i></div>\'+',
+    '      PACK.map(function(x){',
+    '        return \'<button class="pkrow\'+(st.pack[x.id]?" on":"")+\'" data-pack="\'+x.id+\'" \'+',
+    '          \'aria-pressed="\'+(st.pack[x.id]?"true":"false")+\'"><i class="pkbox">\'+TICK+\'</i>\'+',
+    '          \'<span>\'+esc(x.t)+\'</span></button>\';',
+    '      }).join("")+\'</div>\';',
+    '  }',
+    '',
+  ].join('\n'), 'packing checklist');
+
+  // The store predates all of this and drops any key it does not know on the
+  // way back in, so the ticks have to be listed to survive a reload.
+  replaceOnce(
+    "    MEM={times:{},plans:{},done:{},seq:0};",
+    "    MEM={times:{},plans:{},done:{},pack:{},seq:0};",
+    'pack in the store');
+  replaceOnce(
+    "MEM.done=o.done||{}; MEM.seq=o.seq||0; } }",
+    "MEM.done=o.done||{}; MEM.pack=o.pack||{}; MEM.seq=o.seq||0; } }",
+    'pack out of the store');
+
+  insertBefore('</style>', [
+    '  /* the two status cards */',
+    '  .tduo{display:grid;grid-template-columns:repeat(2,1fr);gap:11px;margin-top:20px}',
+    '  .tmini{',
+    '    background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);',
+    '    padding:15px 16px 16px;display:flex;flex-direction:column;gap:8px;min-height:156px;',
+    '  }',
+    '  .tmini .tk{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint)}',
+    '  .tmini .tv{font-size:13px;font-weight:600;color:var(--ink-soft);margin-top:auto}',
+    "  .tmini .tbig{font-family:'Outfit',sans-serif;font-size:44px;font-weight:700;line-height:1;letter-spacing:-.03em;margin-top:auto}",
+    '  .tmr{position:relative;width:62px;height:62px;margin-top:auto}',
+    '  .tmr svg{width:62px;height:62px;transform:rotate(-90deg)}',
+    '  .tmr circle{fill:none;stroke-width:7;stroke-linecap:round}',
+    '  .tmr .trk{stroke:var(--sage)}',
+    '  .tmr .run{stroke:var(--deep);transition:stroke-dashoffset .5s ease}',
+    '  @media (prefers-reduced-motion:reduce){.tmr .run{transition:none}}',
+    '  .tmr b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;',
+    "    font-family:'Outfit',sans-serif;font-size:15px;font-weight:700;letter-spacing:-.02em}",
+    '',
+    '  /* stays, as rows */',
+    '  .stayrows{display:flex;flex-direction:column;gap:10px}',
+    // .staycard is 210x272 with a dark fill; every one of those has to be
+    // undone here or the row keeps the tile's box.
+    '  .stayrow{',
+    '    display:grid;grid-template-columns:74px 1fr 18px;gap:14px;align-items:center;',
+    '    width:100%;height:auto;text-align:left;padding:11px 14px 11px 11px;',
+    '    background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);',
+    '    overflow:visible;transition:transform 170ms var(--e-out);',
+    '  }',
+    '  .stayrow .veil{display:none}',
+    '  .stayrow:active{transform:scale(.985)}',
+    '  .srph{',
+    '    position:relative;display:block;width:74px;height:74px;border-radius:18px;',
+    '    overflow:hidden;background:linear-gradient(160deg,var(--deep),#1B4732);',
+    '  }',
+    '  .srph img{width:100%;height:100%;object-fit:cover;display:block}',
+    '  .srn{',
+    '    position:absolute;left:6px;top:6px;width:20px;height:20px;border-radius:50%;',
+    "    background:rgba(255,255,255,.94);color:var(--deep);font-family:'Outfit',sans-serif;",
+    '    font-size:11.5px;font-weight:800;font-style:normal;display:flex;align-items:center;justify-content:center;',
+    '  }',
+    '  .srb{display:block;min-width:0}',
+    '  .srk{display:block;font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--ink-faint)}',
+    "  .srt{display:block;margin-top:3px;font-family:'Outfit',sans-serif;font-size:16.5px;",
+    '    font-weight:700;letter-spacing:-.01em;line-height:1.2}',
+    '  .srm{display:block;margin-top:2px;font-size:12.5px;font-weight:500;color:var(--ink-faint);line-height:1.35}',
+    '  .srg{color:var(--ink-faint);display:flex}',
+    '  .srg svg{width:18px;height:18px}',
+    '',
+    '  /* packing */',
+    '  .pack{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:15px 16px 8px}',
+    '  .pkhd{display:flex;align-items:baseline;justify-content:space-between;gap:10px}',
+    "  .pkhd b{font-family:'Outfit',sans-serif;font-size:15.5px;font-weight:700}",
+    '  .pkhd span{font-size:12.5px;font-weight:600;color:var(--ink-faint)}',
+    '  .pkbar{height:6px;border-radius:99px;background:var(--sage);margin:11px 0 6px;overflow:hidden}',
+    '  .pkbar i{display:block;height:100%;border-radius:99px;background:var(--deep);transition:width .35s ease}',
+    '  @media (prefers-reduced-motion:reduce){.pkbar i{transition:none}}',
+    '  .pkrow{',
+    '    display:flex;align-items:center;gap:11px;width:100%;text-align:left;',
+    '    padding:11px 0;font-size:14px;font-weight:600;color:var(--ink);',
+    '    border-top:1px solid var(--line);',
+    '  }',
+    '  .pkbox{',
+    '    flex:none;width:21px;height:21px;border-radius:7px;border:2px solid var(--line);',
+    '    display:flex;align-items:center;justify-content:center;color:transparent;',
+    '    transition:background 150ms var(--e-out),border-color 150ms var(--e-out);',
+    '  }',
+    '  .pkbox svg{width:13px;height:13px}',
+    '  .pkrow.on .pkbox{background:var(--deep);border-color:var(--deep);color:#fff}',
+    '  .pkrow.on span{color:var(--ink-faint);text-decoration:line-through}',
+    '',
+  ].join('\n'), 'trip view css');
+
+
+  // The two renderers above are defined beside renderBookings, which the
+  // template splices in ABOVE the line that assigns LSK. Calling them there
+  // made store() cache itself against an undefined key, so every tick was
+  // written to a bucket the next load never read. They run here instead, at
+  // the end of the app's own IIFE, where every var it needs has a value.
+  insertBefore("  grab.addEventListener('pointercancel',up);\n})();", [
+    '  renderDuo();',
+    '  renderPack();',
+    '  (function(){ var e=document.getElementById("dayssub"); if(e) e.textContent=',
+    '    DAYS.length+(DAYS.length===1?" day":" days")+" in "+T.trip.title+", "+dateRange()+"."; })();',
+    '  document.addEventListener("click",function(e){',
+    '    var b=e.target.closest&&e.target.closest("[data-pack]"); if(!b) return;',
+    '    var k=b.getAttribute("data-pack"), st=store();',
+    '    if(st.pack[k]) delete st.pack[k]; else st.pack[k]=1;',
+    '    save(); renderPack();',
+    '  });',
+    "  grab.addEventListener('pointercancel',up);",
+  ].join('\n'), 'trip cards boot');
+
+  // 5. Every view opens the same way. To do and Explore already had eyebrow,
+  //    title, one line of what this page is for; Days had an eyebrow and then
+  //    dropped you straight into the date strip, so it was the one tab that
+  //    never said what it was.
+  replaceOnce(
+    '      <span class="eyebrow">Day by day</span>\n' +
+    '      <div id="todayjump" style="margin-top:12px"></div>',
+    '      <span class="eyebrow">Day by day</span>\n' +
+    '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">Your itinerary</h1>\n' +
+    '      <p id="dayssub" style="margin:9px 0 0;font-size:14.5px;color:var(--ink-soft)"></p>\n' +
+    '      <div id="todayjump" style="margin-top:14px"></div>',
+    'days view header');
 
   // --- boot ------------------------------------------------------------------
 
