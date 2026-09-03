@@ -378,31 +378,25 @@ export function render(T, templateSrc) {
         '<div class="sub" id="countdown">' + esc(tr.sub) + '</div></div>' +
         '<span class="pill tiny" id="tripstate">' + esc(tr.statePill) + '</span>';
 
-      // The trip opens on a photograph, the way the landing page does.
+      // Who and where, in words, above the picture.
       //
-      // raffy, 2026-09-03: "look at my landing page. that's really nice . but
-      // the app produce is not nice." The landing page opens on Moraine Lake.
-      // The app opened on two lines of 58px type, five pills and a row of
-      // initials — six hundred pixels before a single picture. It is the same
-      // photograph the card below was already using; it just belongs at the
-      // top, with the name of the place on it.
+      // raffy, 2026-09-03, holding his Phu Quoc app next to what I had built:
+      // "what I want is like phu quoc, there's title and day and country which
+      // u did but y put that in pic. but what I want is on top and in pic a
+      // short one line summary."
+      //
+      // I had moved the whole identity onto the photograph, which reads well
+      // for one screen and then leaves the picture doing two jobs. His app had
+      // it right: the name of the place, what it is, how long and with whom,
+      // set as type on the page — and the photograph below carrying one line.
+      // Restored, at the scale set above rather than the 58px it used to be.
       el = document.getElementById('hero');
-      var hf = tr.feature || {};
-      // No photo yet is the normal state of a fresh trip, so fall back to the
-      // map of where they are going before falling back to a plain gradient.
-      var hsrc = shotFor(hf) || ((T.stays||[])[0] ? mapTile(T.stays[0], 12) : '');
-      var hbits = [];
-      if(tr.titleSub) hbits.push(esc(tr.titleSub));
-      (tr.heroChips||[]).forEach(function(c){ if(c && c.text) hbits.push(esc(c.text)); });
       if(el) el.innerHTML =
-        '<div class="thero' + (hsrc ? '' : ' nophoto') + '">' +
-          (hsrc ? '<img src="' + esc(hsrc) + '" alt="' + esc(hf.alt||'') + '" />' : '') +
-          '<div class="tveil"></div>' +
-          (tr.flag ? '<span class="pill tiny ghost tflag">' + esc(tr.flag) + '</span>' : '') +
-          '<div class="tbody">' +
-            '<h1>' + esc(tr.title) + '</h1>' +
-            (hbits.length ? '<p class="tmeta">' + hbits.join(' &middot; ') + '</p>' : '') +
-          '</div>' +
+        (tr.flag ? '<span class="pill tiny ghost">' + esc(tr.flag) + '</span>' : '') +
+        '<h1>' + esc(tr.title) +
+          (tr.titleSub ? '<span class="h2">' + esc(tr.titleSub) + '</span>' : '') + '</h1>' +
+        '<div class="herochips">' +
+          (tr.heroChips||[]).map(function(c){ return pill(c.icon, c.text); }).join('') +
         '</div>' +
         '<div class="crew"><div class="faces">' +
           (tr.travellers||[]).map(function(p){
@@ -460,20 +454,27 @@ export function render(T, templateSrc) {
           f.stats = stats;
         }
 
-        // White, not near-black. The photograph moved to the hero, so what
-        // is left here is words, and words on a dark slab in the middle of a
-        // light page was the other half of why this did not look like the
-        // landing page. The date chip goes with it: it was a full-width
-        // orange bar, which is most of the coral on the screen spent on the
-        // one thing the header already says.
-        el.className = 'fcard';
+        // The picture, and one line on it. "in pic a short one line summary."
+        //
+        // Everything else that used to be printed over the photograph — the
+        // paragraph, the three stats — sits under it in white, where it can be
+        // read. A photograph carrying four things is a poster; carrying one it
+        // is a photograph.
+        el.className = 'fwrap' + (fsrc ? '' : ' nophoto');
         el.innerHTML =
-          '<span class="fbadge" id="febadge" hidden></span>' +
-          '<div class="fc">' + (f.h ? '<h2>' + esc(f.h) + '</h2>' : '') +
-          (f.p ? '<p>' + esc(f.p) + '</p>' : '') +
-          '<div class="fstats">' +
-            (f.stats||[]).map(function(s){ return pill(s.icon, s.text); }).join('') +
-          '</div></div>';
+          '<div class="fshot">' +
+            (fsrc ? '<img src="' + esc(fsrc) + '" alt="' + esc(f.alt||'') + '" />' : '') +
+            '<div class="fveil"></div>' +
+            '<span class="fbadge" id="febadge" hidden></span>' +
+            (f.h ? '<h2 class="fline">' + esc(f.h) + '</h2>' : '') +
+          '</div>' +
+          ((f.p || (f.stats||[]).length)
+            ? '<div class="fnote">' +
+                (f.p ? '<p>' + esc(f.p) + '</p>' : '') +
+                '<div class="fstats">' +
+                  (f.stats||[]).map(function(s){ return pill(s.icon, s.text); }).join('') +
+                '</div></div>'
+            : '');
       }
 
       // Hide the whole Flights block when there are none, rather than leaving an
@@ -2425,6 +2426,57 @@ export function render(T, templateSrc) {
     '  .bpmid{min-width:76px;padding-top:3px}',
     '  .bpline svg{width:16px;height:16px}',
     '  .bpday{font-size:10px;letter-spacing:.1em}',
+    '',
+    '  /* ---------------- the hero and the picture ---------------- */',
+    // 62px was the old display size and it is a size the rest of this app no
+    // longer speaks. Still the biggest thing on the page by a wide margin.
+    '  .hero h1,.hero .h2{font-size:clamp(30px,8.6vw,38px);letter-spacing:-.035em;line-height:1.04}',
+    '  .herochips{gap:7px;margin-top:15px}',
+    '  .crew{margin-top:15px}',
+    '  .hero{margin-top:14px}',
+    '',
+    '  /* The picture is bigger than it was, and carries one line. */',
+    '  .fwrap{margin-top:22px}',
+    '  .fshot{',
+    '    position:relative;border-radius:20px;overflow:hidden;aspect-ratio:1/1;',
+    '    box-shadow:var(--sh-m);background:linear-gradient(160deg,var(--deep),var(--deep-2));',
+    '  }',
+    '  .fshot img{width:100%;height:100%;object-fit:cover;display:block}',
+    '  .fveil{',
+    '    position:absolute;inset:0;',
+    '    background:linear-gradient(180deg,rgba(6,26,19,.34) 0%,rgba(6,26,19,0) 26%,',
+    '      rgba(6,26,19,.20) 52%,rgba(6,26,19,.86) 100%);',
+    '  }',
+    // Without a picture there is nothing to hold a square open, and an empty
+    // one just pushes the line off the bottom of a phone.
+    '  .fwrap.nophoto .fshot{aspect-ratio:auto;min-height:150px}',
+    '  .fbadge{',
+    '    position:absolute;top:14px;left:14px;z-index:2;',
+    "    background:rgba(255,255,255,.92);color:var(--deep);font-family:'Outfit',sans-serif;",
+    '    font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;',
+    '    padding:6px 11px;border-radius:var(--r-pill);backdrop-filter:blur(6px);',
+    '  }',
+    "  .fline{",
+    '    position:absolute;left:0;right:0;bottom:0;z-index:2;padding:18px;margin:0;',
+    "    font-family:'Outfit',sans-serif;font-size:21px;font-weight:700;letter-spacing:-.025em;",
+    '    line-height:1.14;color:#fff;text-shadow:0 2px 18px rgba(6,26,19,.5);',
+    '  }',
+    '  .fnote{',
+    '    background:var(--surface);border-radius:18px;box-shadow:var(--sh-s);',
+    '    margin-top:10px;padding:15px 16px 0;overflow:hidden;',
+    '  }',
+    '  .fnote p{margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft)}',
+    '  .fnote .fstats{',
+    '    display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));',
+    '    gap:1px;background:var(--line);margin:15px -16px 0;border-top:1px solid var(--line);',
+    '  }',
+    '  .fnote .fstats:empty{display:none}',
+    '  .fnote .fstats .pill{',
+    '    background:var(--surface);border-radius:0;min-width:0;box-shadow:none;',
+    '    padding:11px 8px;justify-content:center;text-align:center;line-height:1.3;',
+    '    white-space:normal;overflow-wrap:anywhere;flex-direction:column;gap:5px;',
+    '  }',
+    '  .fnote .fstats .pill svg{color:var(--ink-faint)}',
     '',
     '  /* ---------------- the chrome ---------------- */',
     '  /* Pills, avatars and the dock were all built a size up from the text',
