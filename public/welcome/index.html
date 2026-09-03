@@ -99,13 +99,13 @@ header.nav.stuck{border-bottom-color:var(--line)}
 /* A photograph rather than a wash. Masked to nothing by two thirds down, so
    the copy still sits on flat paper and the picture only lifts the top edge. */
 .herobg{
-  position:absolute;inset:-90px 0 auto;height:640px;z-index:0;pointer-events:none;
+  position:absolute;inset:-70px 0 auto;height:780px;z-index:0;pointer-events:none;
   overflow:hidden;
 }
-.herobg img{width:100%;height:100%;object-fit:cover;opacity:.34;filter:saturate(.72)}
+.herobg img{width:100%;height:100%;object-fit:cover;opacity:.72;filter:saturate(.78)}
 .herobg::after{
   content:"";position:absolute;inset:0;
-  background:linear-gradient(to bottom,rgba(234,240,234,.55) 0%,rgba(234,240,234,.72) 42%,var(--paper) 88%);
+  background:linear-gradient(to bottom,rgba(234,240,234,.18) 0%,rgba(234,240,234,.46) 38%,rgba(234,240,234,.88) 74%,var(--paper) 96%);
 }
 .herogrid{position:relative;z-index:1;display:grid;gap:30px}
 @media (min-width:960px){
@@ -217,10 +217,10 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 
 /* Full-bleed photograph. The one place the page stops being cards. */
 .band{position:relative;padding:0;overflow:hidden;background:var(--deep)}
-.band>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.58}
+.band>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.92}
 .band::after{
   content:"";position:absolute;inset:0;
-  background:linear-gradient(to right,rgba(9,26,20,.86),rgba(9,26,20,.46));
+  background:linear-gradient(to right,rgba(9,26,20,.82) 0%,rgba(9,26,20,.52) 46%,rgba(9,26,20,.16) 100%);
 }
 .bandin{position:relative;z-index:2;padding:96px 22px;max-width:1180px;margin:0 auto}
 @media (min-width:900px){.bandin{padding:150px 40px}}
@@ -333,8 +333,16 @@ section{padding:76px 0}
 .crow span:first-child{color:var(--ink-soft)}
 .crow span:last-child{font-family:'Outfit',sans-serif;font-weight:700;white-space:nowrap}
 
-/* closing */
-.close{text-align:center;max-width:660px;margin:0 auto}
+/* closing. Bookends the hero: same masked photograph, anchored the other way
+   up so the picture fades toward the copy rather than away from it. */
+.closer{position:relative;overflow:hidden}
+.closebg{position:absolute;inset:auto 0 -60px;height:560px;z-index:0;pointer-events:none;overflow:hidden}
+.closebg img{width:100%;height:100%;object-fit:cover;opacity:.8;filter:saturate(.85)}
+.closebg::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(to bottom,var(--paper) 2%,rgba(234,240,234,.78) 34%,rgba(234,240,234,.34) 100%);
+}
+.close{position:relative;z-index:1;text-align:center;max-width:660px;margin:0 auto}
 .close .lede{margin:18px auto 0;max-width:44ch}
 .close .herocta{justify-content:center}
 
@@ -619,7 +627,8 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
 </section>
 
 <!-- ============ CLOSE ============ -->
-<section>
+<section class="closer">
+  <div class="closebg"><img src="/welcome/img/sand.jpg" width="1440" height="810" alt="" loading="lazy" /></div>
   <div class="wrap close rv">
     <h2>So where do you want to go?</h2>
     <p class="lede">Tell it the way you would tell a friend. It will ask a few questions, then go and do the work.</p>
