@@ -183,7 +183,7 @@ export function render(T, templateSrc) {
   replaceRange(555, 574,
     '<div class="sect"><h2>Flights</h2></div>',
     '    <div class="sect"><h2>Flights</h2></div>\n' +
-    '    <div class="card" id="flights"></div>',
+    '    <div id="flights"></div>',
     'flights card');
 
   replaceRange(534, 547,
@@ -521,16 +521,29 @@ export function render(T, templateSrc) {
       }
 
       el = document.getElementById('flights');
-      if(el) el.innerHTML = (tr.flights||[]).map(function(fl, i){
-        return (i ? '<div class="fdiv"></div>' : '') +
-          '<div class="flightcard">' +
-            '<div class="col"><div class="code">' + esc(fl.from) + '</div>' +
-              '<div class="t">' + esc(fl.dep) + '</div></div>' +
-            '<div class="mid">' + (going().icon === 'car' ? SHELLI.car : SHELLI.plane) +
-              '<span class="d">' + esc(fl.day) + '</span></div>' +
-            '<div class="col r"><div class="code">' + esc(fl.to) + '</div>' +
-              '<div class="t">' + esc(fl.arr) + '</div></div>' +
-          '</div>';
+      // A ticket, not two rows of text. Only what the trip actually knows goes
+      // on it: where from, where to, the times it has, and the day. No
+      // duration — the times can straddle a timezone (Phu Quoc runs an hour
+      // behind Malaysia) and a subtraction would quietly print the wrong one.
+      if(el) el.innerHTML = (tr.flights||[]).map(function(fl){
+        var mark = going().icon === 'car' ? SHELLI.car : SHELLI.plane;
+        var side = function(code, time, right){
+          return '<div' + (right ? ' class="bpr"' : '') + '>' +
+            '<div class="bpcode">' + esc(code) + '</div>' +
+            (time ? '<div class="bpt">' + esc(time) + '</div>' : '') + '</div>';
+        };
+        return '<div class="bpass">' +
+          '<div class="bphead"><span>' + (fl.dir === 'back' ? 'Return' : 'Outbound') +
+            '</span>' + mark + '</div>' +
+          '<div class="bpbody">' +
+            side(fl.from, fl.dep, false) +
+            '<div class="bpmid"><div class="bpline">' +
+              '<i class="bpdot"></i><i class="bpdash"></i>' + mark +
+              '<i class="bpdash"></i><i class="bpdot"></i></div>' +
+              (fl.day ? '<span class="bpday">' + esc(fl.day) + '</span>' : '') +
+            '</div>' +
+            side(fl.to, fl.arr, true) +
+          '</div></div>';
       }).join('');
     }
   `;
@@ -877,13 +890,20 @@ export function render(T, templateSrc) {
     '  .bkempty b{display:block;font-family:\'Outfit\',sans-serif;font-size:17px;font-weight:700}',
     '  .bkempty p{margin:7px 0 0;font-size:13px;line-height:1.55;color:var(--ink-soft)}',
     '  .bkask{margin-top:12px;font-size:12.5px;line-height:1.55;color:var(--ink-faint);padding:0 2px}',
-    '  .bksum{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:16px 17px 14px;margin-top:14px}',
-    '  .bksum .top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}',
-    '  .bksum .top b{font-family:\'Outfit\',sans-serif;font-size:16.5px;font-weight:700}',
-    '  .bksum .top span{font-size:12.5px;color:var(--ink-faint);font-weight:600}',
-    '  .bkbar{display:flex;gap:3px;margin-top:12px}',
-    '  .bkbar i{height:5px;flex:1;border-radius:99px;background:var(--sage)}',
-    '  .bkbar i.on{background:var(--deep)}',
+    // A ring, not a bar. A bar of five segments reads as five of something;
+    // the question here is how close the trip is to being ready, and a ring
+    // answers that at a glance from across the room.
+    '  .bksum{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-s);padding:16px 18px;margin-top:14px;display:flex;align-items:center;gap:16px}',
+    '  .bkring{position:relative;flex:0 0 74px;width:74px;height:74px}',
+    '  .bkring svg{width:74px;height:74px;transform:rotate(-90deg)}',
+    '  .bkring circle{fill:none;stroke-width:8;stroke-linecap:round}',
+    '  .bkring .trk{stroke:var(--sage)}',
+    '  .bkring .run{stroke:var(--deep);transition:stroke-dashoffset .5s ease}',
+    '  @media (prefers-reduced-motion:reduce){.bkring .run{transition:none}}',
+    '  .bkring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;',
+    '    font-family:\'Outfit\',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.02em}',
+    '  .bksum .top b{display:block;font-family:\'Outfit\',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.01em}',
+    '  .bksum .top span{display:block;margin-top:4px;font-size:13px;color:var(--ink-faint);font-weight:600}',
     '',
   ].join('\n'), 'bookings css');
 
@@ -1106,9 +1126,16 @@ export function render(T, templateSrc) {
     '    var todo=(TODO&&TODO.todo)||[], done=(TODO&&TODO.done)||[], extra=(TODO&&TODO.extra)||[];',
     '    var need=todo.length+done.length, sorted=done.length;',
     '',
-    '    var bars=""; for(var i=0;i<need;i++) bars+=\'<i class="\'+(i<sorted?"on":"")+\'"></i>\';',
-    '    var h=need?\'<div class="bksum"><div class="top"><b>\'+sorted+\' of \'+need+\' sorted</b>\'+',
-    '      \'<span>\'+(need-sorted)+\' left</span></div><div class="bkbar">\'+bars+\'</div></div>\':"";',
+    '    var pct=need?Math.round(sorted/need*100):0, C=163.4;',
+    '    var h=need?\'<div class="bksum"><div class="bkring">\'+',
+    '      \'<svg viewBox="0 0 74 74" aria-hidden="true">\'+',
+    '      \'<circle class="trk" cx="37" cy="37" r="26"></circle>\'+',
+    '      \'<circle class="run" cx="37" cy="37" r="26" stroke-dasharray="\'+C+\'" \'+',
+    '      \'stroke-dashoffset="\'+(C-C*pct/100)+\'"></circle></svg>\'+',
+    '      \'<b>\'+pct+\'%</b></div>\'+',
+    '      \'<div class="top"><b>\'+sorted+\' of \'+need+\' sorted</b><span>\'+',
+    '      (sorted===need?"Nothing left to book.":(need-sorted)+(need-sorted===1?" thing":" things")+" still to do.")+',
+    '      \'</span></div></div>\':"";',
     '',
     '    // Grouped by when it has to happen, because that is the only thing',
     '    // that decides what you do next.',
