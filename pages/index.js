@@ -43,6 +43,11 @@ export default function Home() {
   const [building, setBuilding] = useState(false);
   const [itinerary, setItinerary] = useState(null);
   const [preview, setPreview] = useState('');
+  // A render that throws used to be logged and then look exactly like a trip
+  // with nothing in it yet, so the one screen that could have said something
+  // was wrong said "once there is enough to build" instead — through every
+  // reload and every rebuild.
+  const [previewErr, setPreviewErr] = useState('');
   const [sheet, setSheet] = useState(false);       // itinerary open on mobile
   const [error, setError] = useState('');
   const [booting, setBooting] = useState(true);
@@ -352,8 +357,11 @@ export default function Home() {
     if (sig === lastItinerary.current) return;
     lastItinerary.current = sig;
     renderPreview(forRender(working))
-      .then(setPreview)
-      .catch((e) => console.error('preview failed', e));
+      .then((html) => { setPreview(html); setPreviewErr(''); })
+      .catch((e) => {
+        console.error('preview failed', e);
+        setPreviewErr(String((e && e.message) || e));
+      });
   }, [working]);
 
   // Follow the conversation down, but only while they are actually at the
@@ -1075,9 +1083,20 @@ export default function Home() {
                 : (
                   <div className="empty">
                     <div className="ph" />
+                    {/* Four different situations used to say the same
+                        sentence, which is why "it just says your itinerary
+                        will appear here, even after I ask it to rebuild" was
+                        impossible to act on. Each one now says which. */}
                     <p>{building
                       ? 'Building your itinerary. Carry on — it keeps going without you.'
-                      : 'Your itinerary will appear here once there is enough to build.'}</p>
+                      : previewErr
+                        ? 'Your trip is safe, but this preview would not draw. Reload the page — that is usually enough. If it says this again, tell me.'
+                        : working && !(working.days || []).length
+                          ? 'The build came back without any days in it. Ask for it again and it will start over.'
+                          : 'Your itinerary will appear here once there is enough to build.'}</p>
+                    {previewErr && !building && (
+                      <p className="phwhy">{previewErr}</p>
+                    )}
                     {/* A bar that moves when the BUILDER moves, not when time
                         passes. An animation that fills on a timer is a lie
                         about progress, and this build genuinely varies. */}
@@ -1498,6 +1517,13 @@ export default function Home() {
           gap:16px;padding:32px;text-align:center;color:var(--ink-faint);
         }
         .empty p{margin:0;font-size:14px;line-height:1.5;max-width:26ch}
+        /* The reason, in the words the failure actually used. Small, and
+           only ever on screen when something has genuinely broken. */
+        .phwhy{
+          font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+          font-size:11px;line-height:1.45;max-width:34ch;opacity:.75;
+          word-break:break-word;
+        }
         .ph{
           width:52px;height:52px;border-radius:18px;
           background:linear-gradient(160deg,var(--sage),#D5E2D2);
