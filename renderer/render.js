@@ -271,7 +271,12 @@ export function render(T, templateSrc) {
       var img = e.target;
       if(!img || img.tagName !== 'IMG') return;
       var fig = img.closest && img.closest('figure.evshot');
-      if(fig){ fig.remove(); return; }                       // drop the whole figure
+      if(fig){
+        // The credit now sits outside the figure, so it has to go with it.
+        var cr = fig.parentNode && fig.parentNode.querySelector('.evcr');
+        if(cr) cr.remove();
+        fig.remove(); return;
+      }
       var card = img.closest && img.closest('.staycard');
       if(card){ img.outerHTML = '<div class="ph"></div>'; return; }   // gradient instead
       var feat = img.closest && img.closest('.feature');
@@ -540,8 +545,8 @@ export function render(T, templateSrc) {
     'chip rendering');
 
   replaceOnce(
-    "<figcaption class=\"cr\">'+r.it.credit+'</figcaption>",
-    "<figcaption class=\"cr\">'+creditOf(r.it)+'</figcaption>",
+    "if(r.it.credit) h+='<p class=\"evcr\">'+r.it.credit+'</p>';",
+    "if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';",
     'item photo credit');
 
 
