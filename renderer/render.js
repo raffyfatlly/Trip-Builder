@@ -29,15 +29,31 @@ export function render(T, templateSrc) {
 
   // --- helpers ---------------------------------------------------------------
 
-  // Replace an inclusive 1-indexed line range. Verifies the range still looks
-  // like what we expect before touching it, so a template change fails loudly
-  // rather than producing a subtly wrong page.
+  // Replace a block of the template. The line numbers say how LONG the block
+  // is; `expect` says where it starts.
+  //
+  // They used to say where it starts as well, which meant a single rule added
+  // to the stylesheet in <head> pushed all eleven of these off their targets
+  // and the build failed on a template nobody had broken. The app could not be
+  // restyled without renumbering this file by hand. Anchoring on the string the
+  // call already passes costs nothing and makes everything above the block
+  // free to move.
+  //
+  // The length still matters, so editing INSIDE one of these blocks is still a
+  // change to both files. That is the right trade: those are the data arrays
+  // the renderer overwrites wholesale, and their contents are template fixture,
+  // not design.
   function replaceRange(a, b, expect, next, label) {
-    const cur = lines.slice(a - 1, b).join('\n');
-    if (!cur.includes(expect)) {
-      fail(label + ': lines ' + a + '-' + b + ' no longer contain ' + JSON.stringify(expect));
+    const span = b - a + 1;
+    let at = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(expect)) {
+        if (at >= 0) fail(label + ': ' + JSON.stringify(expect) + ' appears more than once');
+        at = i;
+      }
     }
-    lines = [...lines.slice(0, a - 1), next, ...lines.slice(b)];
+    if (at < 0) fail(label + ': could not find ' + JSON.stringify(expect) + ' anywhere');
+    lines = [...lines.slice(0, at), next, ...lines.slice(at + span)];
     applied++;
   }
 
@@ -62,16 +78,29 @@ export function render(T, templateSrc) {
   }
 
   // Lift the shell icons straight out of the template rather than retyping them.
-  const svgsIn = (a, b) => lines.slice(a - 1, b).join('\n').match(/<svg[\s\S]*?<\/svg>/g) || [];
+  //
+  // By the block that holds them, not by line number. These were absolute line
+  // offsets, which meant a rule added to the stylesheet in <head> shifted every
+  // one of them and the build failed on a template that was otherwise fine —
+  // so the app could not be restyled without also editing this file. The
+  // markers below are structural: they are the containers the icons live in.
+  const svgsBetween = (open, close) => {
+    const src = lines.join('\n');
+    const a = src.indexOf(open);
+    if (a < 0) return [];
+    const b = src.indexOf(close, a + open.length);
+    if (b < 0) return [];
+    return src.slice(a, b).match(/<svg[\s\S]*?<\/svg>/g) || [];
+  };
 
-  const heroIcons = svgsIn(517, 521);
-  const featIcons = svgsIn(541, 545);
-  const planeIcon = svgsIn(556, 574)[0];
+  const heroIcons = svgsBetween('<div class="herochips">', '</div>');
+  const featIcons = svgsBetween('<div class="fstats">', '</div>');
+  const planeIcon = svgsBetween('<div class="flightcard">', '<div class="fdiv">')[0];
   if (heroIcons.length !== 3) fail('expected 3 hero chip icons, got ' + heroIcons.length);
   if (featIcons.length !== 3) fail('expected 3 feature stat icons, got ' + featIcons.length);
   if (!planeIcon) fail('could not lift the plane icon from the flights block');
 
-  const footIcons = svgsIn(578, 580);
+  const footIcons = svgsBetween('<div class="foot">', '<div class="credits">');
   if (footIcons.length !== 3) fail('expected 3 foot card icons, got ' + footIcons.length);
 
   const ICONS = {
@@ -133,7 +162,8 @@ export function render(T, templateSrc) {
   // Ideas tab instead. Removing the whole section would also null out the
   // `ordered` and `ideas` containers the renderer appends into.
   if (!T.map) {
-    replaceRange(589, 685, 'Where you go',
+    replaceRange(589, 685,
+      '<div style="padding:calc(14px + env(safe-area-inset-top)) 0 16px">',
       '    <div style="padding:calc(14px + env(safe-area-inset-top)) 0 16px">\n' +
       '      <span class="eyebrow">Worth doing</span>\n' +
       '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">Explore</h1>\n' +
@@ -144,27 +174,30 @@ export function render(T, templateSrc) {
   // "Before you lock this in" — three caveat cards plus a credits line, all
   // hardcoded about Phu Quoc ("Stop 4 is not booked", "La Festa in Sunset
   // Town"). Real content, wrong trip: it becomes data-driven from trip.notes.
-  replaceRange(576, 584, 'Before you lock this in',
+  replaceRange(576, 584, '<div class="foot">',
     '    <div class="foot" id="foot"></div>', 'foot section');
 
   // shell: replace the hardcoded blocks with containers renderShell() fills
-  replaceRange(556, 574,
-    'flightcard',
+  // The block starts one line below the Flights heading, and "card" alone is
+  // not unique. Take the heading as the anchor and put it straight back.
+  replaceRange(555, 574,
+    '<div class="sect"><h2>Flights</h2></div>',
+    '    <div class="sect"><h2>Flights</h2></div>\n' +
     '    <div class="card" id="flights"></div>',
     'flights card');
 
   replaceRange(534, 547,
-    'class="feature"',
+    '<div class="feature">',
     '    <div class="feature" id="feature"></div>',
     'feature card');
 
   replaceRange(514, 532,
-    'class="crew"',
+    '<div class="hero">',
     '    <div class="hero" id="hero"></div>',
     'hero block');
 
   replaceRange(506, 512,
-    'class="hello"',
+    '<div class="hello">',
     '    <div class="hello" id="hello"></div>',
     'hello block');
 
