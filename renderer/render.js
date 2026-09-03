@@ -996,9 +996,17 @@ export function render(T, templateSrc) {
   // go, the useful screen is what still has to be arranged; once you are
   // there, it is today. The old default — always the front page — was right
   // for neither.
+  // Which tab you land on.
+  //
+  // This used to open on To do before the trip and Days during it, on the
+  // theory that the useful screen is whatever you have to act on. raffy,
+  // 2026-09-03: "when opening app first page open is trip. now its at to do."
+  // Trip is the front page now — it is the tab he shows people and the one he
+  // expects — so that is where the app opens, and Days only takes over on a day
+  // the trip is actually running.
   insertAfter("var nav=document.getElementById('nav');",
     "\n  (function(){ var i=pqIndex(pqNow()); setTimeout(function(){"
-    + " setView(i>=0 && i<DAYS.length ? 'days' : 'book'); },0); })();",
+    + " setView(i>=0 && i<DAYS.length ? 'days' : 'trip'); },0); })();",
     'land on the tab that matches the phase');
 
 
@@ -1079,8 +1087,21 @@ export function render(T, templateSrc) {
     '    var b=t.booking||null;',
     '    var soon = !t.done && (t.due==="do this now"||t.due==="today"||t.due==="this week");',
     '    var h=\'<div class="card tdcard\'+(t.done?" is-done":"")+\'">\';',
-    '    h+=\'<div class="bkrow"><span class="bkicon\'+(t.done?" soft":(soon?" hot":""))+\'">\'+',
-    '      todoIcon(t.kind)+\'</span><div class="bkbody">\';',
+    // raffy, 2026-09-03: "every mention of places must have photos, including
+    // the to do in sorted (bookings). this is the only chance we can have
+    // photos to make that section beautiful."
+    //
+    // The task carries its own photo where the itinerary had one. Where it did
+    // not, the stay it names does; where neither does, coordinates draw a map
+    // of the actual place, which beats a stock picture of a beach. Only a task
+    // with no place at all — renew the passports, call my mum — keeps the icon.
+    '    var src=(t.photo&&P[t.photo])||"";',
+    '    if(!src && Number.isInteger(t.stay) && STAYS[t.stay]) src=shotFor(STAYS[t.stay],15)||"";',
+    '    if(!src) src=mapTile(t,15)||"";',
+    '    h+=\'<div class="bkrow">\'+(src',
+    '      ? \'<span class="bkshot"><img src="\'+esc(src)+\'" alt=""></span>\'',
+    '      : \'<span class="bkicon\'+(t.done?" soft":(soon?" hot":""))+\'">\'+todoIcon(t.kind)+\'</span>\')+',
+    '      \'<div class="bkbody">\';',
     '    // Once it is done the verb is in the way: "Book Furama" is an',
     '    // instruction, and there is nothing left to instruct.',
     '    var name=(b&&b.title)||t.what||"";',
@@ -2102,22 +2123,50 @@ export function render(T, templateSrc) {
 
   insertBefore('  renderBookings();', [
     '  var PACK=' + JSON.stringify(packList) + ';',
+    '  var CROSS=\'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '    \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>\';',
+    '  var PLUS=\'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" \'+',
+    '    \'stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>\';',
     '  var TICK=\'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" \'+',
     '    \'stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>\';',
+    // The derived list is a starting point, not the list. raffy, 2026-09-03:
+    // "for packing list, enable user to add their own, and remove what they
+    // don't need from the list too." So what is on screen is PACK plus whatever
+    // he added, minus whatever he struck out — and a line he removes is only
+    // hidden, never deleted, so the list can be put back if the trip changes.
+    '  function packList(){',
+    '    var st=store(), out=[];',
+    '    PACK.forEach(function(x){ if(!st.packOff[x.id]) out.push(x); });',
+    '    (st.packAdd||[]).forEach(function(x){ out.push(x); });',
+    '    return out;',
+    '  }',
     '  function renderPack(){',
-    '    var el=document.getElementById("packing"); if(!el||!PACK.length) return;',
-    '    var st=store(), on=0;',
-    '    PACK.forEach(function(x){ if(st.pack[x.id]) on++; });',
-    '    var pc=Math.round(on/PACK.length*100);',
+    '    var el=document.getElementById("packing"); if(!el) return;',
+    '    var st=store(), list=packList(), on=0;',
+    '    list.forEach(function(x){ if(st.pack[x.id]) on++; });',
+    '    var pc=list.length?Math.round(on/list.length*100):0;',
+    '    var hidden=PACK.length-PACK.filter(function(x){ return !st.packOff[x.id]; }).length;',
     '    el.innerHTML=\'<div class="sect"><h2>Packing</h2></div>\'+',
-    '      \'<div class="pack"><div class="pkhd"><b>\'+on+\' of \'+PACK.length+\' packed</b>\'+',
-    '      \'<span>\'+(on===PACK.length?"All in the bag":PACK.length-on+" to go")+\'</span></div>\'+',
+    '      \'<div class="pack"><div class="pkhd"><b>\'+on+\' of \'+list.length+\' packed</b>\'+',
+    '      \'<span>\'+(!list.length?"Nothing on the list":on===list.length?"All in the bag":',
+    '        (list.length-on)+" to go")+\'</span></div>\'+',
     '      \'<div class="pkbar"><i style="width:\'+pc+\'%"></i></div>\'+',
-    '      PACK.map(function(x){',
-    '        return \'<button class="pkrow\'+(st.pack[x.id]?" on":"")+\'" data-pack="\'+x.id+\'" \'+',
-    '          \'aria-pressed="\'+(st.pack[x.id]?"true":"false")+\'"><i class="pkbox">\'+TICK+\'</i>\'+',
-    '          \'<span>\'+esc(x.t)+\'</span></button>\';',
-    '      }).join("")+\'</div>\';',
+    '      list.map(function(x){',
+    '        return \'<div class="pkrow\'+(st.pack[x.id]?" on":"")+\'">\'+',
+    '          \'<button class="pktick" data-pack="\'+x.id+\'" \'+',
+    '          \'aria-pressed="\'+(st.pack[x.id]?"true":"false")+\'" \'+',
+    '          \'aria-label="\'+esc(x.t)+\'"><i class="pkbox">\'+TICK+\'</i>\'+',
+    '          \'<span>\'+esc(x.t)+\'</span></button>\'+',
+    '          \'<button class="pkdrop" data-packoff="\'+x.id+\'" \'+',
+    '          \'aria-label="Take \'+esc(x.t)+\' off the list">\'+CROSS+\'</button>\'+',
+    '        \'</div>\';',
+    '      }).join("")+',
+    '      \'<form class="pkadd" id="pkadd"><input id="pkin" placeholder="Add something" \'+',
+    '      \'maxlength="70" aria-label="Add something to pack"><button type="submit" \'+',
+    '      \'aria-label="Add">\'+PLUS+\'</button></form>\'+',
+    '      (hidden?\'<button class="pkback" id="pkback">Put back \'+hidden+\' \'+',
+    '        (hidden===1?"line":"lines")+\' I removed</button>\':"")+',
+    '      \'</div>\';',
     '  }',
     '',
   ].join('\n'), 'packing checklist');
@@ -2126,11 +2175,12 @@ export function render(T, templateSrc) {
   // way back in, so the ticks have to be listed to survive a reload.
   replaceOnce(
     "    MEM={times:{},plans:{},done:{},seq:0};",
-    "    MEM={times:{},plans:{},done:{},pack:{},seq:0};",
+    "    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],seq:0};",
     'pack in the store');
   replaceOnce(
     "MEM.done=o.done||{}; MEM.seq=o.seq||0; } }",
-    "MEM.done=o.done||{}; MEM.pack=o.pack||{}; MEM.seq=o.seq||0; } }",
+    "MEM.done=o.done||{}; MEM.pack=o.pack||{}; MEM.packOff=o.packOff||{};"+
+    " MEM.packAdd=o.packAdd||[]; MEM.seq=o.seq||0; } }",
     'pack out of the store');
 
   insertBefore('</style>', [
@@ -2204,6 +2254,31 @@ export function render(T, templateSrc) {
     '  .pkrow.on .pkbox{background:var(--deep);border-color:var(--deep);color:#fff}',
     '  .pkrow.on span{color:var(--ink-faint);text-decoration:line-through}',
     '',
+    '  /* a line he can tick, and a line he can take off */',
+    '  .pkrow{gap:0}',
+    '  .pktick{display:flex;align-items:center;gap:11px;flex:1;min-width:0;text-align:left;',
+    '    font:inherit;color:inherit;padding:0}',
+    '  .pkdrop{flex:none;width:30px;height:30px;display:flex;align-items:center;',
+    '    justify-content:center;color:var(--ink-faint);opacity:.5;border-radius:9px}',
+    '  .pkdrop:active{opacity:1;background:var(--sage)}',
+    '  .pkdrop svg{width:13px;height:13px}',
+    '  .pkadd{display:flex;align-items:center;gap:9px;border-top:1px solid var(--line);',
+    '    padding:8px 0}',
+    '  .pkadd input{',
+    '    flex:1;min-width:0;border:0;background:none;font:inherit;font-size:13px;',
+    '    font-weight:600;color:var(--ink);padding:9px 0;outline:none;',
+    '  }',
+    '  .pkadd input::placeholder{color:var(--ink-faint);font-weight:500}',
+    '  .pkadd button{',
+    '    flex:none;width:28px;height:28px;border-radius:50%;background:var(--deep);',
+    '    color:#fff;display:flex;align-items:center;justify-content:center;',
+    '  }',
+    '  .pkadd button svg{width:14px;height:14px}',
+    '  .pkback{',
+    '    width:100%;text-align:left;padding:11px 0;border-top:1px solid var(--line);',
+    '    font-size:12px;font-weight:600;color:var(--ink-faint);',
+    '  }',
+    '',
   ].join('\n'), 'trip view css');
 
 
@@ -2218,10 +2293,34 @@ export function render(T, templateSrc) {
     '  (function(){ var e=document.getElementById("dayssub"); if(e) e.textContent=',
     '    DAYS.length+(DAYS.length===1?" day":" days")+" in "+T.trip.title+", "+dateRange()+"."; })();',
     '  document.addEventListener("click",function(e){',
-    '    var b=e.target.closest&&e.target.closest("[data-pack]"); if(!b) return;',
-    '    var k=b.getAttribute("data-pack"), st=store();',
-    '    if(st.pack[k]) delete st.pack[k]; else st.pack[k]=1;',
+    '    var t=e.target.closest&&e.target.closest("[data-pack],[data-packoff],#pkback");',
+    '    if(!t) return;',
+    '    var st=store();',
+    '    if(t.id==="pkback"){ st.packOff={}; }',
+    '    else if(t.hasAttribute("data-packoff")){',
+    '      var d=t.getAttribute("data-packoff");',
+    '      // One of his own comes off entirely; one of ours is only hidden, so',
+    '      // "put back" can restore it.',
+    '      var i=-1;',
+    '      (st.packAdd||[]).forEach(function(x,n){ if(x.id===d) i=n; });',
+    '      if(i>=0) st.packAdd.splice(i,1); else st.packOff[d]=1;',
+    '      delete st.pack[d];',
+    '    } else {',
+    '      var k=t.getAttribute("data-pack");',
+    '      if(st.pack[k]) delete st.pack[k]; else st.pack[k]=1;',
+    '    }',
     '    save(); renderPack();',
+    '  });',
+    '  document.addEventListener("submit",function(e){',
+    '    if(!e.target || e.target.id!=="pkadd") return;',
+    '    e.preventDefault();',
+    '    var inp=document.getElementById("pkin"); if(!inp) return;',
+    '    var v=(inp.value||"").trim(); if(!v) return;',
+    '    var st=store();',
+    '    st.packAdd=st.packAdd||[];',
+    '    st.packAdd.push({ id:"u"+(++st.seq), t:v });',
+    '    save(); renderPack();',
+    '    var again=document.getElementById("pkin"); if(again) again.focus();',
     '  });',
     "  grab.addEventListener('pointercancel',up);",
   ].join('\n'), 'trip cards boot');
@@ -2502,6 +2601,11 @@ export function render(T, templateSrc) {
     '     whose subject is the words next to them. */',
     '  .bkicon{width:38px;height:38px;border-radius:12px}',
     '  .bkicon svg{width:17px;height:17px}',
+    '  .bkshot{',
+    '    flex:none;width:52px;height:52px;border-radius:14px;overflow:hidden;display:block;',
+    '    background:linear-gradient(160deg,var(--deep),var(--deep-2));',
+    '  }',
+    '  .bkshot img{width:100%;height:100%;object-fit:cover;display:block}',
     '  .bktag{font-size:9px;letter-spacing:.09em;padding:4px 8px}',
     '  .tdcard .bkbody b{font-size:14.5px;line-height:1.28}',
     '  .tdcard{padding:14px}',

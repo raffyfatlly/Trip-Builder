@@ -546,8 +546,43 @@ export default function Home() {
     }
   };
 
-  const download = () => {
-    const blob = new Blob([preview], { type: 'text/html' });
+  // Saving the trip bakes the photographs into it.
+  //
+  // raffy, 2026-09-03: "make sure the photos stay in app too." They did not:
+  // the file kept the pictures as URLs, and /api/photo is a relative path, so
+  // opened from disk it resolved to file:///api/photo and every Google Places
+  // photo was a broken image. Anything on somebody else's host was one outage
+  // from the same. See pages/api/bake.js for why the fetching happens there.
+  //
+  // Best effort, and never a reason not to get the file: if baking fails or
+  // takes too long, the download goes ahead with the URLs it already had.
+  const [baking, setBaking] = useState(false);
+  const download = async () => {
+    let html = preview;
+    const urls = (working && working.photos) || {};
+    if (Object.keys(urls).length) {
+      setBaking(true);
+      try {
+        const r = await fetch('/api/bake', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ urls }),
+          signal: AbortSignal.timeout(60000),
+        });
+        if (r.ok) {
+          const { photos } = await r.json();
+          const baked = { ...urls, ...photos };
+          // Re-render rather than string-replacing: the URLs appear inside a
+          // JSON blob in the document, and a blind replace would also hit any
+          // that happen to be a prefix of another.
+          html = await renderPreview(forRender({ ...working, photos: baked }));
+        }
+      } catch (e) {
+        console.error('baking photos failed, saving with links instead', e);
+      }
+      setBaking(false);
+    }
+    const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -944,8 +979,10 @@ export default function Home() {
             </button>
             <span>{title || 'Your itinerary'}</span>
             {ready && (
-              <button className="dl" onClick={download} aria-label="Save this trip to your phone"
-                title="Save this trip to your phone">
+              <button className={'dl' + (baking ? ' busy' : '')} onClick={download}
+                disabled={baking}
+                aria-label={baking ? 'Saving, and keeping the photos' : 'Save this trip to your phone'}
+                title={baking ? 'Saving, and keeping the photos' : 'Save this trip to your phone'}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                   strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5" /><path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" />
@@ -1516,6 +1553,12 @@ export default function Home() {
           height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
           gap:16px;padding:32px;text-align:center;color:var(--ink-faint);
         }
+        /* The photographs are being fetched and folded into the file; on a
+           trip with a dozen of them that is a few seconds. */
+        .dl.busy{opacity:.55;pointer-events:none}
+        .dl.busy svg{animation:dlpulse 1.1s ease-in-out infinite}
+        @keyframes dlpulse{0%,100%{opacity:.45}50%{opacity:1}}
+        @media (prefers-reduced-motion:reduce){.dl.busy svg{animation:none}}
         .empty p{margin:0;font-size:14px;line-height:1.5;max-width:26ch}
         /* The reason, in the words the failure actually used. Small, and
            only ever on screen when something has genuinely broken. */
