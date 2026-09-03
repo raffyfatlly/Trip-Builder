@@ -605,10 +605,10 @@ export function render(T, templateSrc) {
   '  .feature .veil{z-index:1}\n' +
   '  .feature .fc{position:relative;z-index:2;padding:54px 20px 20px}\n' +
   '  .feature .badge{z-index:3}\n' +
-  '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#1B4732);padding-top:18px;min-height:0}\n' +
+  '  .feature.nophoto{background:linear-gradient(160deg,var(--deep),#294B3C);padding-top:18px;min-height:0}\n' +
     '  .feature.nophoto .fc{position:static;padding:16px 20px 20px}\n' +
     '  .feature.nophoto .badge{position:static;display:inline-flex;margin-left:20px}\n' +
-    '  .staycard .ph{width:100%;height:100%;background:linear-gradient(160deg,var(--deep),#1B4732)}\n' +
+    '  .staycard .ph{width:100%;height:100%;background:linear-gradient(160deg,var(--deep),#294B3C)}\n' +
     // .sect is display:flex, which outranks the UA [hidden] rule, so the
     // Flights heading stayed visible with its card hidden beneath it.
     '  [hidden]{display:none!important}',
@@ -1323,7 +1323,7 @@ export function render(T, templateSrc) {
   replaceRegex(/\s*<link rel="preload" as="font"[^>]*jakarta\.woff2[^>]*>/, '', 'drop the Jakarta preload');
 
   insertBefore('</style>', [
-    '  .nav{background:#23583F;backdrop-filter:none;-webkit-backdrop-filter:none}',
+    '  .nav{background:#345E4B;backdrop-filter:none;-webkit-backdrop-filter:none}',
     '  .view{padding-bottom:132px}',
     '',
   ].join('\n'), 'solid nav');
@@ -1631,7 +1631,7 @@ export function render(T, templateSrc) {
     '        (hmy+hdx*0.12).toFixed(1)+","+s0.x.toFixed(1)+" "+s0.y.toFixed(1);',
     '      line+=\'<path d="\'+hd+\'" fill="none" stroke="#FFFFFF" stroke-width="7" \'+',
     '        \'stroke-linecap="round" opacity=".85"/>\'+',
-    '        \'<path d="\'+hd+\'" fill="none" stroke="#23583F" stroke-width="2.5" \'+',
+    '        \'<path d="\'+hd+\'" fill="none" stroke="#345E4B" stroke-width="2.5" \'+',
     '        \'stroke-linecap="round" stroke-dasharray="7 8" opacity=".55"/>\';',
     '    }',
     '    if(xy.length>1){',
@@ -1670,7 +1670,7 @@ export function render(T, templateSrc) {
     '          \'<image href="\'+q.pic+\'" x="-\'+R+\'" y="-\'+R+\'" width="\'+(R*2)+\'" \'+',
     '          \'height="\'+(R*2)+\'" preserveAspectRatio="xMidYMid slice" \'+',
     '          \'clip-path="url(#pc\'+q.i+\')"/>\'+',
-    '          (xy.length>1?\'<circle cx="\'+(R-4)+\'" cy="-\'+(R-4)+\'" r="13" fill="#23583F" \'+',
+    '          (xy.length>1?\'<circle cx="\'+(R-4)+\'" cy="-\'+(R-4)+\'" r="13" fill="#345E4B" \'+',
     '            \'stroke="#FFFFFF" stroke-width="2.5"/>\'+',
     '            \'<text x="\'+(R-4)+\'" y="-\'+(R-9)+\'" text-anchor="middle" \'+',
     '            \'font-family="Outfit,sans-serif" font-size="14" font-weight="800" \'+',
@@ -1698,7 +1698,7 @@ export function render(T, templateSrc) {
     '        ap.y.toFixed(1)+\'" fill="none" stroke="#FFFFFF" stroke-width="6" \'+',
     '        \'stroke-linecap="round" opacity=".8"/>\'+',
     '        \'<path d="M\'+ap.bx.toFixed(1)+\' \'+ap.by.toFixed(1)+\' L\'+ap.x.toFixed(1)+\' \'+',
-    '        ap.y.toFixed(1)+\'" fill="none" stroke="#23583F" stroke-width="2.5" \'+',
+    '        ap.y.toFixed(1)+\'" fill="none" stroke="#345E4B" stroke-width="2.5" \'+',
     '        \'stroke-linecap="round" stroke-dasharray="7 8" opacity=".5"/>\'+',
     '        (ap.from?\'<text x="\'+(ap.x+(ap.bx-ap.x)*0.74).toFixed(1)+\'" y="\'+',
     '          (ap.y+(ap.by-ap.y)*0.74-10).toFixed(1)+\'" \'+',
@@ -1711,8 +1711,8 @@ export function render(T, templateSrc) {
     '      // used to wipe it.',
     '      airpin+=\'<g class="airpin" transform="translate(\'+ap.x.toFixed(1)+\',\'+ap.y.toFixed(1)+\')">\'+',
     '        \'<circle r="15" fill="#FFFFFF"/>\'+',
-    '        \'<circle r="15" fill="none" stroke="#23583F" stroke-width="1.5" opacity=".25"/>\'+',
-    '        \'<g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#23583F" \'+',
+    '        \'<circle r="15" fill="none" stroke="#345E4B" stroke-width="1.5" opacity=".25"/>\'+',
+    '        \'<g transform="translate(-9,-9) scale(0.75)" fill="none" stroke="#345E4B" \'+',
     '        \'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">\'+',
     '        \'<path d="M12 2.5c.9 0 1.6.8 1.6 1.7v5.1l7.4 4.3v2.1l-7.4-2.3v4.7l2.6 1.9v1.6L12 20.5\'+',
     '        \'l-4.2 1.1v-1.6l2.6-1.9v-4.7L3 15.7v-2.1l7.4-4.3V4.2c0-.9.7-1.7 1.6-1.7z"/></g>\'+',
@@ -2134,7 +2134,7 @@ export function render(T, templateSrc) {
     '  .stayrow:active{transform:scale(.985)}',
     '  .srph{',
     '    position:relative;display:block;width:74px;height:74px;border-radius:18px;',
-    '    overflow:hidden;background:linear-gradient(160deg,var(--deep),#1B4732);',
+    '    overflow:hidden;background:linear-gradient(160deg,var(--deep),#294B3C);',
     '  }',
     '  .srph img{width:100%;height:100%;object-fit:cover;display:block}',
     '  .srn{',
