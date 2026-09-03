@@ -104,9 +104,11 @@ async function open(T, perms) {
   ok('and the page ends clear of it',
      parseInt(await page.locator('.view').first().evaluate((v) => getComputedStyle(v).paddingBottom), 10) >= 130);
 
+  // raffy, 2026-09-03: "do the trip view first, swap place with to do. to do
+  // last." Trip is the front page again; To do is the drawer of admin.
   ok('in the order the trip happens',
      (await page.locator('#nav button').evaluateAll((b) => b.map((x) => x.getAttribute('data-view')))).join(',')
-       === 'book,map,days,trip');
+       === 'trip,map,days,book');
   // raffy, 2026-09-01: "change wallet to like to do or list or something." A
 // wallet is a container; the tab is named after the job now.
   ok('the tab is named after the job', (await page.locator('#nav button[data-view="book"]').innerText()).trim() === 'To do');

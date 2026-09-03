@@ -549,9 +549,14 @@ export function render(T, templateSrc) {
       // behind Malaysia) and a subtraction would quietly print the wrong one.
       if(el) el.innerHTML = (tr.flights||[]).map(function(fl){
         var mark = going().icon === 'car' ? SHELLI.car : SHELLI.plane;
+        // A three-letter airport code and "Kuala Lumpur" are not the same
+        // typographic object. Set at one size, the second wrapped to two lines
+        // and ran off the edge of the card — his screenshot reads "Desa Coa".
         var side = function(code, time, right){
-          return '<div' + (right ? ' class="bpr"' : '') + '>' +
-            '<div class="bpcode">' + esc(code) + '</div>' +
+          var t = String(code == null ? '' : code);
+          var w = t.length > 9 ? ' xs' : t.length > 4 ? ' sm' : '';
+          return '<div class="bpcol' + (right ? ' bpr' : '') + '">' +
+            '<div class="bpcode' + w + '">' + esc(t) + '</div>' +
             (time ? '<div class="bpt">' + esc(time) + '</div>' : '') + '</div>';
         };
         return '<div class="bpass">' +
@@ -943,6 +948,9 @@ export function render(T, templateSrc) {
     '      <p class="bksub">Everything that has to be booked before you go, and everything already sorted.</p>',
     '    </div>',
     '    <div id="bookings"></div>',
+    // raffy, 2026-09-03: "packing should be to do." It is a list of things he
+    // has to do before he goes, which is the definition of this page.
+    '    <div id="packing"></div>',
     '  </section>',
     '',
   ].join('\n'), 'bookings view');
@@ -962,10 +970,10 @@ export function render(T, templateSrc) {
   // The tab order follows the trip, not the data model.
   //
   // raffy, 2026-09-01: "first todo, then explore, them day, last is trip".
-  // Read left to right it is the order things actually happen — arrange it,
-  // decide what is worth doing, see the plan, and Trip as the summary you show
-  // someone who asks. The nav is rebuilt rather than appended to, because the
-  // template's order (trip, map, days) is the reverse of that.
+  // Reversed 2026-09-03: "do the trip view first, swap place with to do. to do
+  // last." Trip is now the front page and the thing he shows someone, and To do
+  // is the drawer of admin you open when you mean to. The nav is rebuilt rather
+  // than appended to, because the template's order does not match either.
   replaceRegex(
     /<nav class="nav" id="nav">[\s\S]*?<\/nav>/,
     (() => {
@@ -978,10 +986,10 @@ export function render(T, templateSrc) {
         fail('nav: expected the three template tabs, got ' + btns.length);
       }
       const clean = (b) => b.replace(/aria-selected="[a-z]+"/, 'aria-selected="false"');
-      return '<nav class="nav" id="nav">\n' + [BOOK_TAB, of('map'), of('days'), of('trip')]
+      return '<nav class="nav" id="nav">\n' + [of('trip'), of('map'), of('days'), BOOK_TAB]
         .map(clean).join('\n') + '\n</nav>';
     })(),
-    'tab order: to do, explore, days, trip');
+    'tab order: trip, explore, days, to do');
 
   // Which tab you land on depends on which phase the trip is in. Before you
   // go, the useful screen is what still has to be arranged; once you are
@@ -1992,8 +2000,6 @@ export function render(T, templateSrc) {
       '      <span class="note" style="background:none;padding:0;font-size:12.5px">Tap for details</span>',
       '    </div>',
       '    <div class="stayrows" id="stayrail"></div>',
-      '',
-      '    <div id="packing"></div>',
     ].join('\n'),
     'trip view order');
 
@@ -2312,6 +2318,146 @@ export function render(T, templateSrc) {
     "    b.textContent=t||''; b.hidden=!t;\n" +
     "  }",
     'badge shows only when it says something');
+
+  // --- the scale ------------------------------------------------------------
+  //
+  // raffy, 2026-09-03, with five reference shots: "see how big the font for
+  // everything. doesn't feel and look like a polished app design... see how
+  // proper it look? how refine the sizing everything."
+  //
+  // He is right and it is measurable. This app was setting a 44px number, a
+  // 38px clock, three 34px page titles, a 30px day heading and a 29px airport
+  // code. Every reference he sent tops out around 26px, and only ever for ONE
+  // number per screen; their headings sit at 16 to 18 and their body copy at 12
+  // to 13. Type that large is not emphasis, it is a wireframe — nothing can be
+  // emphatic when everything is.
+  //
+  // So: one scale, stated once, at the end where it wins. Display 22 to 34 for
+  // the single biggest thing on a screen, 15 to 16 for headings, 13 for body,
+  // 11.5 for meta, 10 for labels. Padding and radii come down with it, because
+  // a 26px radius around 13px text reads as a toy.
+  insertBefore('</style>', [
+    '  /* ---------------- the type scale ---------------- */',
+    '',
+    '  /* Display. One per screen, never two. */',
+    '  .hero .tbody h1{font-size:clamp(26px,7.6vw,34px);letter-spacing:-.03em}',
+    '  .tmeta{font-size:12px;margin-top:7px}',
+    '  .dayhead h2{font-size:22px;letter-spacing:-.025em}',
+    '  .maphead h2{font-size:22px}',
+    '  .shead h2{font-size:19px}',
+    '  .live .lbig{font-size:28px}',
+    '  .live .lbig small{font-size:13px}',
+    '  .live .lclock .t{font-size:17px}',
+    '  .tmini .tbig{font-size:30px}',
+    '  .bkhead h1,#v-book h1,#v-map h1,#v-days h1{font-size:24px!important;letter-spacing:-.03em}',
+    '',
+    '  /* Headings. */',
+    '  .sect h2{font-size:15px;letter-spacing:-.01em}',
+    '  .foot h2{font-size:15px}',
+    '  .fcard h2{font-size:16.5px}',
+    '  .ev h3{font-size:14.5px;letter-spacing:-.01em}',
+    '  .srt{font-size:14.5px}',
+    '  .arearow h3{font-size:13.5px}',
+    '  .hello .who{font-size:16px}',
+    '  .pkhd b,.bksum .top b{font-size:14px}',
+    '',
+    '  /* Numbers that are not the display number. */',
+    '  .dchip .dd{font-size:18px}',
+    '  .dchip .dw{font-size:9.5px}',
+    '  .hours .v{font-size:16px}',
+    '  .nightbtn .dt .n{font-size:17px}',
+    '  .stats .sv{font-size:14px}',
+    '  .stats .sl{font-size:9.5px}',
+    '',
+    '  /* Body and below. */',
+    '  body{font-size:15px}',
+    '  .ev p,.fcard p,.bksub{font-size:13px;line-height:1.55}',
+    '  .srm,.tmini .tv,.pkhd span,.bksum .top span{font-size:11.5px}',
+    '  .pkrow{font-size:13px}',
+    '  .pill.tiny{font-size:11.5px}',
+    '  .eyebrow,.tmini .tk,.srk,.bphead{font-size:9.5px;letter-spacing:.12em}',
+    '',
+    '  /* ---------------- density ---------------- */',
+    '  /* A 26px radius around 13px text reads as a toy. */',
+    '  :root{--r-card:18px;--r-img:14px}',
+    '  .thero{border-radius:20px}',
+    '  .fcard{padding:16px;border-radius:18px}',
+    // A flex row was fine for the three stats Phu Quoc has and collided into
+    // unreadable overlap on the four Da Nang has. A grid wraps instead, and the
+    // 1px gaps over a line-coloured ground draw the dividers for free, which a
+    // border-left cannot do once rows wrap.
+    '  .fcard .fstats{',
+    '    display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));',
+    '    gap:1px;background:var(--line);margin:14px -16px -16px;',
+    '    border-top:1px solid var(--line);border-radius:0 0 18px 18px;overflow:hidden;',
+    '  }',
+    '  .fcard .fstats .pill{',
+    '    background:var(--surface);border-left:0;border-radius:0;min-width:0;',
+    '    padding:11px 8px;justify-content:center;text-align:center;line-height:1.3;',
+    // .pill is nowrap, which is right for a pill and wrong for a column: the
+    // text simply ran out of its cell and over the next one.
+    '    white-space:normal;overflow-wrap:anywhere;',
+    // Icon above the words, the way the reference stacks a stat. Beside
+    // them it floats against the middle of a three-line column.
+    '    flex-direction:column;gap:5px;',
+    '  }',
+    '  .tmini{padding:13px 14px 14px;min-height:0;gap:7px}',
+    '  .tmr{width:54px;height:54px}',
+    '  .tmr svg{width:54px;height:54px}',
+    '  .tmr circle{stroke-width:6}',
+    '  .tmr b{font-size:13px}',
+    '  .stayrow{grid-template-columns:60px 1fr 16px;gap:12px;padding:10px 12px 10px 10px}',
+    '  .srph{width:60px;height:60px;border-radius:14px}',
+    '  .srn{width:18px;height:18px;font-size:10.5px;left:5px;top:5px}',
+    '  .srg svg{width:16px;height:16px}',
+    '  .sect{margin-top:26px}',
+    '  .view{padding-top:6px}',
+    '',
+    '  /* ---------------- the ticket ---------------- */',
+    '  .bpbody{padding:15px 15px 13px;gap:10px}',
+    '  .bpcol{min-width:0}',
+    '  .bpcode{font-size:22px;overflow-wrap:anywhere;hyphens:none}',
+    '  .bpcode.sm{font-size:16px;line-height:1.15}',
+    '  .bpcode.xs{font-size:14px;line-height:1.2}',
+    '  .bpt{font-size:12.5px;margin-top:5px}',
+    '  .bphead{padding:8px 15px}',
+    '  .bphead svg{width:13px;height:13px}',
+    '  .bpmid{min-width:76px;padding-top:3px}',
+    '  .bpline svg{width:16px;height:16px}',
+    '  .bpday{font-size:10px;letter-spacing:.1em}',
+    '',
+    '  /* ---------------- the chrome ---------------- */',
+    '  /* Pills, avatars and the dock were all built a size up from the text',
+    '     they sit beside, which is what made a 13px page feel like a 16px one. */',
+    '  .pill.tiny{padding:5px 11px}',
+    '  .pill.tiny svg{width:11.5px;height:11.5px}',
+    // The overlap and the ring were both set for a 36px disc. At 26px an
+    // 11px overlap leaves 15px of each face showing and a 2.5px border eats a
+    // fifth of it, so five of them read as one smudge.
+    "  .faces span{width:26px;height:26px;font-size:11px;",
+    '    margin-left:-8px;border-width:2px}',
+    '  .faces span:first-child{margin-left:0}',
+    '  .crew .cap{font-size:12px;line-height:1.4}',
+    '  .crew{gap:11px;margin-top:14px}',
+    '  .hello{padding-top:calc(10px + env(safe-area-inset-top))}',
+    '  .nav{padding:6px}',
+    '  .nav button{padding:7px 0;gap:3px}',
+    '  .nav svg{width:17px;height:17px}',
+    '  .nav span{font-size:9.5px;letter-spacing:.02em}',
+    '',
+    '  /* ---------------- To do ---------------- */',
+    '  /* A 52px coral tile per row made the icons the loudest thing on a page',
+    '     whose subject is the words next to them. */',
+    '  .bkicon{width:38px;height:38px;border-radius:12px}',
+    '  .bkicon svg{width:17px;height:17px}',
+    '  .bktag{font-size:9px;letter-spacing:.09em;padding:4px 8px}',
+    '  .tdcard .bkbody b{font-size:14.5px;line-height:1.28}',
+    '  .tdcard{padding:14px}',
+    '  .tdgo{font-size:12.5px}',
+    '  .pkrow{padding:9px 0}',
+    '  .pkbox{width:19px;height:19px;border-radius:6px}',
+    '',
+  ].join('\n'), 'the type scale');
 
   // --- boot ------------------------------------------------------------------
 
