@@ -1161,10 +1161,13 @@ export function render(T, templateSrc) {
     '      \'<span>Their site</span>\'+',
     '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" \'+',
     '      \'stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>\';',
-    '    if(LIVE && !t.done) foot+=\'<button class="tddone" data-booked="\'+esc(t.what||"")+\'">\'+',
-    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" \'+',
-    '      \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>\'+',
-    '      \'<span>Done it</span></button>\';',
+    // raffy, 2026-09-03: "maybe change done it to just tick." The label was the
+    // widest thing on the row and it sat beside a cross that says the opposite
+    // in one glyph. Two marks now, same size, same weight, opposite meanings.
+    '    if(LIVE && !t.done) foot+=\'<button class="tddone" data-booked="\'+esc(t.what||"")+\'" \'+',
+    '      \'aria-label="Mark this as done" title="Done it">\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" \'+',
+    '      \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></button>\';',
     '    if(LIVE) foot+=\'<button class="tdx" data-droptask="\'+esc(t.what||"")+\'" \'+',
     '      \'aria-label="Take this off the list" title="Take this off the list">\'+',
     '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
@@ -2649,18 +2652,23 @@ export function render(T, templateSrc) {
     // a 33px pill and a 27px cross under a 14.5px title, which makes the row
     // read as the point of the card rather than the footer of it. Everything
     // here is one step quieter than the thing it serves.
-    '  .tdfoot{gap:8px;margin-top:11px;padding:10px 0 0}',
+    // Two hairlines a card apart, one inside the card and one between cards,
+    // is the "line not the same feels messy" he pointed at. The group already
+    // separates its rows; the card does not need to separate itself as well.
+    '  .tdfoot{gap:6px;margin-top:12px;padding:0;border-top:0}',
     '  .tdgo{font-size:12px;letter-spacing:-.005em}',
     '  .tdgo svg{width:12.5px;height:12.5px;opacity:.6}',
-    '  .tddone{',
-    '    gap:5px;padding:6px 11px;font-size:11.5px;letter-spacing:.005em;',
-    '    box-shadow:inset 0 0 0 1px rgba(12,36,27,.06);',
+    // A tick and a cross, built as one control in two colours.
+    '  .tddone,.tdx{',
+    '    flex:none;width:30px;height:30px;padding:0;border-radius:10px;',
+    '    display:grid;place-items:center;',
     '  }',
-    '  .tddone svg{width:12.5px;height:12.5px}',
-    // A destructive control gets a full touch target and none of the weight.
-    '  .tdx{padding:5px;border-radius:8px;opacity:.45}',
-    '  .tdx svg{width:13px;height:13px}',
-    '  .tdx:active{opacity:1;background:var(--sage)}',
+    '  .tddone{background:var(--sage);color:var(--deep);gap:0}',
+    '  .tddone svg{width:15px;height:15px}',
+    '  .tddone:active{background:#CFE0D6}',
+    '  .tdx{background:none;color:var(--ink-faint);opacity:.5;order:9;margin-left:0}',
+    '  .tdx svg{width:14px;height:14px}',
+    '  .tdx:active{opacity:1;background:rgba(12,36,27,.06)}',
     '  .tddl{gap:8px 14px;margin-top:8px;padding-top:8px}',
     '  .tddl dt{font-size:9.5px;letter-spacing:.08em}',
     '  .tddl dd{font-size:12.5px}',
@@ -2697,9 +2705,10 @@ export function render(T, templateSrc) {
   // A separate More button under a clamped line was still four things per item.
   // Closed, an item is now a time and a title; the paragraph, the chips and the
   // tools all come back at once when you open it.
-  const CHEV = "'<svg class=\"evchev\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" '+" +
+  const CHEV = "'<i class=\"evchev\" data-more=\"'+r.id+'\" aria-hidden=\"true\">'+" +
+    "'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" '+" +
     "'stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\">'+" +
-    "'<path d=\"M6 9l6 6 6-6\"/></svg>'";
+    "'<path d=\"M6 9l6 6 6-6\"/></svg></i>'";
 
   replaceOnce(
     "        h+='<h3>'+r.it.h+'</h3><p>'+r.it.p+'</p>';\n" +
@@ -2707,7 +2716,7 @@ export function render(T, templateSrc) {
     "          if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';\n" +
     "        }",
     "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
-    "          'aria-expanded=\"false\"><span>'+r.it.h+'</span>'+" + CHEV + "+'</h3>';\n" +
+    "          'aria-expanded=\"false\">'+r.it.h+'</h3>'+" + CHEV + ";\n" +
     "        if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';\n" +
     "        if(r.it.photo){\n" +
     "          if(creditOf(r.it)) h+='<p class=\"evcr\">'+creditOf(r.it)+'</p>';\n" +
@@ -2718,7 +2727,7 @@ export function render(T, templateSrc) {
   replaceOnce(
     "        h+='<h3>'+r.idea.n+'</h3><p>'+r.idea.one+'. '+r.idea.time+'.</p>';",
     "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
-    "          'aria-expanded=\"false\"><span>'+r.idea.n+'</span>'+" + CHEV + "+'</h3>'+\n" +
+    "          'aria-expanded=\"false\">'+r.idea.n+'</h3>'+" + CHEV + "+\n" +
     "          '<p class=\"evp\">'+r.idea.one+'. '+r.idea.time+'.</p>';",
     'a planned idea opens the same way');
 
@@ -2728,6 +2737,21 @@ export function render(T, templateSrc) {
     "'<div class=\"evchips\" style=\"gap:14px\">'",
     "'<div class=\"evchips evtools\">'",
     'name the tools row');
+
+  // The figure used to lead so a right float would start at the top of the
+  // block. The chevron is pinned to that corner now, and the paragraph is what
+  // the picture should sit beside anyway, so it follows the text instead.
+  const FIG =
+    "        if(r.it.photo) h+='<figure class=\"evshot\"><img src=\"'+P[r.it.photo]+'\" alt=\"\"></figure>';";
+  replaceOnce(FIG + '\n', '', 'photo stops leading');
+  // Between the title and the paragraph. Above them the float started at the
+  // top of the block, which is where the chevron now lives; below them it began
+  // on the line after a clamped paragraph and sat in sixty pixels of nothing.
+  // Here the two surviving lines of copy wrap around it.
+  replaceOnce(
+    "        if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';",
+    FIG + "\n" + "        if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';",
+    'photo beside the words');
 
   insertBefore('  renderDuo();', [
     '  function evToggle(b){',
@@ -2746,31 +2770,64 @@ export function render(T, templateSrc) {
   ].join('\n'), 'expand a day item');
 
   insertBefore('</style>', [
-    '  /* A closed item is a time and a title. That is the day. */',
-    '  .evh{display:flex;align-items:flex-start;gap:10px;cursor:pointer}',
-    '  .evh > span{flex:1;min-width:0}',
-    '  .evchev{',
-    '    flex:none;width:15px;height:15px;margin-top:2px;color:var(--ink-faint);',
-    '    transition:transform 180ms var(--e-out);',
-    '  }',
-    '  .ev.open .evchev{transform:rotate(180deg)}',
-    '  @media (prefers-reduced-motion:reduce){.evchev{transition:none}}',
+    '  /* ---- a closed item: the time, the title, a line, a picture ---- */',
+    '  .evh{display:block;cursor:pointer;padding-right:26px}',
     '  .evh:focus-visible{outline:2.5px solid var(--coral);outline-offset:4px;border-radius:8px}',
-    '  .ev:not(.open) .evp,',
+    // Pinned to the corner of the item rather than the end of the title, so it
+    // lands at the same x whether or not there is a photograph beside the text.
+    '  .evchev{',
+    '    position:absolute;top:-2px;right:-4px;width:30px;height:30px;padding:7px;',
+    '    display:grid;place-items:center;color:var(--ink-faint);cursor:pointer;',
+    '    border-radius:9px;',
+    '  }',
+    '  .evchev svg{width:15px;height:15px;transition:transform 180ms var(--e-out)}',
+    '  .ev.open .evchev svg{transform:rotate(180deg)}',
+    '  .evchev:active{background:rgba(12,36,27,.06)}',
+    '  @media (prefers-reduced-motion:reduce){.evchev svg{transition:none}}',
+    // raffy, 2026-09-03: "text now suddenly feel too bald without description.
+    // so how can we make it better without description? possible to attach the
+    // image in collapsed view as well?"
+    //
+    // Both. One line of the description survives the collapse, and the picture
+    // comes with it — those are the two things that made the row feel like a
+    // place rather than a bullet. The chips and the tools stay behind, which is
+    // what he asked to hide in the first place.
+    '  .ev .evp{margin-top:5px}',
+    '  .ev:not(.open) .evp{',
+    '    display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;',
+    '  }',
     '  .ev:not(.open) .evcr,',
     '  .ev:not(.open) .evchips{display:none}',
-    '  .ev .evp{margin-top:7px}',
-    '  .ev .evchips{margin-top:9px}',
-    '  .ev .evtools{gap:14px;margin-top:11px}',
-    // The photograph goes with the detail too. Floated, it narrowed the title
-    // row it sat beside, so the chevron landed at a different x on that one
-    // item and the column of them stopped being a column.
-    '  .ev:not(.open) .evshot{display:none}',
+    '  .ev .evchips{margin-top:10px}',
+    '  .ev .evtools{gap:14px;margin-top:12px}',
+    '  .ev:not(.open) .evshot{width:58px;margin:0 0 2px 13px;border-radius:13px}',
+    '  .ev:not(.open) .evshot img{width:58px;height:58px}',
     // A row of five items is a list now, so it can be tighter than a stack of
     // paragraphs was. The stride between two closed items was 69px for 17px of
     // content.
-    '  .ev{padding-bottom:15px}',
-    '  .ev.open{padding-bottom:20px}',
+    '  .ev{padding-bottom:17px}',
+    '  .ev.open{padding-bottom:22px}',
+    '',
+    '  /* ---- the time ---- */',
+    // raffy, 2026-09-03: "the time style pill, a bit not like well designed.
+    // looks too generic." It was a grey lozenge of body text. A time is a
+    // number you scan down a column, so it is set as one: tabular figures, so
+    // 1:00 and 11:00 line up, and no box around it — the knot on the rail
+    // already marks where the item starts.
+    "  .tmbtn{",
+    '    padding:0;background:none;border-radius:4px;font-size:11.5px;font-weight:800;',
+    '    letter-spacing:.05em;text-transform:uppercase;font-variant-numeric:tabular-nums;',
+    '    color:var(--coral-text);',
+    '  }',
+    '  .ev.soft .tmbtn{background:none;color:var(--ink-faint)}',
+    // Only a time he set himself keeps a marker, because that is the one thing
+    // the number alone cannot say.
+    '  .tmbtn[data-set="true"]{',
+    '    background:none;color:var(--coral-text);',
+    '    box-shadow:inset 0 -2px 0 rgba(238,123,69,.45);',
+    '  }',
+    '  .tmrow{gap:9px;margin-bottom:3px}',
+    '  .inmin{font-size:10.5px;font-weight:700;letter-spacing:.04em}',
     '  .dchip{width:52px;height:70px;border-radius:18px}',
     '  .stepnav button{min-height:44px;font-size:13px}',
     '  .stepnav svg{width:15px;height:15px}',
