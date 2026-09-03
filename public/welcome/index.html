@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Trip Builder</title>
-<meta name="description" content="A travel agent that goes and checks. Real drive times, real opening hours, the building works at your hotel that week. Then an app for the trip." />
+<meta name="description" content="A travel agent that checks everything before it tells you anything. Real rates, real opening times, the refurbishment nobody mentioned. Then an app for the trip." />
 <meta name="theme-color" content="#0E2E23" />
 
 <link rel="preload" as="font" type="font/woff2" href="/outfit.woff2" crossorigin />
@@ -145,8 +145,7 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
   display:flex;align-items:center;gap:8px;white-space:nowrap;
 }
 .chip svg{width:15px;height:15px;flex:none;color:var(--coral)}
-.chip.a{right:-10px;top:57%}
-.chip.b{left:-12px;top:76%}
+.chip.a{right:-10px;top:68%}
 /* On a phone the mockup nearly fills the column, so a chip sitting at the
    same offsets as desktop lands on the day's heading instead of beside it.
    Narrow the mockup, push the chips further out, and drop them onto the two
@@ -155,7 +154,6 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
   .phone{width:min(310px,74vw)}
   .chip{font-size:11.5px;padding:7px 10px;border-radius:12px}
   .chip.a{right:-22px;top:66%}
-  .chip.b{left:-18px;top:76%}
 }
 /* Scroll-driven parallax on the two mockups. Runs off the view timeline, so
    there is no scroll listener and nothing happens where it is unsupported. */
@@ -323,8 +321,8 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
 <section class="hero">
   <div class="wrap herogrid">
     <div class="herocopy rv">
-      <h1>A travel agent<br>that actually<br><span class="soft">goes and checks.</span></h1>
-      <p class="lede herosub">It checks the drive time, the opening hours, the building works nobody mentioned. Then it builds you an app for the trip.</p>
+      <h1>It checks everything<br>before it tells you<br><span class="soft">anything.</span></h1>
+      <p class="lede herosub">A travel agent that looks it all up: room rates, opening times, the refurbishment nobody mentioned. Then it builds you an app for the trip.</p>
       <div class="herocta">
         <a class="btn btn-primary" href="/">Plan a trip</a>
         <a class="btn btn-ghost" href="#proof">See what it checked</a>
@@ -337,13 +335,10 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
           <img src="/welcome/days.png" width="780" height="1626" alt="A day in a trip to Desaru Coast, with the drive time from Kuala Lumpur and the real sunrise and sunset." fetchpriority="high" />
         </div>
         <div class="chip a float">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-          Live traffic
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>
+          Checked, not guessed
         </div>
-        <div class="chip b float d2">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M7.5 16.5 6 18"/></svg>
-          Real sunset
-        </div>
+
       </div>
     </div>
   </div>
@@ -353,12 +348,12 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
       <div class="striprow">
         <span class="lbl">Where the answers come from</span>
         <div class="srcs">
-          <span class="src">Google Places</span>
-          <span class="src">Google Routes</span>
-          <span class="src">Live fares</span>
+          <span class="src">Room rates for your dates</span>
+          <span class="src">Live flight fares</span>
           <span class="src">The hotel's own notices</span>
-          <span class="src">Weather on your dates</span>
-          <span class="src">Public holidays</span>
+          <span class="src">Opening times</span>
+          <span class="src">Public holidays and closures</span>
+          <span class="src">Airport transfer times</span>
           <span class="src">Today's exchange rate</span>
         </div>
       </div>
@@ -384,20 +379,20 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
 
       <div class="notes rv">
         <div class="note">
-          <b><span class="q">389km, about 4.5 hours</span></b>
-          <span>Asked Google for the real time on that road, with the traffic it expects on a Sunday morning. Not a number that sounds about right.</span>
-        </div>
-        <div class="note">
-          <b><span class="q">Sunrise 6:55am, sunset 7:23pm</span></b>
-          <span>Looked up for those dates on that coastline, so an evening that ends at the beach ends while there is still light.</span>
-        </div>
-        <div class="note">
           <b><span class="q">This stay is not booked yet</span></b>
-          <span>It knows what you have actually booked and what is still only a suggestion, and it says so on the day that depends on it.</span>
+          <span>It tracks what you have actually paid for and what is still only a suggestion, and it warns you on the day that depends on it. Nothing quietly becomes a fact.</span>
+        </div>
+        <div class="note">
+          <b><span class="q">389km, about 4.5 hours</span></b>
+          <span>The real time on that road at that hour, asked for on the day it was planned. Same lookup that puts a real number on an airport transfer instead of a hopeful one.</span>
         </div>
         <div class="note">
           <b><span class="q">Inside Raes's good hours</span></b>
           <span>Raes is nine months old. The drive is built around a baby's day, because it was told there is a baby.</span>
+        </div>
+        <div class="note">
+          <b><span class="q">Sunrise 6:55am, sunset 7:23pm</span></b>
+          <span>Small, but it is why the beach afternoon is not scheduled after dark. The same check stops a sunset viewpoint landing at 9pm somewhere you have never been.</span>
         </div>
       </div>
     </div>
@@ -408,29 +403,29 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
 <section id="difference">
   <div class="wrap">
     <div class="rv" style="max-width:620px;margin-bottom:38px">
-      <h2>A conversation ends. A trip does not.</h2>
-      <p class="lede" style="margin-top:16px">Planning a holiday is weeks of small decisions, most of them made when you are tired. The hard part was never writing the itinerary.</p>
+      <h2>The answer is the easy part.</h2>
+      <p class="lede" style="margin-top:16px">Anyone can write you a five day plan in thirty seconds. The work is checking any of it is still true, and then keeping hold of it for the six weeks before you fly.</p>
     </div>
 
     <div class="diff">
       <div class="panel rv">
         <div class="pmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
-        <h3>Asking gets you words</h3>
-        <p>You get a good answer, in a wall of text, in a thread you will not find again. Then you open six tabs to check whether any of it is true, and paste the survivors into a note.</p>
+        <h3>What you get from a chat</h3>
+        <p>A good looking plan, in a wall of text, in a thread you will not find again. So you open six tabs to check it yourself, and paste whatever survives into a note.</p>
         <ul class="plist">
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Prices that were right last year</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>Room prices that were right last year</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>A restaurant that closed in March</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>No idea what you already booked</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>No record of what you have already booked</li>
         </ul>
       </div>
 
       <div class="panel hot rv">
         <div class="pmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></div>
-        <h3>Checking gets you a trip</h3>
-        <p>It calls the same services a good agent would, then hands you something that is still there next week: your days, your rooms, your bookings, and the short list of what is not sorted yet.</p>
+        <h3>What you get from this</h3>
+        <p>The same plan, with every number looked up as it was written, sitting in an app on your phone. Your days, your flights, your rooms, your booking references, and the short list of what is not sorted yet.</p>
         <ul class="plist">
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Rates for your dates, in ringgit</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Opening hours it looked up today</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Room rates for your dates, in ringgit</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Opening times looked up this week</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Every booking filed with its reference</li>
         </ul>
       </div>
@@ -469,12 +464,12 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
   <div class="wrap bandgrid" style="direction:rtl">
     <div class="rv" style="direction:ltr">
       <p class="eyebrow">The weeks before you go</p>
-      <h2>It holds the list you keep forgetting.</h2>
-      <p class="lede" style="margin-top:16px">Flights, each room, anything that sells out. Ordered by when it has to happen rather than what kind of thing it is, with every deadline worked backwards from your departure.</p>
+      <h2>Flights, rooms, visas, the lot.</h2>
+      <p class="lede" style="margin-top:16px">Every seat, every room, every timed ticket that sells out, and the paperwork with a deadline of its own. Ordered by when it has to happen rather than what kind of thing it is, counted backwards from the day you fly.</p>
       <ul class="plist" style="margin-top:22px;max-width:34ch">
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Send a confirmation and it files itself</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>The reference is one tap from your pocket</li>
-        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Add your own, right down to renewing the road tax</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Forward a confirmation and it files itself, reference and all</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Your booking reference is one tap away at the airport desk</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Add your own, down to renewing a passport or ordering currency</li>
       </ul>
     </div>
     <div class="shotcard rv" style="direction:ltr">
@@ -536,7 +531,7 @@ footer{padding:38px 0 46px;border-top:1px solid var(--line);color:var(--ink-fain
 <section>
   <div class="wrap close rv">
     <h2>Tell it where you are going.</h2>
-    <p class="lede">Say it the way you would say it to a friend. It will ask what it needs, then go and find out the rest.</p>
+    <p class="lede">Say it the way you would say it to a friend. It will ask what it needs, then look up the rest.</p>
     <div class="herocta">
       <a class="btn btn-primary" href="/">Plan a trip</a>
     </div>
