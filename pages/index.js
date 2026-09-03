@@ -650,6 +650,10 @@ export default function Home() {
     try { await fetch('/api/auth/signout', { method: 'POST' }); } catch (e) { /* ignore */ }
     // The local list stays. Signing out is not "delete my trips".
     setAccount((a) => ({ ...a, user: null }));
+    // Land on the landing page rather than on a thinner copy of the app.
+    // Someone who has just left an account is not mid-task, and the page they
+    // want next is the one that says what this is.
+    window.location.href = '/welcome';
   };
 
   const dropTrip = (id) => {
