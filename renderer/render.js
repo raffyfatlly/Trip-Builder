@@ -2655,7 +2655,13 @@ export function render(T, templateSrc) {
     // Two hairlines a card apart, one inside the card and one between cards,
     // is the "line not the same feels messy" he pointed at. The group already
     // separates its rows; the card does not need to separate itself as well.
-    '  .tdfoot{gap:6px;margin-top:12px;padding:0;border-top:0}',
+    // raffy, 2026-09-04: "the tick and x here not placed well." A card with a
+    // link had .tdgo eating the slack and pushing them right for free; an
+    // errand has no link, so nothing pushed and they sat against the left edge
+    // under the words. The row ends right and the link, when there is one,
+    // holds the left.
+    '  .tdfoot{gap:6px;margin-top:12px;padding:0;border-top:0;justify-content:flex-end}',
+    '  .tdgo{margin-right:auto}',
     '  .tdgo{font-size:12px;letter-spacing:-.005em}',
     '  .tdgo svg{width:12.5px;height:12.5px;opacity:.6}',
     // A tick and a cross, built as one control in two colours.
@@ -2771,12 +2777,27 @@ export function render(T, templateSrc) {
 
   insertBefore('</style>', [
     '  /* ---- a closed item: the time, the title, a line, a picture ---- */',
-    '  .evh{display:block;cursor:pointer;padding-right:26px}',
+    // raffy, 2026-09-04: "make the photo in collapse activity to be more
+    // alligned to the title and body of text."
+    //
+    // It was floated, so it started at whichever line box followed it and its
+    // top landed somewhere in the middle of the copy. Two columns instead: the
+    // words on the left, the picture on the right starting level with the title
+    // and running down beside the body. The chevron takes the top of that same
+    // right-hand column, which is what keeps it at one x for every item — the
+    // column is flush right whether or not it holds a photograph.
+    '  .ev{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:13px;align-items:start}',
+    '  .ev > .tmrow{grid-column:1;grid-row:1}',
+    '  .ev > .evh{grid-column:1;grid-row:2}',
+    '  .ev > .evp{grid-column:1;grid-row:3}',
+    '  .ev > .evcr{grid-column:1;grid-row:4}',
+    '  .ev > .evchips{grid-column:1/-1}',
+    '  .ev > .evshot{grid-column:2;grid-row:2/span 2;float:none;margin:0;align-self:start}',
+    '  .evh{display:block;cursor:pointer}',
     '  .evh:focus-visible{outline:2.5px solid var(--coral);outline-offset:4px;border-radius:8px}',
-    // Pinned to the corner of the item rather than the end of the title, so it
-    // lands at the same x whether or not there is a photograph beside the text.
     '  .evchev{',
-    '    position:absolute;top:-2px;right:-4px;width:30px;height:30px;padding:7px;',
+    '    grid-column:2;grid-row:1;justify-self:end;margin:-6px -6px 0 0;',
+    '    width:30px;height:30px;padding:7px;',
     '    display:grid;place-items:center;color:var(--ink-faint);cursor:pointer;',
     '    border-radius:9px;',
     '  }',
@@ -2800,8 +2821,9 @@ export function render(T, templateSrc) {
     '  .ev:not(.open) .evchips{display:none}',
     '  .ev .evchips{margin-top:10px}',
     '  .ev .evtools{gap:14px;margin-top:12px}',
-    '  .ev:not(.open) .evshot{width:58px;margin:0 0 2px 13px;border-radius:13px}',
+    '  .ev:not(.open) .evshot{width:58px;border-radius:13px}',
     '  .ev:not(.open) .evshot img{width:58px;height:58px}',
+    '  .ev.open .evshot{width:86px;border-radius:16px}',
     // A row of five items is a list now, so it can be tighter than a stack of
     // paragraphs was. The stride between two closed items was 69px for 17px of
     // content.
