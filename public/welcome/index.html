@@ -214,12 +214,29 @@ section{padding:66px 0}
 }
 .destgo svg{width:15px;height:15px}
 
-/* the kinds of trip it handles */
-.cats{display:flex;flex-wrap:wrap;gap:14px 26px;justify-content:center;margin-top:40px;padding-bottom:6px}
-.cat{display:flex;flex-direction:column;align-items:center;gap:9px;width:88px}
-.cat .ic{width:52px;height:52px;border-radius:50%;background:var(--paper-2);border:1px solid var(--line);display:grid;place-items:center;color:var(--deep)}
-.cat .ic svg{width:21px;height:21px}
-.cat span{font-size:13px;font-weight:650;color:var(--ink-soft);text-align:center}
+/* The kinds of trip it handles. A circle above a word left a three by two
+   grid of holes on a phone; the same six read as one tidy line as pills, and
+   they scroll like the destination cards under them. */
+.cats{
+  display:flex;gap:9px;margin-top:34px;
+  overflow-x:auto;margin-inline:-22px;padding:4px 22px 12px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;scroll-padding-inline:22px;
+}
+.cats::-webkit-scrollbar{display:none}
+@media (min-width:760px){
+  .cats{flex-wrap:wrap;justify-content:center;overflow:visible;margin-inline:0;padding:0;gap:10px;margin-top:40px}
+}
+.cat{
+  display:inline-flex;align-items:center;gap:9px;flex:none;white-space:nowrap;
+  padding:11px 17px 11px 13px;border-radius:var(--r-pill);
+  background:var(--surface);border:1px solid var(--line);
+  font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:-.01em;
+  color:var(--ink);scroll-snap-align:start;
+  transition:border-color .18s,box-shadow .18s;
+}
+@media (hover:hover){.cat:hover{border-color:var(--sage);box-shadow:var(--shadow)}}
+.cat svg{width:17px;height:17px;flex:none;color:var(--coral)}
 
 /* proof: annotated screenshot */
 .proofgrid{display:grid;gap:34px}
@@ -371,12 +388,12 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
     </a>
 
     <div class="cats rv">
-      <div class="cat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M6 20c0-4 3-7 7-7"/><path d="M13 13c0-4 3-7 7-7M13 13C9 13 6 10 6 6"/></svg></span><span>Beach</span></div>
-      <div class="cat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M7.9 16.1 16.1 7.9"/></svg></span><span>Road trip</span></div>
-      <div class="cat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4v16M9 21V13h6v8M15 21V11l6 4v6M6 12h.01M6 16h.01M18 17h.01"/></svg></span><span>City break</span></div>
-      <div class="cat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5S20 17 20 21"/></svg></span><span>With kids</span></div>
-      <div class="cat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M17 3c-1.5 2-2 4-2 6s.5 3 2 3v9"/></svg></span><span>Food</span></div>
-      <div class="cat"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18L14.5 7 11 13l-2-3z"/></svg></span><span>Mountains</span></div>
+      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M6 20c0-4 3-7 7-7"/><path d="M13 13c0-4 3-7 7-7M13 13C9 13 6 10 6 6"/></svg>Beach</div>
+      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M7.9 16.1 16.1 7.9"/></svg>Road trip</div>
+      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4v16M9 21V13h6v8M15 21V11l6 4v6M6 12h.01M6 16h.01M18 17h.01"/></svg>City break</div>
+      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5S20 17 20 21"/></svg>With kids</div>
+      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M17 3c-1.5 2-2 4-2 6s.5 3 2 3v9"/></svg>Food</div>
+      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18L14.5 7 11 13l-2-3z"/></svg>Mountains</div>
   </div>
 </section>
 
