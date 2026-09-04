@@ -1160,11 +1160,19 @@ export function render(T, templateSrc) {
     // raffy, 2026-09-03: "maybe change done it to just tick." The label was the
     // widest thing on the row and it sat beside a cross that says the opposite
     // in one glyph. Two marks now, same size, same weight, opposite meanings.
-    '    if(LIVE && !t.done) foot+=\'<button class="tddone" data-booked="\'+esc(t.what||"")+\'" \'+',
+    '    if(LIVE && !t.done && !t.mine) foot+=\'<button class="tddone" data-booked="\'+esc(t.what||"")+\'" \'+',
     '      \'aria-label="Mark this as done" title="Done it">\'+',
     '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" \'+',
     '      \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></button>\';',
-    '    if(LIVE) foot+=\'<button class="tdx" data-droptask="\'+esc(t.what||"")+\'" \'+',
+    '    if(t.mine) foot+=\'<button class="tdx" data-mine-off="\'+esc(t.id)+\'" \'+',
+    '      \'aria-label="Take this off the list" title="Take this off the list">\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '      \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>\';',
+    '    if(t.mine) foot+=\'<button class="tddone" data-mine-tick="\'+esc(t.id)+\'" \'+',
+    '      \'aria-label="\'+(t.done?"Put this back on the list":"Mark this as done")+\'">\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" \'+',
+    '      \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></button>\';',
+    '    if(LIVE && !t.mine) foot+=\'<button class="tdx" data-droptask="\'+esc(t.what||"")+\'" \'+',
     '      \'aria-label="Take this off the list" title="Take this off the list">\'+',
     '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
     '      \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>\';',
@@ -1174,7 +1182,23 @@ export function render(T, templateSrc) {
     '',
     '  function renderBookings(){',
     '    var el=document.getElementById("bookings"); if(!el) return;',
-    '    var todo=(TODO&&TODO.todo)||[], done=(TODO&&TODO.done)||[], extra=(TODO&&TODO.extra)||[];',
+    // Copies. These are TODO's own arrays and this function runs again on
+    // every tick, so pushing into them added his item a second time each
+    // time the page redrew.
+    '    var todo=((TODO&&TODO.todo)||[]).slice(), done=((TODO&&TODO.done)||[]).slice(),',
+    '        extra=(TODO&&TODO.extra)||[];',
+    // raffy, 2026-09-04: "add something to your own list part in to do. i want
+    // they can add easily too. like if offline they don't have to depend on the
+    // chat right." Adding one used to post a message to the chat, which is no
+    // use on a plane. These live on the phone beside the packing list, and they
+    // join the same two lists everything else does so they read as one page
+    // rather than an annex.
+    '    var mem=store();',
+    '    (mem.todoAdd||[]).forEach(function(x){',
+    '      var t={ id:x.id, what:x.what, kind:x.kind||"other", own:true, mine:true,',
+    '              done:!!mem.todoDone[x.id], due:x.due||"" };',
+    '      (t.done?done:todo).push(t);',
+    '    });',
     '    var need=todo.length+done.length, sorted=done.length;',
     '',
     '    var pct=need?Math.round(sorted/need*100):0, C=163.4;',
@@ -1223,11 +1247,16 @@ export function render(T, templateSrc) {
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
     '        \'<b>You are all set</b><p>Nothing left to book. Have a good trip.</p></div>\';',
     '    }',
+    '    h+=\'<form class="tdnew" id="tdnew"><input id="tdnewin" maxlength="90" \'+',
+    '      \'placeholder="Add something of your own" aria-label="Add something to your list">\'+',
+    '      \'<button type="submit" aria-label="Add">\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" \'+',
+    '      \'stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></form>\';',
+    // Typing it is the offline path; asking is still better when the thing
+    // needs a deadline or a link found for it.
     '    if(LIVE){',
-    '      h+=\'<button class="tdadd" type="button" data-addtask="1">\'+',
-    '        \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
-    '        \'stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>\'+',
-    '        \'<span>Add something of your own</span></button>\';',
+    '      h+=\'<button class="tdask" type="button" data-addtask="1">\'+',
+    '        \'or ask me to add it, and I will look it up</button>\';',
     '    }',
     '',
     '    if(done.length||extra.length){',
@@ -1244,7 +1273,15 @@ export function render(T, templateSrc) {
     '    el.innerHTML=h;',
     '  }',
     '',
-    '  renderBookings();',
+    // Called from the boot block at the end of the IIFE, not here.
+    //
+    // This used to run where it is defined, which the template splices in ABOVE
+    // the line that assigns LSK. That was harmless while it only read TODO —
+    // and stopped being harmless the moment it read store(), because the first
+    // store() call caches MEM against whatever LSK is at the time, and up here
+    // that is undefined. Every local edit in the app would have been written to
+    // a bucket the next load never read. Same trap as the packing list, which
+    // is why they now boot from the same place.
     '',
   ].join('\n');
 
@@ -2065,7 +2102,7 @@ export function render(T, templateSrc) {
   //    much is booked" is the first thing you want off this page. Right is
   //    where the trip is in time — days to go, which day you are on, or done.
   //    Both read off state the app already has; neither invents a number.
-  insertBefore('  renderBookings();', [
+  insertBefore('  function renderBookings(){', [
     '  function renderDuo(){',
     '    var el=document.getElementById("tduo"); if(!el) return;',
     '    var td=(TODO&&TODO.todo)||[], dn=(TODO&&TODO.done)||[];',
@@ -2142,7 +2179,7 @@ export function render(T, templateSrc) {
     return out;
   })();
 
-  insertBefore('  renderBookings();', [
+  insertBefore('  function renderBookings(){', [
     '  var PACK=' + JSON.stringify(packList) + ';',
     '  var CROSS=\'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
     '    \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>\';',
@@ -2309,6 +2346,7 @@ export function render(T, templateSrc) {
   // written to a bucket the next load never read. They run here instead, at
   // the end of the app's own IIFE, where every var it needs has a value.
   insertBefore("  grab.addEventListener('pointercancel',up);\n})();", [
+    '  renderBookings();',
     '  renderDuo();',
     '  renderPack();',
     '  (function(){ var e=document.getElementById("dayssub"); if(e) e.textContent=',
@@ -2331,6 +2369,31 @@ export function render(T, templateSrc) {
     '      if(st.pack[k]) delete st.pack[k]; else st.pack[k]=1;',
     '    }',
     '    save(); renderPack();',
+    '  });',
+    '  document.addEventListener("click",function(e){',
+    '    var t=e.target.closest&&e.target.closest("[data-mine-tick],[data-mine-off]");',
+    '    if(!t) return;',
+    '    var st=store();',
+    '    if(t.hasAttribute("data-mine-off")){',
+    '      var off=t.getAttribute("data-mine-off");',
+    '      st.todoAdd=(st.todoAdd||[]).filter(function(x){ return x.id!==off; });',
+    '      delete st.todoDone[off];',
+    '    } else {',
+    '      var k=t.getAttribute("data-mine-tick");',
+    '      if(st.todoDone[k]) delete st.todoDone[k]; else st.todoDone[k]=1;',
+    '    }',
+    '    save(); renderBookings();',
+    '  });',
+    '  document.addEventListener("submit",function(e){',
+    '    if(!e.target || e.target.id!=="tdnew") return;',
+    '    e.preventDefault();',
+    '    var inp=document.getElementById("tdnewin"); if(!inp) return;',
+    '    var v=(inp.value||"").trim(); if(!v) return;',
+    '    var st=store();',
+    '    st.todoAdd=st.todoAdd||[];',
+    '    st.todoAdd.push({ id:"t"+(++st.seq), what:v, kind:"other" });',
+    '    save(); renderBookings();',
+    '    var again=document.getElementById("tdnewin"); if(again) again.focus();',
     '  });',
     '  document.addEventListener("submit",function(e){',
     '    if(!e.target || e.target.id!=="pkadd") return;',
@@ -2692,6 +2755,26 @@ export function render(T, templateSrc) {
     '  .tdwhy{font-size:12px;margin-top:6px}',
     '  .tdadd{padding:12px;font-size:12.5px;border-radius:16px}',
     '  .tdadd svg{width:14px;height:14px}',
+    '  /* Typed straight in, the way the packing list takes one. */',
+    '  .tdnew{',
+    '    display:flex;align-items:center;gap:9px;width:100%;margin-top:2px;',
+    '    padding:5px 6px 5px 15px;background:var(--surface);border-radius:16px;',
+    '    box-shadow:var(--sh-s);',
+    '  }',
+    '  .tdnew input{',
+    '    flex:1;min-width:0;border:0;background:none;font:inherit;font-size:13px;',
+    '    font-weight:650;color:var(--ink);padding:10px 0;outline:none;',
+    '  }',
+    '  .tdnew input::placeholder{color:var(--ink-faint);font-weight:500}',
+    '  .tdnew button{',
+    '    flex:none;width:30px;height:30px;border-radius:50%;background:var(--deep);',
+    '    color:#fff;display:grid;place-items:center;',
+    '  }',
+    '  .tdnew button svg{width:15px;height:15px}',
+    '  .tdask{',
+    '    display:block;width:100%;text-align:center;margin-top:9px;padding:4px;',
+    '    font-size:11.5px;font-weight:600;color:var(--ink-faint);',
+    '  }',
     '  .pkrow{padding:9px 0}',
     '  .pkbox{width:19px;height:19px;border-radius:6px}',
     '',
@@ -2908,12 +2991,14 @@ export function render(T, templateSrc) {
   //    not know about.
   replaceOnce(
     '    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],seq:0};',
-    '    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],text:{},hide:{},own:{},seq:0};',
+    '    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],text:{},hide:{},own:{},'+
+      'todoAdd:[],todoDone:{},seq:0};',
     'edits in the store');
   replaceOnce(
     'MEM.packAdd=o.packAdd||[]; MEM.seq=o.seq||0; } }',
     'MEM.packAdd=o.packAdd||[]; MEM.text=o.text||{}; MEM.hide=o.hide||{};\n' +
-    '          MEM.own=o.own||{}; MEM.seq=o.seq||0; } }',
+    '          MEM.own=o.own||{}; MEM.todoAdd=o.todoAdd||[];'+
+      ' MEM.todoDone=o.todoDone||{}; MEM.seq=o.seq||0; } }',
     'edits out of the store');
 
   // 2. rows() is the single place a day is assembled, so it is the only place
