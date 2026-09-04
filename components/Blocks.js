@@ -40,6 +40,45 @@ const mapsFor = (name, where) =>
 // of. Everyone awaiting one promise fires one request and all of them learn.
 const PLACE = new Map();   // name+where -> Promise<{photo,rating,site,maps}|null>
 
+// And the same answers, kept across reloads.
+//
+// raffy, 2026-09-05: "photos disappearing in chat when coming back."
+//
+// The Map above lives for as long as the tab does, so leaving the site and
+// returning threw away every lookup and asked Google again for the same
+// hotels — a burst of billed requests on every reload, and a card with no
+// picture wherever one of them was slow or refused. A hotel's photograph does
+// not change; the answer is worth keeping.
+//
+// Per browser, and only ever a convenience: every read and write is guarded,
+// because private windows and blocked site data both throw rather than return
+// nothing.
+const STORE = 'tb.place.v1';
+const KEEP = 30 * 24 * 3600 * 1000;
+
+function shelf() {
+  try { return JSON.parse(localStorage.getItem(STORE) || '{}') || {}; }
+  catch (e) { return {}; }
+}
+function remember(q, v) {
+  try {
+    const all = shelf();
+    all[q] = { v, at: Date.now() };
+    // Oldest out first, so one long-lived browser cannot fill its own quota.
+    const keys = Object.keys(all);
+    if (keys.length > 300) {
+      keys.sort((a, b) => (all[a].at || 0) - (all[b].at || 0)).slice(0, keys.length - 300)
+        .forEach((k) => { delete all[k]; });
+    }
+    localStorage.setItem(STORE, JSON.stringify(all));
+  } catch (e) { /* a lookup that cannot be remembered is still a lookup */ }
+}
+function recall(q) {
+  const row = shelf()[q];
+  if (!row || !row.at || Date.now() - row.at > KEEP) return undefined;
+  return row.v;
+}
+
 function usePlace(name, where) {
   const q = [name, where].filter(Boolean).join(' ').trim();
   const [found, setFound] = useState(null);
@@ -48,11 +87,19 @@ function usePlace(name, where) {
     if (!q) return undefined;
     let alive = true;
     if (!PLACE.has(q)) {
-      PLACE.set(q, fetch('/api/place?q=' + encodeURIComponent(q))
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => (d && (d.photo || d.site || d.rating) ? d : null))
-        // A card with no picture is fine. A card that never renders is not.
-        .catch(() => null));
+      const kept = recall(q);
+      if (kept !== undefined) {
+        PLACE.set(q, Promise.resolve(kept));
+      } else {
+        PLACE.set(q, fetch('/api/place?q=' + encodeURIComponent(q))
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => (d && (d.photo || d.site || d.rating) ? d : null))
+          // Only a real answer is kept. A refusal or a timeout is not something
+          // to remember for a month — the next visit should ask again.
+          .then((d) => { if (d) remember(q, d); return d; })
+          // A card with no picture is fine. A card that never renders is not.
+          .catch(() => null));
+      }
     }
     PLACE.get(q).then((v) => { if (alive) setFound(v); });
     return () => { alive = false; };

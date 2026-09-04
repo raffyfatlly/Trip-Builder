@@ -826,7 +826,13 @@ export default function Home() {
           <div className="scroll" ref={scroller} onScroll={onScroll}>
             {booting && <div className="sys">Starting…</div>}
 
-            {!booting && messages.length === 0 && skipOb && (
+            {/* It stays. raffy, 2026-09-05: "The first message in chat should
+                stay, the where are u going etc part." It was rendered only
+                while the thread was empty, so the first thing anybody typed
+                deleted the only explanation of what the two halves of this app
+                are. It is the opening of the conversation now, and it scrolls
+                away with everything else. */}
+            {!booting && skipOb && (
               <div className="intro">
                 <h1>Where are you going?</h1>
                 {/* What the two halves of this thing are, in two lines.

@@ -494,6 +494,27 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
 
+  // raffy, 2026-09-05: "can you do the places already in itenary, when click
+  // open up the drawer as well. instead of just going to the activity page.
+  // just like places to explore behave if click." Switching tab and rebuilding
+  // a whole day loses the map and everything you were comparing on it.
+  const view = () => page.evaluate(() => {
+    const v = document.querySelector('.view:not([hidden])');
+    return v ? v.id : '';
+  });
+  await page.locator('#routemap svg.pins g.plan').first().click();
+  await page.waitForTimeout(400);
+  ok('a place in the plan opens a sheet too',
+     (await page.locator('#sheet[data-open="true"]').count()) === 1);
+  ok('and does not throw you at another tab', (await view()) === 'v-map', await view());
+  const planSheet = await page.locator('#sheet').innerText();
+  ok('it says the place is already in the plan', /In your plan/.test(planSheet),
+     planSheet.split('\n').slice(0, 2).join(' / '));
+  ok('and offers the day rather than taking you there',
+     (await page.locator('#sheet [data-goday]').count()) === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+
   // raffy, 2026-09-05: "cancel doing it the drawer thing. should keep like
   // before. fix map size. something like phu quoc." His is a portrait card in
   // the page, not a stage the page lives inside.

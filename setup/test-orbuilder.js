@@ -83,7 +83,12 @@ global.fetch = async (url, opts = {}) => {
 const tc = (name, args, id = 'c' + Math.random().toString(36).slice(2, 6)) =>
   ({ id, type: 'function', function: { name, arguments: typeof args === 'string' ? args : JSON.stringify(args) } });
 
-check('it is ready once a key and a store exist', or.orBuilderReady());
+// The OpenRouter builder is off by default now — raffy, 2026-09-05, after three
+// bad builds: "switch it back to managed agent first while testing." One
+// environment variable puts it back, and the tests below still exercise it.
+check('it is off unless it is asked for', !or.orBuilderReady());
+process.env.BUILDER = 'openrouter';
+check('and ready once it is, with a key and a store', or.orBuilderReady());
 
 // A normal build: save, then photos, then stop.
 turns = [
@@ -113,6 +118,62 @@ check('it finishes when the model stops calling tools', r.building === false);
 check('and the itinerary survives to the end', r.itinerary.trip.title === 'Da Nang');
 check('a finished build is not run again',
   (await or.advanceBuild(id)).building === false && seen.length === 3);
+
+// --- the three ways a real build went wrong ---------------------------------
+//
+// raffy, 2026-09-05: "it's taking really really really long now. not like
+// before. and days wrong. 7 days can become 1. photos missing. no photo at all."
+//
+// All three are in the build records, and none of them was a slow model.
+{
+  seen = [];
+  const seven = { ...ITIN, days: Array.from({ length: 7 }, (_, i) => ({ ...ITIN.days[0], title: 'Day ' + i })) };
+
+  // 1. save_itinerary REPLACES the trip, and one real build called it three
+  //    times. The last one wins, so a seven-day trip became whatever the model
+  //    could still remember by then.
+  turns = [
+    { message: { role: 'assistant', content: '', tool_calls: [tc('save_itinerary', seven)] } },
+    { message: { role: 'assistant', content: '', tool_calls: [
+      tc('save_itinerary', { ...seven, days: [seven.days[0]] }, 'shrink')] } },
+    { message: { role: 'assistant', content: 'Done.' } },
+  ];
+  const sid = await or.startBuild('Build it.');
+  const first = await or.advanceBuild(sid);
+  check('a seven-day trip saves as seven days', first.itinerary.days.length === 7);
+  const after = await or.advanceBuild(sid);
+  check('and a second, shorter save cannot delete six of them',
+    after.itinerary.days.length === 7, after.itinerary.days.length + ' days');
+  const told = JSON.parse(DOCS.get(sid).messages.stringValue)
+    .filter((m) => m.role === 'tool' && m.tool_call_id === 'shrink')[0];
+  check('the builder is told why, so it stops trying',
+    /Not applied/.test(told.content) && /update_day/.test(told.content),
+    (told.content || '').slice(0, 60));
+  // Growing is a builder that thought of more, and must still work.
+  turns = [{ message: { role: 'assistant', content: '', tool_calls: [
+    tc('save_itinerary', { ...seven, days: seven.days.concat([{ ...ITIN.days[0], title: 'Day 8' }]) })] } }];
+  const grown = await or.advanceBuild(sid);
+  check('but a longer save still goes through', grown.itinerary.days.length === 8,
+    grown.itinerary.days.length + ' days');
+}
+
+{
+  // 2. Eight replies with no text and no tool call, pushed back eight times for
+  //    an itinerary that was never coming. That is the "really really long".
+  seen = [];
+  turns = Array.from({ length: 6 }, () => ({ message: { role: 'assistant', content: '' } }));
+  const eid = await or.startBuild('Build it.');
+  let last = null, polls = 0;
+  for (let i = 0; i < 6; i++) {
+    last = await or.advanceBuild(eid);
+    polls++;
+    if (!last.building) break;
+  }
+  check('an empty answer is not mistaken for prose', polls <= 3, polls + ' polls');
+  check('and the build gives up rather than grinding', last.building === false);
+  check('with something the traveller can act on',
+    /stopped answering/.test(last.error || ''), last.error);
+}
 
 // --- what a build carries between its own steps -----------------------------
 //

@@ -118,6 +118,7 @@ const ROUTE_MAP_JS = `
         // "Dinner at Halal Food Corner" is a line in a timetable; on a map the
         // place is the name and the meal is noise that collides with the next
         // label along.
+        var ii=(d.items||[]).indexOf(x);
         var nm=String(x.h||"").replace(MAPDO,"");
         // "Lunch at Bharata, and the walk after" is a sentence. The place is
         // the part before the comma, and a label ending in ", and the..." reads
@@ -125,7 +126,7 @@ const ROUTE_MAP_JS = `
         var cut=nm.split(/,| and | with | before | after /i)[0];
         if(cut.length>=4) nm=cut;
         plan.push({ n:(nm.charAt(0).toUpperCase()+nm.slice(1)).trim()||x.h, lat:+x.lat, lon:+x.lon,
-          day:di, pic:(x.photo&&P[x.photo])?P[x.photo]:"" });
+          day:di, item:ii, pic:(x.photo&&P[x.photo])?P[x.photo]:"" });
       });
     });
     (T.ideas||[]).forEach(function(o,ii){
@@ -197,7 +198,8 @@ const ROUTE_MAP_JS = `
     // drag from being out of the way anyway.
     // Room down each side for the photographs, which live in the margins now
     // rather than on top of the places they belong to.
-    var BUB=34;                                   // photo bubble radius, css px
+    // raffy, 2026-09-05: "you can reduce the size of the hotels a bit in map."
+    var BUB=28;                                   // photo bubble radius, css px
     var PADX=(BUB+14)*k;
     var PADB=PADX;
     var fit=pts.concat(R.plan).concat(air?[air]:[]);
@@ -257,7 +259,7 @@ const ROUTE_MAP_JS = `
 
     var pl=[];
     R.plan.forEach(function(p){
-      var q=put(p); q.n=p.n; q.pic=p.pic; q.day=p.day;
+      var q=put(p); q.n=p.n; q.pic=p.pic; q.day=p.day; q.item=p.item;
       if(q.x<12*k||q.y<12*k||q.x>MW-12*k||q.y>MH-12*k) return;
       // Markers crowd far less than names do. This gap only has to stop two
       // pins sitting on top of each other; whether they can both be named is
@@ -390,7 +392,8 @@ const ROUTE_MAP_JS = `
     // Quoc map uses for Duong Dong and Sanato — a coral ring with a coral
     // centre — and its name beside it in grey.
     var plan=pl.map(function(q){
-      return mk("pin plan",'data-goday="'+q.day+'" role="button" tabindex="0" aria-label="'+esc(q.n)+'"',
+      return mk("pin plan",'data-goday="'+q.day+'" data-item="'+q.item+'" '+
+        'role="button" tabindex="0" aria-label="'+esc(q.n)+'"',
         q.x,q.y,8*k,
         '<circle r="'+(15*k).toFixed(1)+'" fill="transparent"/>'+
         '<circle r="'+(8*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" stroke-width="'+(3*k).toFixed(1)+'"/>'+
@@ -737,7 +740,7 @@ const ROUTE_MAP_JS = `
       wire(el, function(){ openSheet(+el.getAttribute("data-stay")); });
     });
     Array.prototype.forEach.call(box.querySelectorAll("g.plan"), function(el){
-      wire(el, function(){ setView("days"); renderDay(+el.getAttribute("data-goday")); });
+      wire(el, function(){ openPlace(+el.getAttribute("data-goday"), +el.getAttribute("data-item")); });
     });
     Array.prototype.forEach.call(box.querySelectorAll("g.spot"), function(el){
       wire(el, function(){ openIdea(+el.getAttribute("data-idea")); });
@@ -934,6 +937,48 @@ const ROUTE_MAP_JS = `
     window.addEventListener("resize",function(){ rect=null; });
 
     apply();
+  }
+
+  // A place already in the plan opens where it is, rather than throwing you at
+  // another tab.
+  //
+  // raffy, 2026-09-05: "can you do the places already in itenary , when click
+  // open up the drawer as well. instead of just going to the activity page.
+  // just like places to explore behave if click."
+  //
+  // Tapping an idea opens a sheet you can read and then dismiss, leaving the map
+  // where it was. Tapping a place in the plan switched tab and re-rendered a
+  // whole day, which loses the map and everything you were comparing it to. Same
+  // gesture, same answer.
+  function openPlace(di,ii){
+    var d=(T.days||[])[di]; if(!d) return;
+    var x=(d.items||[])[ii]; if(!x) return;
+    var sh=document.getElementById("sheet"), sc=document.getElementById("scrim"),
+        body=document.getElementById("sscroll");
+    if(!sh||!body) return;
+    var when=[x.t, d.dow&&d.dom?(d.dow+" "+d.dom):""].filter(Boolean).join(" \u00b7 ");
+    var h='<div class="shead"><div style="flex:1;min-width:0">'+
+      '<h2>'+esc(x.h||"")+'</h2>'+(when?'<div class="sub">'+esc(when)+'</div>':'')+'</div>'+
+      '<button class="sclose" id="sclose" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" '+
+      'stroke="currentColor" stroke-width="2.4" stroke-linecap="round">'+
+      '<path d="M18 6 6 18M6 6l12 12"/></svg></button></div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">'+
+       '<span class="pill tiny coral">In your plan</span>'+
+       ((x.tags||[]).slice(0,2).map(function(t){ return '<span class="pill tiny ghost">'+esc(t)+'</span>'; }).join(""))+
+       '</div>';
+    if(x.photo&&P[x.photo]) h+='<figure class="shot" style="margin:14px 0 0"><img src="'+P[x.photo]+'" alt=""></figure>';
+    if(x.p) h+='<p style="margin:14px 0 0;font-size:15px;color:var(--ink-soft)">'+esc(x.p)+'</p>';
+    // The way to the day is offered, not taken for you.
+    h+='<div class="arearow"><h3>Where it sits</h3><span class="ln"></span></div><div class="nights">'+
+      '<button class="nightbtn" data-goday="'+di+'"><span class="dt">'+
+      '<span class="w">'+esc(d.dow||"")+'</span><span class="n">'+esc(d.dom||"")+'</span></span>'+
+      '<span class="tt">'+esc(d.title||"That day")+'</span><span class="go">'+(I&&I.chev?I.chev:"")+'</span>'+
+      '</button></div>';
+    body.innerHTML=h; body.scrollTop=0;
+    sh.style.transform=""; sh.setAttribute("data-open","true");
+    if(sc) sc.setAttribute("data-open","true");
+    var c=document.getElementById("sclose");
+    if(c){ c.addEventListener("click",function(){ if(typeof closeSheet==="function") closeSheet(); }); c.focus(); }
   }
 
   renderRouteMap();
