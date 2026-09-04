@@ -4,18 +4,43 @@
 // don't place any limitation. then we can study how much does it really coat me
 // in average for them to use the app and build their itenary."
 //
-//   node --env-file=.env setup/journal.js              # every session, newest first
-//   node --env-file=.env setup/journal.js <session>    # one session's timeline
-//   node --env-file=.env setup/journal.js --csv        # for a spreadsheet
+//   node setup/journal.js              # every session, newest first
+//   node setup/journal.js <session>    # one session's timeline
+//   node setup/journal.js --csv        # for a spreadsheet
 //
-// Reads Firestore directly, so it works from anywhere the service account key
-// is, without the site being up.
+// Reads Firestore directly, so it works without the site being up, and finds
+// its own credential, so it works without anything being set up.
 
-import { journalList, journalRead, firestoreConfigured } from '../lib/firestore.js';
-import { totalUsd } from '../lib/journal.js';
+// raffy, 2026-09-04: "i plan to just ask u for now. not setup anything or check
+// myself." A session that has to ask him for a key before it can say what the
+// beta is costing has failed at the one thing he wanted.
+//
+// The environment wins, because a deployment that sets it means it. Failing
+// that, the copy kept in the private vault — which is deliberately NOT under
+// this directory, since everything here is mirrored to a public repo.
+import fs from 'fs';
+import path from 'path';
+import url from 'url';
+
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  const here = path.dirname(url.fileURLToPath(import.meta.url));
+  const vault = path.resolve(here, '../../../meta/keys/trip-builder-firebase.json');
+  try {
+    if (fs.existsSync(vault)) {
+      process.env.FIREBASE_SERVICE_ACCOUNT = fs.readFileSync(vault, 'utf8');
+    }
+  } catch (e) { /* fall through to the message below */ }
+}
+
+// Imported after the fallback, because lib/firestore.js reads the environment
+// when it is first asked for credentials and caching a miss would defeat this.
+const { journalList, journalRead, firestoreConfigured } = await import('../lib/firestore.js');
+const { totalUsd } = await import('../lib/journal.js');
 
 if (!firestoreConfigured()) {
-  console.error('FIREBASE_SERVICE_ACCOUNT is not set. Run with --env-file=.env');
+  console.error('No Firebase service account.');
+  console.error('Looked for meta/keys/trip-builder-firebase.json in the vault,');
+  console.error('and FIREBASE_SERVICE_ACCOUNT in the environment.');
   process.exit(1);
 }
 
@@ -40,8 +65,10 @@ if (arg && arg !== '--csv') {
     console.log('  ' + k.padEnd(9) + (p.model || '').padEnd(20) +
       String(p.calls).padStart(4) + ' calls  ' +
       'in ' + (p.in || 0).toLocaleString().padStart(10) +
+      '  cache ' + (p.cacheRead || 0).toLocaleString().padStart(11) +
       '  out ' + (p.out || 0).toLocaleString().padStart(8) +
-      '  ' + money(p.usd));
+      (p.searches ? '  ' + p.searches + ' searches' : '') +
+      '  ' + money(p.usd) + (p.priced === 'estimated' ? ' (est)' : ''));
   }
   console.log('  ' + 'TOTAL'.padEnd(9) + ' '.repeat(20) + ' '.repeat(12) + '  ' +
     ' '.repeat(31) + money(totalUsd(j)) + '   RM' + (totalUsd(j) * 4.4).toFixed(2));
@@ -68,12 +95,12 @@ if (arg === '--csv') {
 }
 
 console.log('');
-console.log('  ' + 'SESSION'.padEnd(20) + 'LAST'.padEnd(18) + 'GOING TO'.padEnd(20) +
+console.log('  ' + 'SESSION'.padEnd(32) + 'LAST'.padEnd(18) + 'GOING TO'.padEnd(18) +
   'TURNS'.padStart(6) + 'BUILT'.padStart(7) + 'ERR'.padStart(5) + 'COST'.padStart(10));
 for (const j of all) {
-  console.log('  ' + String(j.session).slice(0, 19).padEnd(20) +
+  console.log('  ' + String(j.session).padEnd(32) +
     when(j.last).padEnd(18) +
-    String(j.dest || '').slice(0, 19).padEnd(20) +
+    String(j.dest || '').slice(0, 17).padEnd(18) +
     String((j.lines || []).filter((l) => l.ev === 'msg').length).padStart(6) +
     (built(j) ? '  yes' : '   no').padStart(7) +
     String(j.errors || 0).padStart(5) +
