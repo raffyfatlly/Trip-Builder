@@ -55,22 +55,30 @@ async function handler(req, res) {
   }
   if (!(zoom >= 1 && zoom <= 20)) return res.status(400).json({ error: 'bad zoom' });
 
+  // 512 is what every itinerary built before 2026-09-05 asks for, and those
+  // files are downloaded and opened offline for months. The default is not
+  // negotiable.
+  const asked = parseInt(req.query.w, 10);
+  const width = asked >= 200 && asked <= 640 ? asked : 512;
+
   const q = new URLSearchParams({
     center: lat + ',' + lon,
     zoom: String(zoom),
     // Portrait, because a phone is. raffy, 2026-09-01: "i want the map bigger
-    // like phu quoc style . looks nicer" — and the Phu Quoc map is a tall card
-    // that fills the screen, not a letterbox.
+    // like phu quoc style . looks nicer" — and again on 2026-09-05: "enlarge
+    // the map so it can take the whole screen on mobile. i want user to have
+    // that immersive feeling."
     //
-    // 512 wide rather than 640 because Static Maps caps `size` at 640 in both
-    // directions, so height is the scarce one: 512x640 is the tallest shape
-    // available. scale=2 still delivers 1024x1280 real pixels into a ~354px
-    // card, which is more than sharp enough.
+    // Height is pinned at 640 because Static Maps caps `size` there, so the
+    // only way to a taller shape is a narrower one — which is why the width is
+    // asked for rather than fixed. The page measures the space the map will
+    // actually fill and requests that shape, so a full-screen phone map is not
+    // a 512x640 tile cropped down the sides.
     //
-    // Must match MW/MH and the .rmap aspect-ratio in renderer/render.js — the
-    // pins are drawn in this coordinate space, so a tile of a different shape
-    // puts every one of them in the wrong place.
-    size: '512x640',
+    // Whatever comes back, the pins are drawn in this same coordinate space:
+    // renderer/render.js reads `w` back out of the URL it built. A tile of a
+    // different shape puts every marker in the wrong place.
+    size: width + 'x640',
     scale: '2',
     maptype: 'roadmap',
     key,

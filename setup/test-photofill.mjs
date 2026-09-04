@@ -13,7 +13,7 @@
 //
 //   node setup/test-photofill.mjs
 
-import { photoGaps, applyFill, fillKey, fillPhotoGaps } from '../lib/photos.js';
+import { photoGaps, applyFill, fillKey, fillPhotoGaps, fillWhere } from '../lib/photos.js';
 
 let fail = 0;
 const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '   ' + x : '')); if (!c) fail++; };
@@ -21,7 +21,14 @@ const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '
 // Shaped after his Desaru trip, logistics rows and all.
 const TRIP = {
   trip: { title: 'Desaru Coast' },
-  stays: [{ n: 'Mandarin Oriental, Desaru Coast' }, { n: 'Anantara Desaru', photo: 'has-one' }],
+  stays: [
+    { n: 'Mandarin Oriental, Desaru Coast' },
+    // A picture and a position: nothing left to buy.
+    { n: 'Anantara Desaru', photo: 'has-one', lat: 1.5551, lon: 104.2626 },
+    // A picture but nobody knows where it is, which is the case the map needs
+    // and the one that used to be skipped.
+    { n: 'Westin Desaru Coast', photo: 'has-one' },
+  ],
   ideas: [{ n: 'Turmeric at Anantara' }, { n: 'Desaru Seafood Corner' }],
   days: [
     { items: [
@@ -49,8 +56,13 @@ const TRIP = {
   for (const junk of ['Drive to Desaru', 'Check in', 'Check out', 'Early night', 'Back to the pool', 'Drive home']) {
     ok('"' + junk + '" is not paid for', !gaps.includes(junk));
   }
-  ok('a place that already has one is not paid for again',
+  ok('a place with a picture and a position is not paid for again',
      !gaps.includes('Anantara Desaru'));
+  // The map cannot draw what has no coordinates, and this lookup returns them
+  // in the same response as the photo. Skipping it is what kept everything
+  // except hotels off the map.
+  ok('but one with a picture and no position still is',
+     gaps.includes('Westin Desaru Coast'));
 
   // Descriptions of an afternoon, taken verbatim from his three real trips.
   // Every one would have been a billed lookup returning nothing.
@@ -91,6 +103,27 @@ const TRIP = {
      !filled.days[0].items[2].photo);
   ok('and what the builder chose is untouched', filled.stays[1].photo === 'has-one');
   ok('logistics stay blank', !filled.days[0].items[0].photo && !filled.days[1].items[1].photo);
+}
+
+// --- and the coordinates, which are what put anything but a hotel on the map -
+{
+  console.log('');
+  const fill = {
+    [fillKey('Turmeric at Anantara')]: { u: '/api/photo?ref=places/a/photos/b', lat: 1.5551, lon: 104.2626, done: 1 },
+    [fillKey('Desaru Fruit Farm')]: { u: '', lat: 1.6, lon: 104.1, done: 1 },
+    // Written before coordinates were kept. Still a valid photo, no position.
+    [fillKey('Mandarin Oriental, Desaru Coast')]: '/api/photo?ref=places/x/photos/y',
+  };
+  const filled = applyFill(TRIP, fill);
+  ok('an idea learns where it is', filled.ideas[0].lat === 1.5551 && filled.ideas[0].lon === 104.2626);
+  ok('so does a day item', filled.days[0].items[2].lat === 1.6);
+  ok('a place with no picture still gets its position',
+     !filled.days[0].items[2].photo && isFinite(filled.days[0].items[2].lon));
+  ok('an entry from before this still works, with no position',
+     !!filled.stays[0].photo && filled.stays[0].lat === undefined);
+  ok('and fillWhere reads it back',
+     (fillWhere(fill, 'Turmeric at Anantara') || {}).lat === 1.5551 &&
+     fillWhere(fill, 'Mandarin Oriental, Desaru Coast') === null);
 
   // Applying it again must not multiply keys — this runs on every read.
   const twice = applyFill(filled, fill);
