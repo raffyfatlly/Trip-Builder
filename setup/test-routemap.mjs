@@ -396,18 +396,33 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
 
   // Names appear as there is room for them, so what matters is not how many
   // there are but that no two of them sit on top of each other.
+  //
+  // Against the markers too, not only against each other. raffy, 2026-09-05:
+  // "photos overlapping , text overlapping." A name placed only around other
+  // names printed straight across the photo of the place next door.
   const overlap = await page.evaluate(() => {
-    const shown = Array.from(document.querySelectorAll('#routemap svg.pins text.mlab'))
-      .filter((t) => t.style.display !== 'none' && t.closest('g').style.display !== 'none')
-      .map((t) => { const r = t.getBoundingClientRect(); return { r, s: t.textContent }; });
-    for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
-      const a = shown[i].r, b = shown[j].r;
-      if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom)
-        return shown[i].s + ' / ' + shown[j].s;
+    const boxes = [];
+    document.querySelectorAll('#routemap svg.pins #rmk > g').forEach((g) => {
+      if (g.style.display === 'none') return;
+      const t = g.querySelector('text.mlab');
+      if (t && t.style.display !== 'none') boxes.push({ r: t.getBoundingClientRect(), s: t.textContent, lab: 1 });
+      // Visible geometry only: every marker also carries a transparent circle
+      // that is nothing but a finger-sized tap target.
+      g.querySelectorAll('.mkin image, .mkin circle:not([fill="transparent"])').forEach((e) => {
+        boxes.push({ r: e.getBoundingClientRect(), s: '[' + (t ? t.textContent : 'marker') + ']', lab: 0 });
+      });
+    });
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      if (!boxes[i].lab && !boxes[j].lab) continue;       // markers may sit near each other
+      if (boxes[i].s.replace(/[[\]]/g, '') === boxes[j].s.replace(/[[\]]/g, '')) continue;  // its own marker
+      const a = boxes[i].r, b = boxes[j].r;
+      const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (ox > 3 && oy > 3) return boxes[i].s + ' / ' + boxes[j].s;
     }
     return '';
   });
-  ok('no two names sit on top of each other', overlap === '', overlap);
+  ok('nothing is printed on top of anything else', overlap === '', overlap);
 
   // An idea in another country must not pull the whole map out to fit it.
   const url = await page.locator('#routemap img.ground').getAttribute('src');
@@ -567,6 +582,24 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
      /\d+ places/.test(await page.locator('#rshead').innerText()),
      (await page.locator('#rshead').innerText()).replace(/\n/g, ' '));
 
+  // raffy, 2026-09-05: "to pull it up seems hard I keep moving the map itself."
+  // The handle bar alone was 28px of target with map either side of it, so most
+  // attempts to pull the drawer up landed on the map and panned it instead. The
+  // whole head of the sheet drags now, and this is the drag he was trying to
+  // make.
+  const head = await page.locator('#rshead').boundingBox();
+  await page.mouse.move(head.x + 120, head.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(head.x + 120, head.y - 300, { steps: 14 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  ok('dragging it by its heading opens it', await snap() !== 'peek', await snap());
+  while ((await snap()) !== 'peek') {
+    await page.locator('#rgrab').click();
+    await page.waitForTimeout(420);
+  }
+  ok('and it goes back', await snap() === 'peek');
+
   await page.locator('#rgrab').click();
   await page.waitForTimeout(500);
   ok('a tap on the handle opens it', await snap() === 'mid');
@@ -601,6 +634,68 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
 
   ok('and the page still does not scroll',
      await page.evaluate(() => document.body.scrollHeight <= window.innerHeight + 1));
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  await ctx.close();
+}
+
+
+// --- the journey draws itself -----------------------------------------------
+//
+// raffy, 2026-09-05: "how can we make the map section more like its showing the
+// journey of the user. like make them excited like they can see their future
+// traces."
+//
+// The route is revealed along its own length, then the stays land on it in
+// order, then everything found nearby arrives. What is checked is that it both
+// starts and, more importantly, finishes: an entrance that leaves half the map
+// at opacity 0 is not an entrance, it is a missing feature.
+{
+  console.log('');
+  const { html } = render({ ...REAL, stays: TRIPS['two cities'] }, tpl);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+  await serve(ctx, html);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
+
+  const state = () => page.evaluate(() => {
+    const q = (s) => document.querySelector(s);
+    const op = (s) => Array.from(document.querySelectorAll(s))
+      .map((e) => +getComputedStyle(e).opacity);
+    return {
+      masked: !!q('#rroute') && q('#rroute').hasAttribute('mask'),
+      stays: op('#rmk > g.pin:not(.plan)'),
+      rest: op('#rmk > g.plan, #rmk > g.spot'),
+    };
+  });
+
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.waitForTimeout(140);
+  const early = await state();
+  ok('the route is revealed along itself, not just switched on', early.masked);
+  ok('and the stays have not all landed yet', early.stays.some((o) => o < 0.9),
+     JSON.stringify(early.stays));
+
+  await page.waitForTimeout(2200);
+  const done = await state();
+  ok('the mask comes off when it is over', !done.masked);
+  ok('every stay ends up fully drawn', done.stays.every((o) => o > 0.99),
+     JSON.stringify(done.stays));
+  ok('and so does everything found nearby',
+     done.rest.every((o) => o > 0.99), JSON.stringify(done.rest));
+
+  // Leaving the tab and coming back plays it again, because it happens while
+  // the tab is hidden otherwise and nobody would ever see it.
+  await page.locator('#nav button[data-view="trip"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.waitForTimeout(140);
+  ok('it plays again on coming back to the tab', (await state()).masked);
+  await page.waitForTimeout(2200);
+  ok('and still finishes', (await state()).stays.every((o) => o > 0.99));
+
   ok('no page errors', errs.length === 0, errs.join(' / '));
   await ctx.close();
 }

@@ -119,7 +119,12 @@ const ROUTE_MAP_JS = `
         // place is the name and the meal is noise that collides with the next
         // label along.
         var nm=String(x.h||"").replace(MAPDO,"");
-        plan.push({ n:(nm.charAt(0).toUpperCase()+nm.slice(1))||x.h, lat:+x.lat, lon:+x.lon,
+        // "Lunch at Bharata, and the walk after" is a sentence. The place is
+        // the part before the comma, and a label ending in ", and the..." reads
+        // as broken rather than shortened.
+        var cut=nm.split(/,| and | with | before | after /i)[0];
+        if(cut.length>=4) nm=cut;
+        plan.push({ n:(nm.charAt(0).toUpperCase()+nm.slice(1)).trim()||x.h, lat:+x.lat, lon:+x.lon,
           day:di, pic:(x.photo&&P[x.photo])?P[x.photo]:"" });
       });
     });
@@ -223,6 +228,27 @@ const ROUTE_MAP_JS = `
       }
       return true;
     }
+    // How much room a marker actually has, so it can be drawn to fit it.
+    //
+    // raffy, 2026-09-05: "photos overlapping... u can make dynamic sizing.
+    // photos doesn't need to be too big." Two hotels a mile apart were being
+    // drawn as two 54px discs that touched. A marker is now never wider than
+    // half the gap to its nearest neighbour.
+    function gapTo(q,list){
+      var best=Infinity;
+      for(var i=0;i<list.length;i++){
+        var o=list[i]; if(o===q) continue;
+        var dx=o.x-q.x, dy=o.y-q.y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<best) best=d;
+      }
+      return best;
+    }
+    function sizeFor(q,list,base,floor){
+      var d=gapTo(q,list)/k;                       // in css pixels
+      if(!isFinite(d)) return base;
+      return Math.max(floor,Math.min(base,d/2-6));
+    }
+
     var pl=[];
     R.plan.forEach(function(p){
       var q=put(p); q.n=p.n; q.pic=p.pic; q.day=p.day;
@@ -280,7 +306,7 @@ const ROUTE_MAP_JS = `
     //
     // non-scaling-stroke keeps the line weight and the dash pattern in screen
     // units, so zooming in shows more map rather than a fatter line.
-    var line="";
+    var line="", route="", curveD="";
     if(ap && xy.length){
       // Quieter than the route itself: this is how they get there, not part of
       // where they go.
@@ -296,15 +322,15 @@ const ROUTE_MAP_JS = `
         'stroke-dasharray="'+(5*k).toFixed(1)+' '+(6*k).toFixed(1)+'" opacity=".55"/>';
     }
     if(xy.length>1){
-      var d=curve(xy);
+      var d=curve(xy); curveD=d;
       // Dashed coral over a white casing. raffy, 2026-09-01: "draw like dash
       // line rather than solid in between . doesn't have to be thick or too
       // thin . just nice perfect for the look."
-      line='<path d="'+d+'" fill="none" stroke="#FFFFFF" stroke-width="'+(6.5*k).toFixed(1)+'" '+
+      route='<path id="rcase" d="'+d+'" fill="none" stroke="#FFFFFF" stroke-width="'+(6.5*k).toFixed(1)+'" '+
         'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>'+
         '<path id="rline" d="'+d+'" fill="none" stroke="#EE7B45" stroke-width="'+(3*k).toFixed(1)+'" '+
         'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" '+
-        'stroke-dasharray="'+(9*k).toFixed(1)+' '+(7.5*k).toFixed(1)+'"/>'+line;
+        'stroke-dasharray="'+(9*k).toFixed(1)+' '+(7.5*k).toFixed(1)+'"/>';
     }
     if(ap && ap.has){
       line+='<path d="M'+ap.bx.toFixed(1)+' '+ap.by.toFixed(1)+' L'+ap.x.toFixed(1)+' '+
@@ -321,43 +347,53 @@ const ROUTE_MAP_JS = `
     // Each one is positioned by place() below rather than by a transform on a
     // parent, which is the whole reason a pin stays a pin at 3x. Its map
     // position rides on the element as data-mx / data-my.
-    function mk(cls,attrs,x,y,body,labText,labSize,labFill,labBelow,labGap){
+    // A marker is an outer group that place() moves, an inner group that the
+    // arrival animation scales, and a label that finds its own slot.
+    //
+    // The two groups matter: a CSS transform beats the transform attribute, so
+    // animating the positioned group would fling every marker to the corner.
+    function mk(cls,attrs,x,y,rad,body,labText,labSize,labFill){
       var lab="";
       if(labText){
         var t=String(labText);
         var max=labSize>12?22:18;
         if(t.length>max) t=t.slice(0,max-1).replace(/[\\s,\\u2013-]+$/,"")+"\\u2026";
-        lab='<text class="mlab" x="0" y="'+(labBelow?labGap:-labGap).toFixed(1)+'" '+
-          'text-anchor="middle" font-family="Outfit,sans-serif" '+
+        lab='<text class="mlab" x="0" y="0" text-anchor="middle" '+
+          'font-family="Outfit,sans-serif" '+
           'font-size="'+(labSize*k).toFixed(1)+'" font-weight="700" '+
           'stroke="#FFFFFF" stroke-width="'+(3.4*k).toFixed(1)+'" paint-order="stroke" '+
           'fill="'+labFill+'">'+esc(t)+'</text>';
         // Outfit at 700 runs about 0.6em an average character. Measured rather
         // than guessed at, after a stay name walked off the right edge twice.
-        attrs+=' data-lw="'+(t.length*labSize*k*0.60).toFixed(1)+'"';
+        attrs+=' data-lw="'+(t.length*labSize*k*0.60).toFixed(1)+'"'+
+          ' data-lh="'+(labSize*k*1.25).toFixed(1)+'" data-r="'+rad.toFixed(1)+'"';
       }
+      // The label is a sibling of the scaled group, not inside it: with
+      // transform-box:fill-box the pivot is the group's own bounding box, and a
+      // name hanging off one side would drag that pivot away from the pin.
       return '<g class="'+cls+'" data-mx="'+x.toFixed(1)+'" data-my="'+y.toFixed(1)+'" '+attrs+'>'+
-        body+lab+'</g>';
+        '<g class="mkin">'+body+'</g>'+lab+'</g>';
     }
 
     // Tier three, first so everything else sits on top of it. A ring rather
     // than a disc: it reads as somewhere marked, not somewhere booked.
+    var all=xy.concat(pl).concat(sp);
     var spots=sp.map(function(q){
       return mk("spot",'data-idea="'+q.idea+'" role="button" tabindex="0" aria-label="Idea: '+esc(q.n)+'"',
-        q.x,q.y,
+        q.x,q.y,6.2*k,
         '<circle r="'+(13*k).toFixed(1)+'" fill="transparent"/>'+
         // A soft halo under it, because a small ring alone disappears into a
         // busy street map — which is exactly what it did the first time.
         '<circle r="'+(9*k).toFixed(1)+'" fill="#FFFFFF" opacity=".55"/>'+
         '<circle r="'+(6.2*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" '+
         'stroke-width="'+(2.6*k).toFixed(1)+'"/>',
-        "",0,"",true,0);
+        "",0,"");
     }).join("");
 
     // Tier two. The same idea as a stay, at half the size and without the
     // number: these belong to a day, not to the spine of the trip.
     var plan=pl.map(function(q){
-      var Rr=(q.pic?13:7.5)*k;
+      var Rr=(q.pic?sizeFor(q,all,12,7):7.5)*k;
       var id="q"+Math.round(q.x)+"_"+Math.round(q.y);
       var body = q.pic
         ? '<clipPath id="'+id+'"><circle r="'+Rr.toFixed(1)+'"/></clipPath>'+
@@ -367,8 +403,8 @@ const ROUTE_MAP_JS = `
           'preserveAspectRatio="xMidYMid slice" clip-path="url(#'+id+')"/>'
         : '<circle r="'+Rr.toFixed(1)+'" fill="#EE7B45" stroke="#FFFFFF" stroke-width="'+(2.2*k).toFixed(1)+'"/>';
       return mk("pin plan",'data-goday="'+q.day+'" role="button" tabindex="0" aria-label="'+esc(q.n)+'"',
-        q.x,q.y,'<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+body,
-        q.n,10.5,"#2C4B3F",true,Rr+12*k);
+        q.x,q.y,Rr,'<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+body,
+        q.n,10.5,"#2C4B3F");
     }).join("");
 
     // Tier one. A stay with a photo shows the photo, the way the Phu Quoc map
@@ -376,7 +412,8 @@ const ROUTE_MAP_JS = `
     // possible." A picture of where you are sleeping tells you more at a glance
     // than a numbered dot ever will.
     var pins=xy.map(function(q){
-      var Rr=(q.pic?27:13)*k;
+      // 24 rather than 27, and less than that where two stays sit close.
+      var Rr=(q.pic?sizeFor(q,xy,24,16):13)*k;
       var body;
       if(q.pic){
         body='<clipPath id="pc'+q.i+'"><circle r="'+Rr.toFixed(1)+'"/></clipPath>'+
@@ -400,26 +437,26 @@ const ROUTE_MAP_JS = `
             'font-size="'+(12.5*k).toFixed(1)+'" font-weight="800" fill="#EAF2EC">'+q.i+'</text>':'');
       }
       return mk("pin",'data-stay="'+q.idx+'" role="button" tabindex="0" aria-label="'+esc(q.n)+'"',
-        q.x,q.y,'<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+body,
-        q.n,13.5,"#0C241B",true,Rr+17*k);
+        q.x,q.y,Rr,'<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+body,
+        q.n,13.5,"#0C241B");
     }).join("");
 
     var airpin="";
     if(ap && ap.has && ap.from){
       // Where they are flying in from, on the leg itself. A marker rather than
       // part of the drawn route, so it stays legible at every zoom.
-      airpin+=mk("fromlab","",ap.x+(ap.bx-ap.x)*0.74,ap.y+(ap.by-ap.y)*0.74,
-        "","from "+ap.from,10.5,"#4C6157",false,8*k);
+      airpin+=mk("fromlab","",ap.x+(ap.bx-ap.x)*0.74,ap.y+(ap.by-ap.y)*0.74,0,
+        "","from "+ap.from,10.5,"#4C6157");
     }
     if(ap){
-      airpin+=mk("airpin","",ap.x,ap.y,
+      airpin+=mk("airpin","",ap.x,ap.y,13*k,
         '<circle r="'+(13*k).toFixed(1)+'" fill="#FFFFFF"/>'+
         '<circle r="'+(13*k).toFixed(1)+'" fill="none" stroke="#10362A" stroke-width="'+(1.3*k).toFixed(1)+'" opacity=".25"/>'+
         '<g transform="translate('+(-8*k).toFixed(1)+','+(-8*k).toFixed(1)+') scale('+(0.68*k).toFixed(3)+')" '+
         'fill="none" stroke="#10362A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+
         '<path d="M12 2.5c.9 0 1.6.8 1.6 1.7v5.1l7.4 4.3v2.1l-7.4-2.3v4.7l2.6 1.9v1.6L12 20.5'+
         'l-4.2 1.1v-1.6l2.6-1.9v-4.7L3 15.7v-2.1l7.4-4.3V4.2c0-.9.7-1.7 1.6-1.7z"/></g>',
-        ap.code,11,"#0C241B",true,26*k);
+        ap.code,11,"#0C241B");
     }
 
     // The map carries the page's title now that it fills the screen. Counts
@@ -453,7 +490,13 @@ const ROUTE_MAP_JS = `
     host.innerHTML='<div class="rmap">'+
       '<div class="rmapz">'+ground+'</div>'+
       '<svg class="pins" viewBox="0 0 '+MW+' '+MH+'" preserveAspectRatio="xMidYMid slice">'+
-      '<g id="rgeo">'+line+'</g><g id="rarrows"></g>'+
+      '<g id="rgeo">'+
+      (curveD?'<defs><mask id="rrev" maskUnits="userSpaceOnUse" x="-'+(40*k).toFixed(0)+'" y="-'+
+        (40*k).toFixed(0)+'" width="'+(MW+80*k).toFixed(0)+'" height="'+(MH+80*k).toFixed(0)+'">'+
+        '<path id="rmask" d="'+curveD+'" fill="none" stroke="#FFFFFF" '+
+        'stroke-width="'+(16*k).toFixed(1)+'" stroke-linecap="round" stroke-linejoin="round"/>'+
+        '</mask></defs><g id="rroute">'+route+'</g>':'')+
+      line+'</g><g id="rarrows"></g>'+
       '<g id="rmk">'+spots+airpin+plan+pins+'</g></svg>'+
       head+key+zoombtns+'</div>';
 
@@ -474,7 +517,11 @@ const ROUTE_MAP_JS = `
       zl.style.transform="translate("+(tx*f).toFixed(1)+"px,"+(ty*f).toFixed(1)+"px) scale("+sc.toFixed(3)+")";
       geo.setAttribute("transform","translate("+tx.toFixed(1)+","+ty.toFixed(1)+") scale("+sc.toFixed(3)+")");
 
-      var shown=[];
+      // Two passes. Everything is positioned first, because a name has to know
+      // where the other markers ended up before it can find a gap — labels used
+      // to be placed against other labels only, and then printed straight
+      // across the marker next door.
+      var vis=[];
       for(var i=0;i<marks.length;i++){
         var g=marks[i];
         var mx=+g.getAttribute("data-mx")*sc+tx, my=+g.getAttribute("data-my")*sc+ty;
@@ -484,30 +531,72 @@ const ROUTE_MAP_JS = `
         g.style.display = off ? "none" : "";
         if(off) continue;
         g.setAttribute("transform","translate("+mx.toFixed(1)+","+my.toFixed(1)+")");
+        vis.push({ g:g, x:mx, y:my, r:+g.getAttribute("data-r")||8*k,
+          must:g.classList.contains("pin")&&!g.classList.contains("plan") });
+      }
+
+      // Stays claim their names first, then the plan, then everything else.
+      vis.sort(function(a,b){
+        var pa=a.must?0:(a.g.classList.contains("plan")?1:2);
+        var pb=b.must?0:(b.g.classList.contains("plan")?1:2);
+        return pa-pb;
+      });
+
+      // Every marker is an obstacle, not only every name.
+      // A little wider than the marker itself, because a name touching the
+      // edge of a photo circle still reads as a collision.
+      var shown=[];
+      for(var v0=0;v0<vis.length;v0++){
+        var rb=vis[v0].r+4*k;
+        shown.push({x:vis[v0].x, y:vis[v0].y, w:rb*2, h:rb*2, own:vis[v0].g});
+      }
+
+      for(var i2=0;i2<vis.length;i2++){
+        var g=vis[i2].g, mx=vis[i2].x, my=vis[i2].y;
 
         // Names appear as there becomes room for them, which is what zooming in
-        // on a map is for. Stays always keep theirs; everything else earns it.
+        // on a map is for — and each one looks for a free slot rather than
+        // being dropped where it was told.
+        //
+        // raffy, 2026-09-05: "text overlapping." Two stays close together were
+        // both labelled underneath, so "Hotel Med" and "Casa Albertina" printed
+        // on top of each other. Four candidate slots resolves that pair without
+        // hiding either name, which for a stay would be the worse answer.
         var lab=g.querySelector("text.mlab");
         if(!lab) continue;
-        var lw=+g.getAttribute("data-lw")||0;
-        var must=g.classList.contains("pin")&&!g.classList.contains("plan");
-        var room=true;
-        if(!must){
+        var lw=+g.getAttribute("data-lw")||0, lh=+g.getAttribute("data-lh")||12*k;
+        var rr=vis[i2].r;
+        var must=vis[i2].must;
+        // below, above, right, left — in the order they look best.
+        var slots=[
+          {x:0, y:rr+lh+2*k, anc:"middle", cx:0, cy:rr+lh},
+          {x:0, y:-(rr+7*k), anc:"middle", cx:0, cy:-(rr+lh)},
+          {x:rr+6*k, y:4*k, anc:"start", cx:rr+6*k+lw/2, cy:0},
+          {x:-(rr+6*k), y:4*k, anc:"end", cx:-(rr+6*k)-lw/2, cy:0}
+        ];
+        var got=null;
+        for(var si=0; si<slots.length && !got; si++){
+          var sl=slots[si];
+          var cx=mx+sl.cx, cy=my+sl.cy;
+          // Off the frame is as bad as on top of something else.
+          if(cx-lw/2 < 4*k || cx+lw/2 > MW-4*k || cy < 6*k || cy > MH-4*k) continue;
+          var hit=false;
           for(var j=0;j<shown.length;j++){
-            if(Math.abs(shown[j].x-mx) < (shown[j].w+lw)/2+10*k && Math.abs(shown[j].y-my) < 27*k){ room=false; break; }
+            if(shown[j].own===g) continue;           // its own marker never blocks it
+            if(Math.abs(shown[j].x-cx) < (shown[j].w+lw)/2+7*k &&
+               Math.abs(shown[j].y-cy) < (shown[j].h+lh)/2+4*k){ hit=true; break; }
           }
+          if(!hit) got=sl;
         }
-        lab.style.display = room ? "" : "none";
-        if(room){
-          shown.push({x:mx,y:my,w:lw});
-          // A name that runs off the edge reads as a rendering fault rather than
-          // a long place name, so it is pulled back inside by anchoring it to
-          // whichever edge it was about to cross.
-          var ax=0, anc="middle";
-          if(mx-lw/2 < 10*k){ anc="start"; ax=10*k-mx; }
-          else if(mx+lw/2 > MW-10*k){ anc="end"; ax=(MW-10*k)-mx; }
-          lab.setAttribute("text-anchor",anc);
-          lab.setAttribute("x",ax.toFixed(1));
+        // A stay keeps its name even with nowhere clean to put it: the number
+        // badge is not a name, and the drawer is a scroll away.
+        if(!got && must) got=slots[0];
+        lab.style.display = got ? "" : "none";
+        if(got){
+          shown.push({x:mx+got.cx, y:my+got.cy, w:lw, h:lh});
+          lab.setAttribute("text-anchor",got.anc);
+          lab.setAttribute("x",got.x.toFixed(1));
+          lab.setAttribute("y",got.y.toFixed(1));
         }
       }
 
@@ -568,6 +657,82 @@ const ROUTE_MAP_JS = `
 
     zoomable(box,MW,MH,k,place);
     drawer(PEEK);
+
+    // The journey, drawn.
+    //
+    // raffy, 2026-09-05: "how can we make the map section more like its showing
+    // the journey of the user. like make them excited like they can see their
+    // future traces."
+    //
+    // A map that is simply there is a diagram of where you will be. A map that
+    // draws itself is the trip happening — the route runs from the first stay
+    // to the last, the stays land on it in order, and everything found nearby
+    // arrives afterwards, because it is not the point. About a second and a
+    // half in total, once, and never again until you come back to the tab.
+    //
+    // Nothing here changes what is on the map, so a phone that asks for less
+    // motion simply sees the finished thing.
+    var geoEl=box.querySelector("#rgeo");
+    var stayEls=Array.prototype.slice.call(box.querySelectorAll("#rmk > g.pin:not(.plan)"));
+    var restEls=Array.prototype.slice.call(box.querySelectorAll("#rmk > g.plan, #rmk > g.spot, #rmk > g.airpin, #rmk > g.fromlab"));
+    var playing=false;
+
+    function pop(el,delay){
+      var inner=el.querySelector(".mkin");
+      if(!inner||!inner.animate) return;
+      el.animate([{opacity:0},{opacity:1}],{duration:260,delay:delay,easing:"ease-out",fill:"backwards"});
+      inner.animate([
+        {transform:"scale(.35)"},
+        {transform:"scale(1.08)",offset:.68},
+        {transform:"scale(1)"}
+      ],{duration:460,delay:delay,easing:"cubic-bezier(.34,1.3,.5,1)",fill:"backwards"});
+    }
+
+    function playJourney(){
+      if(playing) return;
+      if(typeof reduce==="function" && reduce()) return;
+      if(!geoEl||!geoEl.animate) return;
+      playing=true;
+
+      // The route is revealed through a mask that wipes along its own length.
+      // A dashed line cannot draw itself — animating its dash offset only
+      // marches the dashes sideways — and revealing only the white casing drew
+      // a white line on a cream map, which is to say nothing at all.
+      var draw=0;
+      var maskEl=box.querySelector("#rmask"), routeEl=box.querySelector("#rroute");
+      if(maskEl&&routeEl&&maskEl.getTotalLength){
+        var L=0; try{ L=maskEl.getTotalLength(); }catch(e){ L=0; }
+        if(L>0){
+          draw=Math.round(Math.min(1150,Math.max(480,L*2.4)));
+          maskEl.style.strokeDasharray=L+" "+L;
+          maskEl.style.strokeDashoffset=L;
+          routeEl.setAttribute("mask","url(#rrev)");
+          var a=maskEl.animate([{strokeDashoffset:L},{strokeDashoffset:0}],
+            {duration:draw,easing:"cubic-bezier(.35,0,.12,1)",fill:"forwards"});
+          // The mask comes off at the end. Leaving it on costs a compositing
+          // layer for the life of the page and clips the route's round caps.
+          a.onfinish=function(){
+            routeEl.removeAttribute("mask");
+            maskEl.style.strokeDasharray="";
+            maskEl.style.strokeDashoffset="";
+          };
+        }
+      }
+      // The arrows land once the line they sit on exists.
+      var arrEl=box.querySelector("#rarrows");
+      if(arrEl&&arrEl.animate) arrEl.animate([{opacity:0},{opacity:1}],
+        {duration:320,delay:draw*0.82,easing:"ease-out",fill:"backwards"});
+
+      // In order, along the route. This is the part that reads as a journey.
+      stayEls.forEach(function(el,i){ pop(el, 160+i*170); });
+      var after=Math.max(draw, 160+stayEls.length*170)+60;
+      restEls.forEach(function(el,i){ pop(el, after+i*45); });
+    }
+
+    // Boot happens while the tab is hidden, so nobody would see it. Played when
+    // the tab is opened instead, and again each time it is opened.
+    window.__journey=function(){ playing=false; playJourney(); };
+    if(!document.getElementById("v-map")||!document.getElementById("v-map").hidden) playJourney();
   }
 
   // Pinch, drag, wheel, double-tap and two buttons — bounded, and free.
@@ -706,8 +871,11 @@ const ROUTE_MAP_JS = `
       sh.style.setProperty("--y",v.toFixed(1)+"px");
       var op=Math.max(0,Math.min(1,(snaps[2]-v)/110));
       sh.style.setProperty("--bodyop",op.toFixed(2));
-      sh.style.pointerEvents = op<0.05 ? "none" : "";
-      if(grab) grab.style.pointerEvents="auto";
+      // Only the faded-out list stops taking taps. Putting pointer-events:none
+      // on the whole sheet left a 28px strip of handle as the only thing you
+      // could grab, with map either side of it — raffy, 2026-09-05: "to pull it
+      // up seems hard I keep moving the map itself."
+      if(body) body.style.pointerEvents = op<0.05 ? "none" : "";
       if(map){
         // How much of the screen the drawer is taking, so the zoom buttons and
         // the key can sit on top of it instead of behind it.
@@ -758,7 +926,11 @@ const ROUTE_MAP_JS = `
       try{ sh.setPointerCapture(pid); }catch(err){}
     }
     sh.addEventListener("pointerdown",function(e){
-      if(e.target.closest(".rgrab")){ arm(e,false); return; }
+      // The whole head of the sheet drags, not just the bar: the handle, the
+      // count, and the hint beside it. That is about eighty pixels of target
+      // instead of twenty-eight, and it is the part of the sheet you can see
+      // while it is peeking.
+      if(e.target.closest(".rgrab")||e.target.closest(".rshead")){ arm(e,false); return; }
       // From the list: only at the very top, and the direction is not known
       // until it moves, so this arms rather than starts.
       if(e.target.closest(".rsbody") && body.scrollTop<=0){ arm(e,true); }
@@ -2388,6 +2560,7 @@ export function render(T, templateSrc) {
     '  .rmap img.ground{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}',
     '  .rmap svg.pins{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}',
     '  .rmap svg.pins g.pin,.rmap svg.pins g.spot{cursor:pointer;pointer-events:auto}',
+    '  .rmap svg.pins .mkin{transform-box:fill-box;transform-origin:center}',
     // Lifts the markers off the ground the way the Phu Quoc map does — without
     // it a photo circle reads as a hole cut in the map rather than a pin on it.
     '  .rmap svg.pins g.pin{filter:drop-shadow(0 2px 5px rgba(12,36,27,.28))}',
@@ -2445,15 +2618,15 @@ export function render(T, templateSrc) {
     '  @supports not (height:100dvh){ .rsheet{height:calc(100vh - 64px)} }',
     // No transition while a finger is on it, or the sheet lags behind the drag.
     '  .rsheet[data-drag="true"]{transition:none}',
-    '  .rgrab{flex:none;height:28px;display:grid;place-items:center;cursor:grab}',
+    '  .rgrab{flex:none;height:34px;display:grid;place-items:center;cursor:grab;touch-action:none}',
     // The one line the drawer shows while it is only peeking. It sits above the
     // floating nav, which is what sets how tall a peek has to be.
-    '  .rshead{flex:none;padding:0 18px 12px;display:flex;align-items:baseline;gap:10px;',
-    '    max-width:520px;margin:0 auto;width:100%}',
+    '  .rshead{flex:none;padding:0 18px 14px;display:flex;align-items:baseline;gap:10px;',
+    '    max-width:520px;margin:0 auto;width:100%;cursor:grab;touch-action:none}',
+    '  .rshead:active,.rgrab:active{cursor:grabbing}',
     '  .rshead b{font-family:\'Outfit\',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.02em}',
     '  .rshead span{font-size:11.5px;font-weight:600;color:var(--ink-faint)}',
     '  .rgrab span{width:44px;height:5px;border-radius:99px;background:#D9D4C9}',
-    '  .rgrab:active{cursor:grabbing}',
     // min-height:0 is what lets a flex child actually scroll instead of growing.
     // Faded out at rest. A peeking drawer that shows the top inch of the list
     // shows it half behind the floating nav, which reads as a layout fault
@@ -2470,6 +2643,13 @@ export function render(T, templateSrc) {
   ].join('\n'), 'route map css');
 
   insertBefore('  function reduce(){', ROUTE_MAP_JS, 'route map renderer');
+  // The journey animation is worth nothing at boot, when Explore is hidden. It
+  // runs when the tab is actually opened, and again whenever it is reopened.
+  if (!T.map) {
+    insertAfter("    if(v==='days') hrsCentre();          // it could not be measured while hidden",
+      "\n    if(v==='map' && window.__journey) window.__journey();", 'play the journey on open');
+  }
+
 
 
   // --- no idea gets silently dropped -----------------------------------------
