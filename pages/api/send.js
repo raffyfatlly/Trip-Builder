@@ -7,6 +7,7 @@
 import { sendUserMessage, listEvents } from '../../lib/managedAgents.js';
 import { MAX_TURNS_PER_SESSION } from '../../lib/config.js';
 import { geoFrom, contextBlock } from '../../lib/context.js';
+import { note } from '../../lib/journal.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -24,6 +25,10 @@ export default async function handler(req, res) {
     // run forever.
     const events = await listEvents(session);
     const turns = events.filter((e) => e.type === 'user.message').length;
+    // A preview, not the message. Enough to see what they were asking when
+    // something went wrong; not a second copy of a conversation that already
+    // has one.
+    note(session, 'msg', { turn: turns + 1, text, files: (files || []).length });
     if (turns >= MAX_TURNS_PER_SESSION) {
       return res.status(429).json({ error: 'This conversation has reached its limit.' });
     }

@@ -42,6 +42,21 @@ export default function Home() {
   const [stalled, setStalled] = useState(0);
   const [building, setBuilding] = useState(false);
   const [itinerary, setItinerary] = useState(null);
+  // What the page saw, for the beta journal. Never awaited, never allowed to
+  // fail loudly: a log line is not worth an error boundary.
+  const logged = useRef(new Set());
+  const log = useCallback((ev, data, once) => {
+    if (!session) return;
+    if (once) { if (logged.current.has(once)) return; logged.current.add(once); }
+    try {
+      fetch('/api/log', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ session, ev, data: data || {} }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch (e) { /* ignore */ }
+  }, [session]);
+
   const [preview, setPreview] = useState('');
   // A render that throws used to be logged and then look exactly like a trip
   // with nothing in it yet, so the one screen that could have said something
@@ -361,6 +376,7 @@ export default function Home() {
       .catch((e) => {
         console.error('preview failed', e);
         setPreviewErr(String((e && e.message) || e));
+        log('preview.failed', { why: String((e && e.message) || e).slice(0, 160) });
       });
   }, [working]);
 
@@ -582,6 +598,7 @@ export default function Home() {
       }
       setBaking(false);
     }
+    log('download', { baked: Object.keys(urls).length, bytes: html.length });
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -783,7 +800,15 @@ export default function Home() {
           {onboarding ? (
             <Onboard
               memory={memory}
-              onStart={(seed) => { setSkipOb(true); send(seed); }}
+              onStart={(seed, answers) => {
+                setSkipOb(true);
+                log('onboard', {
+                  dest: (answers && answers.destination) || '',
+                  kind: (answers && answers.kind) || '',
+                  pace: (answers && answers.ready && answers.ready.pace) || '',
+                });
+                send(seed);
+              }}
               onSkip={() => { setSkipOb(true); setTimeout(() => inputRef.current?.focus(), 0); }}
             />
           ) : (
