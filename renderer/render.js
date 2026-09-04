@@ -1350,12 +1350,18 @@ export function render(T, templateSrc) {
       return st ? !st.draft : !anyDraft();
     }
 
+    // Names the agent reaches for when it was never told one.
+    var PLACEHOLDER=/^\\s*$|^(traveller|traveler|guest|user|you|friend|visitor)s?\\s*$/i;
     function renderShell(){
       var tr = T.trip, el;
 
       el = document.getElementById('hello');
       if(el) el.innerHTML =
-        '<div><div class="who">Hi ' + esc(tr.who) + ' \\uD83D\\uDC4B</div>' +
+        // "Hi Traveller" is not a greeting, it is a placeholder that got out.
+        // Planning a real trip without filling in the names produced exactly
+        // that, and it reads as a form letter — worse than no name at all.
+        '<div><div class="who">Hi' + (PLACEHOLDER.test(tr.who || '') ? '' : ' ' + esc(tr.who)) +
+        ' \\uD83D\\uDC4B</div>' +
         '<div class="sub" id="countdown">' + esc(tr.sub) + '</div></div>' +
         '<span class="pill tiny" id="tripstate">' + esc(tr.statePill) + '</span>';
 

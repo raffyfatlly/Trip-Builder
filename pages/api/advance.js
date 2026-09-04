@@ -1,4 +1,4 @@
-import { advanceState } from '../../lib/managedAgents.js';
+import { advanceState, resumeChat } from '../../lib/managedAgents.js';
 import { billed } from '../../lib/billed.js';
 
 // The slow half of the loop: answer the agent's pending tool calls, start a
@@ -20,6 +20,11 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'session required' });
   }
   try {
+    // A turn that died leaves the session idle with nothing pending, so
+    // advancing alone will not restart it. `resume` is the retry button.
+    if (req.query && req.query.resume) {
+      try { await resumeChat(session); } catch (err) { console.error('resume failed:', err); }
+    }
     res.status(200).json(await advanceState(session));
   } catch (err) {
     console.error('advance failed:', err);

@@ -36,6 +36,9 @@ export default function Home() {
   const [thinking, setThinking] = useState(false);
   // What the agent is doing, in its own words, and how long it has been at it.
   const [doing, setDoing] = useState(null);
+  // A turn that died on the model's side. Silence is the worst thing the chat
+  // can do, and until this it was the only thing it did.
+  const [agentErr, setAgentErr] = useState(null);
   // And what it has already done this turn, so a long wait shows progress
   // rather than one line that might mean it is stuck.
   const [steps, setSteps] = useState([]);
@@ -178,6 +181,7 @@ export default function Home() {
         setBuilding(!!d.building);
         setProgress(d.progress || null);
         setDoing(d.doing || null);
+        setAgentErr(d.agentError || null);
         setSteps(Array.isArray(d.steps) ? d.steps : []);
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
@@ -854,16 +858,21 @@ export default function Home() {
                       the days, the places, and what is still left to book.</span>
                   </div>
                 </div>
-                <div className="egs">
-                  {[
-                    'Da Nang with my wife and 2 kids, 10 to 14 September, staying at Furama',
-                    'Tokyo for a week in November, first time, just the two of us',
-                  ].map((s) => (
-                    <button key={s} className="eg" onClick={() => { setDraft(s); inputRef.current?.focus(); }}>
-                      {s}
-                    </button>
-                  ))}
-                </div>
+                {/* The examples are for somebody who has not started. Once
+                    they have, two suggested openings sitting under their own
+                    first message read as if the app did not hear them. */}
+                {messages.length === 0 && (
+                  <div className="egs">
+                    {[
+                      'Da Nang with my wife and 2 kids, 10 to 14 September, staying at Furama',
+                      'Tokyo for a week in November, first time, just the two of us',
+                    ].map((s) => (
+                      <button key={s} className="eg" onClick={() => { setDraft(s); inputRef.current?.focus(); }}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -906,6 +915,29 @@ export default function Home() {
                 </div>
               )
             ))}
+
+            {/* Found by using the app as a traveller would: a reply never came,
+                the dots vanished, and the thread sat there forever. The event
+                log had a session.error in it and nothing read that type. */}
+            {!thinking && agentErr && (
+              <div className="agenterr">
+                <span className="ae">{agentErr.say}</span>
+                {agentErr.retry && (
+                  <button className="aeb" onClick={() => {
+                    setAgentErr(null);
+                    // Advancing is what runs the agent, so this picks the turn
+                    // back up rather than making them retype what they said.
+                    // resume, not just advance: a turn that died left the
+                    // session idle with nothing pending, so advancing alone
+                    // restarts nothing.
+                    fetch('/api/advance?resume=1&session=' + encodeURIComponent(session),
+                      { method: 'POST' }).catch(() => {});
+                  }}>
+                    Try that again
+                  </button>
+                )}
+              </div>
+            )}
 
             {thinking && (
               <div className="msg assistant typing">
@@ -1403,6 +1435,19 @@ export default function Home() {
           background:var(--deep);color:#EAF2EC;box-shadow:var(--sh-m);
         }
         @keyframes rise{from{opacity:0;transform:translateY(7px) scale(.985)}to{opacity:1;transform:none}}
+
+        .agenterr{
+          margin:10px 0;padding:13px 15px;border-radius:18px;
+          background:var(--sage);color:var(--ink-soft);font-size:13.5px;line-height:1.5;
+          display:flex;flex-direction:column;align-items:flex-start;gap:9px;
+          animation:rise 300ms var(--e) both;
+        }
+        .agenterr .aeb{
+          font-size:12.5px;font-weight:700;color:var(--deep);
+          background:var(--surface);border-radius:99px;padding:8px 14px;
+          box-shadow:var(--sh-s);cursor:pointer;
+        }
+        .agenterr .aeb:active{transform:scale(.96)}
 
         .typing{
           display:flex;gap:10px;align-items:center;width:fit-content;max-width:none;

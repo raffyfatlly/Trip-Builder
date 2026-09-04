@@ -105,13 +105,21 @@ ok('and to say nothing rather than shrug', /say nothing about it at all/.test(BP
 
 // The map is an illustration, not a street map with the colours changed.
 //
-// raffy, 2026-09-05: "something like phu quoc . its artistic." His own map is
-// one shape of pale land on one field of water and nothing else, so everything
-// Google draws on top of that is turned off. The roads are the single biggest
-// tell and the one most likely to creep back in.
+// raffy, 2026-09-05: "something like phu quoc . its artistic."
+//
+// The labels are the thing that made it look fetched, and they stay off — every
+// name on that map is one the app placed. The roads went off too at first, and
+// that was right for an island and wrong everywhere inland: planning Chiang Mai
+// for real produced a pale empty rectangle with dots on it, because an island
+// gets its shape from the sea and a landlocked city gets it from its streets.
+// So the big roads are back as texture, a shade off the land, and the small
+// ones are gone.
 const mapSrc = (await import('fs')).readFileSync('pages/api/map.js', 'utf8');
-ok('no roads are drawn at all', mapSrc.includes('feature:road|visibility:off'));
-ok('and no labels of Google’s own', mapSrc.includes('feature:all|element:labels|visibility:off'));
+ok('no labels of Google’s own', mapSrc.includes('feature:all|element:labels|visibility:off'));
+ok('and none on the roads either', mapSrc.includes('feature:road|element:labels|visibility:off'));
+ok('side streets are gone', mapSrc.includes('feature:road.local|visibility:off'));
+ok('but the big roads are not, or an inland city has no shape',
+   mapSrc.includes('feature:road.highway|element:geometry'));
 // He picked 0xCFE8E3 on 2026-09-01, for a map whose land was cream and whose
 // roads carried the shape. With the roads gone his value leaves the coastline
 // almost invisible, so the sea is deeper now — same hue, enough weight to hold

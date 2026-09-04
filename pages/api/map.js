@@ -40,12 +40,23 @@ const STYLE = [
   'feature:all|element:labels|visibility:off',
   'feature:administrative|element:geometry|visibility:off',
   'feature:landscape|element:geometry|color:0xF3F8F3',
-  'feature:landscape.natural|element:geometry|color:0xF0F7F1',
+  'feature:landscape.natural|element:geometry|color:0xEDF6EF',
   'feature:poi|visibility:off',
-  'feature:poi.park|element:geometry|color:0xE4F0E5',
-  // No roads at all. This is the single biggest difference between a map that
-  // looks drawn and one that looks fetched.
-  'feature:road|visibility:off',
+  'feature:poi.park|element:geometry|color:0xDFEEE1',
+  // Roads carry no names and almost no colour, but they are not off.
+  //
+  // Turning them off entirely was right for Phu Quoc and wrong everywhere
+  // inland: planning Chiang Mai for real produced a pale empty rectangle with
+  // dots on it, because an island gets its shape from the sea and a landlocked
+  // city gets it from its streets. So the big ones stay, a shade off the land,
+  // as texture rather than as a street map — and the labels stay off, which is
+  // what actually made it look fetched.
+  'feature:road|element:labels|visibility:off',
+  'feature:road|element:geometry|color:0xDCE9DF',
+  'feature:road.local|visibility:off',
+  'feature:road.arterial|element:geometry|color:0xD6E5DA',
+  'feature:road.highway|element:geometry|color:0xC9DCCE',
+  'feature:road.highway.controlled_access|element:geometry|color:0xBFD5C6',
   'feature:transit|visibility:off',
   // NOT the colour raffy picked, and that is deliberate — flag it if he asks.
   //
