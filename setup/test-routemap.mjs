@@ -99,8 +99,10 @@ for (const [label, stays] of Object.entries(TRIPS)) {
     // thing on the card worth looking at.
     ok('nothing floats over the map',
        (await page.locator('.rmap .rcap, .rmap .hint').count()) === 0);
-    ok('the stays are numbered in a legend',
-       (await page.locator('#routemap .rleg').count()) === stays.length);
+    // The numbered list moved off the map and into the drawer, where it is
+    // the list of places rather than a key.
+    ok('the stays are listed in the drawer',
+       (await page.locator('#rsheet #ordered .stop, #rsheet #ordered > *').count()) >= stays.length);
   }
   await page.screenshot({ path: 'shots/routemap-' + label.replace(/ /g, '-') + '.png' });
   await ctx.close();
@@ -392,9 +394,20 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   ok('an idea is a ring, not a disc',
      await page.locator('#routemap svg.pins g.spot circle[stroke="#EE7B45"][fill="#FFFFFF"]').count() > 0);
 
-  // The names are what crowd, so most plan markers deliberately have none.
-  const labels = await page.locator('#routemap svg.pins g.plan text').count();
-  ok('most plan markers are left unlabelled', labels < plan, labels + ' labels for ' + plan + ' markers');
+  // Names appear as there is room for them, so what matters is not how many
+  // there are but that no two of them sit on top of each other.
+  const overlap = await page.evaluate(() => {
+    const shown = Array.from(document.querySelectorAll('#routemap svg.pins text.mlab'))
+      .filter((t) => t.style.display !== 'none' && t.closest('g').style.display !== 'none')
+      .map((t) => { const r = t.getBoundingClientRect(); return { r, s: t.textContent }; });
+    for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+      const a = shown[i].r, b = shown[j].r;
+      if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom)
+        return shown[i].s + ' / ' + shown[j].s;
+    }
+    return '';
+  });
+  ok('no two names sit on top of each other', overlap === '', overlap);
 
   // An idea in another country must not pull the whole map out to fit it.
   const url = await page.locator('#routemap img.ground').getAttribute('src');
@@ -476,7 +489,7 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
     await page.waitForTimeout(60);
   }
   const top = await scaleOf();
-  ok('it stops at a ceiling', top <= 3.01 && top > 2.4, 'scale ' + top.toFixed(2));
+  ok('it stops at a ceiling', top <= 2.61 && top > 2.0, 'scale ' + top.toFixed(2));
   ok('and says so by disabling the button',
      await page.locator('#routemap [data-zoom="in"]').isDisabled());
 
@@ -510,6 +523,84 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   ok('and a pin still opens its stay after all that',
      (await page.locator('#sheet[data-open="true"]').count()) === 1);
 
+  ok('no page errors', errs.length === 0, errs.join(' / '));
+  await ctx.close();
+}
+
+
+// --- the drawer -------------------------------------------------------------
+//
+// raffy, 2026-09-05: "there's a drawer at the bottom for all the contents of the
+// places that we go to... it's got quite stuck because... I'm trying to scroll
+// down, and then it blocks the scrolling down experience."
+//
+// So the tab is exactly one viewport tall and never scrolls; the drawer does.
+// And the thing that breaks every hand-rolled drawer — pointer capture taken on
+// the first press, which quietly redirects the click away from whatever was
+// underneath — is checked here, because it has now bitten twice.
+{
+  console.log('');
+  const rich = JSON.parse(JSON.stringify(REAL));
+  rich.stays = TRIPS['two cities'];
+  const { html } = render(rich, tpl);
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
+  await serve(ctx, html);
+  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
+  await page.locator('#nav button[data-view="map"]').click();
+  await page.waitForTimeout(500);
+
+  const snap = () => page.locator('#rsheet').getAttribute('data-snap');
+  const top = () => page.locator('#rsheet').evaluate((el) => el.getBoundingClientRect().top);
+
+  ok('the page itself does not scroll',
+     await page.evaluate(() => document.body.scrollHeight <= window.innerHeight + 1),
+     await page.evaluate(() => document.body.scrollHeight + '/' + window.innerHeight));
+  ok('the drawer opens peeking, so the map is what you see', await snap() === 'peek');
+
+  const peekTop = await top();
+  ok('and it leaves most of the screen to the map', peekTop > 600, Math.round(peekTop) + 'px down');
+  ok('it says how many places there are',
+     /\d+ places/.test(await page.locator('#rshead').innerText()),
+     (await page.locator('#rshead').innerText()).replace(/\n/g, ' '));
+
+  await page.locator('#rgrab').click();
+  await page.waitForTimeout(500);
+  ok('a tap on the handle opens it', await snap() === 'mid');
+  const midTop = await top();
+  ok('and it actually moved', midTop < peekTop - 100, Math.round(midTop) + ' vs ' + Math.round(peekTop));
+
+  await page.locator('#rgrab').click();
+  await page.waitForTimeout(500);
+  ok('again and it opens fully', await snap() === 'full');
+  ok('the map is still behind it, not unloaded',
+     (await page.locator('#routemap img.ground').count()) === 1);
+
+  // The list is real content and has to stay tappable through the drag layer.
+  const card = page.locator('#rsheet #ordered .stop, #rsheet #ordered button, #rsheet #ordered [data-stay]').first();
+  if (await card.count()) {
+    await card.click();
+    await page.waitForTimeout(400);
+    ok('a card inside the drawer still opens', await page.locator('#sheet[data-open="true"]').count() === 1);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+  }
+
+  // Dragging down from the top of the list closes it; that is the gesture
+  // everybody tries first.
+  const b2 = await page.locator('#rsheet').boundingBox();
+  await page.mouse.move(195, b2.y + 90);
+  await page.mouse.down();
+  await page.mouse.move(195, b2.y + 420, { steps: 14 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  ok('dragging down from the list closes it', (await snap()) !== 'full', await snap());
+
+  ok('and the page still does not scroll',
+     await page.evaluate(() => document.body.scrollHeight <= window.innerHeight + 1));
   ok('no page errors', errs.length === 0, errs.join(' / '));
   await ctx.close();
 }

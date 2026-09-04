@@ -27,12 +27,22 @@ import { checklist, dueIn, linkFor, isOwn } from '../lib/checklist.js';
 //
 // So: a REAL map underneath, drawn by Google at whatever zoom fits the trip and
 // styled into the app's palette — and OUR illustration on top. The pins, the
-// numbering, the dashed route in date order and the arrows along it are all
-// ours. What changes with scale is only the ground beneath them, which is
-// exactly the part that has to change.
+// numbering, the dashed route in date order and the arrows along it are ours.
+// What changes with scale is only the ground beneath them.
+//
+// raffy, 2026-09-05: "I've been trying to make the explorer section to be, like,
+// Google Map. How Google Map experience feels like... as I zoom in and I zoom
+// out, the sizes of the things on the map, you know, it's scale appropriately.
+// And then there's a drawer at the bottom for all the contents of the places
+// that we go to."
+//
+// Which is the difference between zooming a picture of a map and using one. The
+// ground scales; the markers do not. They are moved rather than transformed, so
+// a pin is the same size at 1x and at 3x and the names appear as there becomes
+// room for them — the behaviour everyone already knows from every map app.
 //
 // Kept as one template literal rather than the array of escaped strings the
-// rest of this file uses: it is two hundred lines of real code, and quoting
+// rest of this file uses: it is four hundred lines of real code, and quoting
 // every one of them was how a `const CHEV` once shipped as a SyntaxError.
 // Nothing in here may contain a backtick or a dollar-brace.
 const ROUTE_MAP_JS = `
@@ -70,22 +80,23 @@ const ROUTE_MAP_JS = `
 
   // What goes on the map, and how loudly.
   //
-  // raffy, 2026-09-05: "i want all the everything we found , also included in
-  // nice way but not too prominent of course. the prominent one should be the
-  // hotels user stays and also the places that's already in the daily plan. i
-  // want all in there with different prominence in terms of design."
+  // raffy, 2026-09-05: "the prominent one should be the hotels user stays and
+  // also the places that's already in the daily plan... i want all in there with
+  // different prominence in terms of design."
   //
-  // Three tiers, and the difference between them is the design:
   //   stays — photograph, number, name. The spine of the trip.
   //   plan  — smaller photograph, name. Already decided on, so part of it.
   //   spots — a quiet ring. Everything the research turned up that nobody has
   //           committed to: present and findable, not shouting.
   //
   // Everything below tier one exists only because the photo fill now keeps the
-  // coordinates Google returns alongside the picture. Before that the builder
-  // wrote lat/lon on stays and nowhere else, which is why this map could only
-  // ever draw hotels.
+  // coordinates Google returns alongside the picture.
   var MAPDO=/^(breakfast|brunch|lunch|dinner|drinks|coffee|supper|stop|visit|explore|see|walk|swim|shop|browse|head|go)\\s+(at|to|in|for|by|around|through)?\\s*/i;
+  // Getting somewhere is not a place. "Check in to Furama" is the hotel that
+  // already has a pin, "Land at Da Nang" is the airport that already has one,
+  // and "Leave for Ba Na Hills" is a time of day. All three were drawing their
+  // own markers and stacking their own labels on top of the real ones.
+  var MAPGO=/^(check[- ]?in|check[- ]?out|land|landing|arrive|arrival|depart|departure|leave|leaving|fly|flight|drive|driving|transfer|pick ?up|drop ?off|set ?off|head (off|out|back|home)|back to|return)\\b/i;
   function mapKey(s){
     return String(s||"").replace(MAPDO,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
   }
@@ -102,13 +113,14 @@ const ROUTE_MAP_JS = `
     (T.days||[]).forEach(function(d,di){
       (d.items||[]).forEach(function(x){
         if(!isFinite(+x.lat)||!isFinite(+x.lon)) return;
+        if(MAPGO.test(String(x.h||"").trim())) return;
         var k=mapKey(x.h); if(!k||seen[k]) return; seen[k]=1;
         // "Dinner at Halal Food Corner" is a line in a timetable; on a map the
         // place is the name and the meal is noise that collides with the next
         // label along.
         var nm=String(x.h||"").replace(MAPDO,"");
-        plan.push({ n:(nm.charAt(0).toUpperCase()+nm.slice(1))||x.h, lat:+x.lat, lon:+x.lon, day:di,
-          pic:(x.photo&&P[x.photo])?P[x.photo]:"" });
+        plan.push({ n:(nm.charAt(0).toUpperCase()+nm.slice(1))||x.h, lat:+x.lat, lon:+x.lon,
+          day:di, pic:(x.photo&&P[x.photo])?P[x.photo]:"" });
       });
     });
     (T.ideas||[]).forEach(function(o,ii){
@@ -119,66 +131,33 @@ const ROUTE_MAP_JS = `
     return { stays:stays, plan:plan, spots:spots };
   }
 
-  // Arrowheads along the route, so it reads as a journey with a direction
-  // rather than a line joining dots. raffy, 2026-09-05: "make it like a journey
-  // with arrows etc make it nice."
-  //
-  // Sampled off the real path element after it is in the document rather than
-  // computed from the control points: the route is a bezier, and the angle its
-  // handles point in is exactly the wrong angle to draw an arrowhead at.
-  function routeArrows(path,k){
-    if(!path||!path.getTotalLength) return "";
-    var L=0; try{ L=path.getTotalLength(); }catch(e){ return ""; }
-    if(!(L>70*k)) return "";
-    // Spread evenly rather than at a fixed pitch: a fixed pitch put a single
-    // arrow on a short hop, which reads as a smudge rather than a direction.
-    var n=Math.max(2,Math.min(7,Math.round(L/(90*k))));
-    var step=L/(n+1), out="";
-    for(var d=step; d<L-8*k; d+=step){
-      var a,b;
-      try{ a=path.getPointAtLength(d); b=path.getPointAtLength(Math.min(L,d+1)); }catch(e){ break; }
-      var ang=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
-      out+='<g transform="translate('+a.x.toFixed(1)+','+a.y.toFixed(1)+') rotate('+ang.toFixed(1)+')">'+
-        '<path d="M'+(-4.6*k).toFixed(1)+' '+(-6.2*k).toFixed(1)+' L'+(6.6*k).toFixed(1)+' 0 L'+
-        (-4.6*k).toFixed(1)+' '+(6.2*k).toFixed(1)+' Z" fill="#EE7B45" stroke="#FFFFFF" '+
-        'stroke-width="'+(2*k).toFixed(1)+'" stroke-linejoin="round"/></g>';
-    }
-    return out;
-  }
-
   function renderRouteMap(){
     var host=document.getElementById("routemap"); if(!host) return;
     var R=routePoints();
     if(!R.stays.length){ host.remove(); return; }
 
-    // Measured before it is filled, because the tile is ordered to fit the box
-    // rather than the box built to fit the tile. A full-screen phone map is
-    // about 0.46 wide for its height; the old fixed 512x640 tile is 0.8, and
-    // cropping one to the other throws away a third of the map. Google caps a
-    // static map at 640 each way, so the height is pinned and the width asked
-    // for.
-    host.innerHTML='<div class="rmap"></div>';
-    var box=host.querySelector(".rmap");
     // Computed, not measured. This runs at boot, while the Explore tab is still
     // hidden — every measurement there is zero, which silently fell back to a
-    // 390x640 tile and cropped a third off the map the first time round. The
-    // height is then written back onto the element so the CSS and the tile can
-    // never disagree about it.
-    var W=Math.min(document.documentElement.clientWidth||window.innerWidth||390,700);
-    var H=Math.max(430,Math.min((window.innerHeight||760)-104,860));
-    box.style.height=H+"px";
-    var MH=640, MW=Math.max(220,Math.min(640,Math.round(W/H*MH)));
+    // square tile and cropped a third off the map the first time round.
+    //
+    // Whichever side is longer takes Google's 640 ceiling and the other is
+    // worked out from it, so the tile is asked for in the exact shape it will
+    // be shown at rather than cropped down to it.
+    var W=document.documentElement.clientWidth||window.innerWidth||390;
+    var H=window.innerHeight||760;
+    var MW,MH;
+    if(W>=H){ MW=640; MH=Math.max(220,Math.round(H/W*640)); }
+    else { MH=640; MW=Math.max(220,Math.round(W/H*640)); }
     // Map units per CSS pixel, so every size below can be written in the pixels
-    // it will actually be seen at. Without it a narrow tile silently doubles
-    // the size of every marker.
-    var k=MW/(W||390);
+    // it will actually be seen at.
+    var k=MW/W;
 
     var pts=R.stays;
 
     // Where they land, and the dashed hop in to the first stay.
     //
     // raffy, 2026-09-01: "i want some line from the map with like flight or car
-    // icon to the airport or something . just to make it like."
+    // icon to the airport or something."
     //
     // Drawn from real coordinates or not at all. A plane marker at a made-up
     // position on a REAL map is a lie, and this app has a rule about that. So
@@ -196,11 +175,21 @@ const ROUTE_MAP_JS = `
         fromLat:isFinite(+f.fromLat)?+f.fromLat:null, fromLon:isFinite(+f.fromLon)?+f.fromLon:null};
     })();
 
-    // The frame fits the journey — the stays, the plan, and the airport. Ideas
+    // The frame fits the journey — the stays, the plan and the airport. Ideas
     // are drawn where they fall and clipped where they do not: letting a
     // restaurant nobody has chosen pull the zoom out would shrink the trip to
     // fit a maybe.
-    var PAD=(pts.some(function(p){return p.pic;})?68:52)*k;
+    //
+    // The drawer covers the bottom of the map at rest, so the journey is fitted
+    // into what is actually visible above it rather than into the whole frame.
+    //
+    // Only part of the peek is given up, though. Reserving all of it cost a
+    // whole zoom level on a north-south trip — the map pulled back far enough
+    // to show two more islands than the trip visits — and the drawer is one
+    // drag from being out of the way anyway.
+    var PEEK=Math.round(Math.min(168,Math.max(140,H*0.18)));
+    var PADX=(pts.some(function(p){return p.pic;})?56:44)*k;
+    var PADB=PADX+PEEK*k*0.6;
     var fit=pts.concat(R.plan).concat(air?[air]:[]);
     var lats=fit.map(function(p){return p.lat;}), lons=fit.map(function(p){return p.lon;});
     var cLat=(Math.min.apply(null,lats)+Math.max.apply(null,lats))/2;
@@ -213,12 +202,12 @@ const ROUTE_MAP_JS = `
       for(z=15; z>1; z--){
         var m=fit.map(function(p){return merc(p.lat,p.lon,z);});
         var xs=m.map(function(q){return q.x;}), ys=m.map(function(q){return q.y;});
-        if(Math.max.apply(null,xs)-Math.min.apply(null,xs)<=MW-PAD*2 &&
-           Math.max.apply(null,ys)-Math.min.apply(null,ys)<=MH-PAD*2) break;
+        if(Math.max.apply(null,xs)-Math.min.apply(null,xs)<=MW-PADX*2 &&
+           Math.max.apply(null,ys)-Math.min.apply(null,ys)<=MH-PADX-PADB) break;
       }
     }
 
-    var c=merc(cLat,cLon,z), left=c.x-MW/2, top=c.y-MH/2;
+    var c=merc(cLat,cLon,z), left=c.x-MW/2, top=c.y-MH/2+PEEK*k*0.42;
     function put(p){ var m=merc(p.lat,p.lon,z); return { x:m.x-left, y:m.y-top }; }
     var xy=pts.map(function(p){ var q=put(p); return { i:p.i, idx:p.idx, n:p.n, pic:p.pic, x:q.x, y:q.y }; });
 
@@ -239,8 +228,8 @@ const ROUTE_MAP_JS = `
       var q=put(p); q.n=p.n; q.pic=p.pic; q.day=p.day;
       if(q.x<12*k||q.y<12*k||q.x>MW-12*k||q.y>MH-12*k) return;
       // Markers crowd far less than names do. This gap only has to stop two
-      // pins sitting on top of each other; whether they can both be labelled is
-      // decided separately, further down, and usually the answer is no.
+      // pins sitting on top of each other; whether they can both be named is
+      // decided per zoom level, further down.
       if(!clear(q,15*k)) return;
       placed.push(q); pl.push(q);
     });
@@ -262,8 +251,8 @@ const ROUTE_MAP_JS = `
       // The direction they fly in from, as a true bearing rather than a
       // decoration, and all the way out of the frame rather than a stub.
       //
-      // raffy, 2026-09-01: "the incoming leg from origin destination must go
-      // all the way to end of map . and it must start from the direction of the
+      // raffy, 2026-09-01: "the incoming leg from origin destination must go all
+      // the way to end of map . and it must start from the direction of the
       // original country or city." A line that stops in open country reads as a
       // route to nowhere; one that leaves the frame reads as coming from
       // somewhere off it, which is the truth.
@@ -272,23 +261,25 @@ const ROUTE_MAP_JS = `
         var vx=fm.x-ap.x, vy=fm.y-ap.y, vl=Math.sqrt(vx*vx+vy*vy);
         if(vl>1){
           var ux=vx/vl, uy=vy/vl;
-          var tx=ux>0?(MW-ap.x)/ux:(ux<0?(0-ap.x)/ux:Infinity);
-          var ty=uy>0?(MH-ap.y)/uy:(uy<0?(0-ap.y)/uy:Infinity);
-          var t=Math.min(tx,ty);
-          if(isFinite(t)&&t>0){ ap.bx=ap.x+ux*t; ap.by=ap.y+uy*t; ap.has=true; }
+          var tx0=ux>0?(MW-ap.x)/ux:(ux<0?(0-ap.x)/ux:Infinity);
+          var ty0=uy>0?(MH-ap.y)/uy:(uy<0?(0-ap.y)/uy:Infinity);
+          var t0=Math.min(tx0,ty0);
+          if(isFinite(t0)&&t0>0){ ap.bx=ap.x+ux*t0; ap.by=ap.y+uy*t0; ap.has=true; }
         }
       }
     }
 
     // One styled image from our own endpoint, so the Google key never reaches
-    // the page — a generated itinerary gets downloaded and shared. Wikimedia
-    // restricts hotlinking and Carto now wants a key of its own; both loaded on
-    // the server and failed on his phone. Static Maps also takes a style, so
-    // the ground is drawn in the app palette rather than somebody else's
-    // default, which is what gets it near the Phu Quoc map.
+    // the page — a generated itinerary gets downloaded and shared. Static Maps
+    // takes a style, so the ground is drawn in the app palette rather than
+    // somebody else's default, which is what gets it near the Phu Quoc map.
     var ground='<img class="ground" alt="" src="/api/map?c='+cLat.toFixed(5)+','+
-      cLon.toFixed(5)+'&z='+z+'&w='+MW+'">';
+      cLon.toFixed(5)+'&z='+z+'&w='+MW+'&h='+MH+'">';
 
+    // --- the drawn journey, in the layer that scales with the ground ---------
+    //
+    // non-scaling-stroke keeps the line weight and the dash pattern in screen
+    // units, so zooming in shows more map rather than a fatter line.
     var line="";
     if(ap && xy.length){
       // Quieter than the route itself: this is how they get there, not part of
@@ -299,77 +290,96 @@ const ROUTE_MAP_JS = `
       var hd="M"+ap.x.toFixed(1)+" "+ap.y.toFixed(1)+" Q"+(hmx-hdy*0.12).toFixed(1)+" "+
         (hmy+hdx*0.12).toFixed(1)+","+s0.x.toFixed(1)+" "+s0.y.toFixed(1);
       line+='<path d="'+hd+'" fill="none" stroke="#FFFFFF" stroke-width="'+(5*k).toFixed(1)+'" '+
-        'stroke-linecap="round" opacity=".85"/>'+
+        'vector-effect="non-scaling-stroke" stroke-linecap="round" opacity=".85"/>'+
         '<path d="'+hd+'" fill="none" stroke="#10362A" stroke-width="'+(1.8*k).toFixed(1)+'" '+
-        'stroke-linecap="round" stroke-dasharray="'+(5*k).toFixed(1)+' '+(6*k).toFixed(1)+'" opacity=".55"/>';
+        'vector-effect="non-scaling-stroke" stroke-linecap="round" '+
+        'stroke-dasharray="'+(5*k).toFixed(1)+' '+(6*k).toFixed(1)+'" opacity=".55"/>';
     }
     if(xy.length>1){
       var d=curve(xy);
       // Dashed coral over a white casing. raffy, 2026-09-01: "draw like dash
       // line rather than solid in between . doesn't have to be thick or too
-      // thin . just nice perfect for the look." Long dashes with round caps
-      // read as a journey; the dots this replaced read as a hint and vanished
-      // over dense streets at city zoom.
+      // thin . just nice perfect for the look."
       line='<path d="'+d+'" fill="none" stroke="#FFFFFF" stroke-width="'+(6.5*k).toFixed(1)+'" '+
-        'stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>'+
+        'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>'+
         '<path id="rline" d="'+d+'" fill="none" stroke="#EE7B45" stroke-width="'+(3*k).toFixed(1)+'" '+
-        'stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="'+(9*k).toFixed(1)+' '+
-        (7.5*k).toFixed(1)+'"/>'+line;
+        'vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" '+
+        'stroke-dasharray="'+(9*k).toFixed(1)+' '+(7.5*k).toFixed(1)+'"/>'+line;
+    }
+    if(ap && ap.has){
+      line+='<path d="M'+ap.bx.toFixed(1)+' '+ap.by.toFixed(1)+' L'+ap.x.toFixed(1)+' '+
+        ap.y.toFixed(1)+'" fill="none" stroke="#FFFFFF" stroke-width="'+(4.5*k).toFixed(1)+'" '+
+        'vector-effect="non-scaling-stroke" stroke-linecap="round" opacity=".8"/>'+
+        '<path d="M'+ap.bx.toFixed(1)+' '+ap.by.toFixed(1)+' L'+ap.x.toFixed(1)+' '+
+        ap.y.toFixed(1)+'" fill="none" stroke="#10362A" stroke-width="'+(1.8*k).toFixed(1)+'" '+
+        'vector-effect="non-scaling-stroke" stroke-linecap="round" '+
+        'stroke-dasharray="'+(5*k).toFixed(1)+' '+(6*k).toFixed(1)+'" opacity=".5"/>';
     }
 
-    // Tier three, drawn first so everything else sits on top of it. A ring
-    // rather than a disc: it reads as somewhere marked, not somewhere booked.
+    // --- markers, which do NOT scale ----------------------------------------
+    //
+    // Each one is positioned by place() below rather than by a transform on a
+    // parent, which is the whole reason a pin stays a pin at 3x. Its map
+    // position rides on the element as data-mx / data-my.
+    function mk(cls,attrs,x,y,body,labText,labSize,labFill,labBelow,labGap){
+      var lab="";
+      if(labText){
+        var t=String(labText);
+        var max=labSize>12?22:18;
+        if(t.length>max) t=t.slice(0,max-1).replace(/[\\s,\\u2013-]+$/,"")+"\\u2026";
+        lab='<text class="mlab" x="0" y="'+(labBelow?labGap:-labGap).toFixed(1)+'" '+
+          'text-anchor="middle" font-family="Outfit,sans-serif" '+
+          'font-size="'+(labSize*k).toFixed(1)+'" font-weight="700" '+
+          'stroke="#FFFFFF" stroke-width="'+(3.4*k).toFixed(1)+'" paint-order="stroke" '+
+          'fill="'+labFill+'">'+esc(t)+'</text>';
+        // Outfit at 700 runs about 0.6em an average character. Measured rather
+        // than guessed at, after a stay name walked off the right edge twice.
+        attrs+=' data-lw="'+(t.length*labSize*k*0.60).toFixed(1)+'"';
+      }
+      return '<g class="'+cls+'" data-mx="'+x.toFixed(1)+'" data-my="'+y.toFixed(1)+'" '+attrs+'>'+
+        body+lab+'</g>';
+    }
+
+    // Tier three, first so everything else sits on top of it. A ring rather
+    // than a disc: it reads as somewhere marked, not somewhere booked.
     var spots=sp.map(function(q){
-      return '<g class="spot" data-idea="'+q.idea+'" role="button" tabindex="0" '+
-        'aria-label="Idea: '+esc(q.n)+'" transform="translate('+q.x.toFixed(1)+','+q.y.toFixed(1)+')">'+
+      return mk("spot",'data-idea="'+q.idea+'" role="button" tabindex="0" aria-label="Idea: '+esc(q.n)+'"',
+        q.x,q.y,
         '<circle r="'+(13*k).toFixed(1)+'" fill="transparent"/>'+
         // A soft halo under it, because a small ring alone disappears into a
         // busy street map — which is exactly what it did the first time.
         '<circle r="'+(9*k).toFixed(1)+'" fill="#FFFFFF" opacity=".55"/>'+
         '<circle r="'+(6.2*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" '+
-        'stroke-width="'+(2.6*k).toFixed(1)+'"/></g>';
+        'stroke-width="'+(2.6*k).toFixed(1)+'"/>',
+        "",0,"",true,0);
     }).join("");
 
-    // Labels are what get crowded, not markers. A stay always keeps its name;
-    // a plan place keeps its own only where nothing else has claimed the space.
-    var lab=[];
-    function labelRoom(q,w,h){
-      for(var i=0;i<lab.length;i++){
-        if(Math.abs(lab[i].x-q.x)<w && Math.abs(lab[i].y-q.y)<h) return false;
-      }
-      return true;
-    }
-    // A name that runs off the edge of the map is worse than no name: it reads
-    // as a rendering fault rather than a long place name. So it is cut to
-    // length, and then pulled back inside the frame by anchoring it to whichever
-    // edge it was about to cross.
-    function label(q,dy,size,fill){
-      var t=String(q.n||"");
-      var max=size>12?22:18;
-      if(t.length>max) t=t.slice(0,max-1).replace(/[\s,\u2013-]+$/,"")+"\u2026";
-      // Outfit at 700 runs about 0.6em an average character. Measured rather
-      // than guessed at, after a stay name walked off the right edge twice.
-      var w=t.length*size*k*0.60, x=0, anc="middle";
-      if(q.x-w/2 < 10*k){ anc="start"; x=10*k-q.x; }
-      else if(q.x+w/2 > MW-10*k){ anc="end"; x=(MW-10*k)-q.x; }
-      return '<text x="'+x.toFixed(1)+'" y="'+dy.toFixed(1)+'" text-anchor="'+anc+'" '+
-        'font-family="Outfit,sans-serif" font-size="'+(size*k).toFixed(1)+'" font-weight="700" '+
-        'stroke="#FFFFFF" stroke-width="'+(3.4*k).toFixed(1)+'" paint-order="stroke" '+
-        'fill="'+fill+'">'+esc(t)+'</text>';
-    }
+    // Tier two. The same idea as a stay, at half the size and without the
+    // number: these belong to a day, not to the spine of the trip.
+    var plan=pl.map(function(q){
+      var Rr=(q.pic?13:7.5)*k;
+      var id="q"+Math.round(q.x)+"_"+Math.round(q.y);
+      var body = q.pic
+        ? '<clipPath id="'+id+'"><circle r="'+Rr.toFixed(1)+'"/></clipPath>'+
+          '<circle r="'+(Rr+2.6*k).toFixed(1)+'" fill="#FFFFFF"/>'+
+          '<image href="'+q.pic+'" x="-'+Rr.toFixed(1)+'" y="-'+Rr.toFixed(1)+'" '+
+          'width="'+(Rr*2).toFixed(1)+'" height="'+(Rr*2).toFixed(1)+'" '+
+          'preserveAspectRatio="xMidYMid slice" clip-path="url(#'+id+')"/>'
+        : '<circle r="'+Rr.toFixed(1)+'" fill="#EE7B45" stroke="#FFFFFF" stroke-width="'+(2.2*k).toFixed(1)+'"/>';
+      return mk("pin plan",'data-goday="'+q.day+'" role="button" tabindex="0" aria-label="'+esc(q.n)+'"',
+        q.x,q.y,'<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+body,
+        q.n,10.5,"#2C4B3F",true,Rr+12*k);
+    }).join("");
 
     // Tier one. A stay with a photo shows the photo, the way the Phu Quoc map
     // does. raffy, 2026-09-01: "the no 1 and 2 is the image of the hotel . if
     // possible." A picture of where you are sleeping tells you more at a glance
     // than a numbered dot ever will.
     var pins=xy.map(function(q){
-      var Rr=(q.pic?27:11)*k;
-      // Below the marker, not beside it: beside runs the label straight into
-      // the next stop along the route, which is where the next pin tends to be.
-      var below = q.y < MH-(Rr+26*k);
-      var head;
+      var Rr=(q.pic?27:13)*k;
+      var body;
       if(q.pic){
-        head='<clipPath id="pc'+q.i+'"><circle r="'+Rr.toFixed(1)+'"/></clipPath>'+
+        body='<clipPath id="pc'+q.i+'"><circle r="'+Rr.toFixed(1)+'"/></clipPath>'+
           '<circle r="'+(Rr+3.5*k).toFixed(1)+'" fill="#FFFFFF"/>'+
           '<image href="'+q.pic+'" x="-'+Rr.toFixed(1)+'" y="-'+Rr.toFixed(1)+'" '+
           'width="'+(Rr*2).toFixed(1)+'" height="'+(Rr*2).toFixed(1)+'" '+
@@ -384,96 +394,54 @@ const ROUTE_MAP_JS = `
         // disc two pixels wider than a plan marker, which put the single most
         // important thing on the map in the same voice as a lunch stop. Colour
         // carries the tier; size only reinforces it.
-        head='<circle r="'+(19*k).toFixed(1)+'" fill="#10362A" opacity=".16"/>'+
+        body='<circle r="'+(19*k).toFixed(1)+'" fill="#10362A" opacity=".16"/>'+
           '<circle r="'+(13*k).toFixed(1)+'" fill="#10362A" stroke="#FFFFFF" stroke-width="'+(3*k).toFixed(1)+'"/>'+
           (xy.length>1?'<text y="'+(4.6*k).toFixed(1)+'" text-anchor="middle" font-family="Outfit,sans-serif" '+
             'font-size="'+(12.5*k).toFixed(1)+'" font-weight="800" fill="#EAF2EC">'+q.i+'</text>':'');
       }
-      lab.push({x:q.x,y:q.y});
-      return '<g class="pin" data-stay="'+q.idx+'" role="button" tabindex="0" '+
-        'aria-label="'+esc(q.n)+'" transform="translate('+q.x.toFixed(1)+','+q.y.toFixed(1)+')">'+
-        '<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+head+
-        label(q, below?Rr+17*k:-(Rr+9*k), 13.5, "#0C241B")+
-        '</g>';
-    }).join("");
-
-    // Tier two. The same idea as a stay, at half the size and without the
-    // number: these belong to a day, not to the spine of the trip.
-    var named=0;
-    pl.sort(function(a,b){ return (b.pic?1:0)-(a.pic?1:0); });
-    var plan=pl.map(function(q){
-      var Rr=(q.pic?13:7.5)*k;
-      var head = q.pic
-        ? '<clipPath id="qc'+q.day+'_'+Math.round(q.x)+'_'+Math.round(q.y)+'"><circle r="'+Rr.toFixed(1)+'"/></clipPath>'+
-          '<circle r="'+(Rr+2.6*k).toFixed(1)+'" fill="#FFFFFF"/>'+
-          '<image href="'+q.pic+'" x="-'+Rr.toFixed(1)+'" y="-'+Rr.toFixed(1)+'" '+
-          'width="'+(Rr*2).toFixed(1)+'" height="'+(Rr*2).toFixed(1)+'" preserveAspectRatio="xMidYMid slice" '+
-          'clip-path="url(#qc'+q.day+'_'+Math.round(q.x)+'_'+Math.round(q.y)+')"/>'
-        : '<circle r="'+Rr.toFixed(1)+'" fill="#EE7B45" stroke="#FFFFFF" stroke-width="'+(2.2*k).toFixed(1)+'"/>';
-      // Names, not markers, are what make a map unreadable. Five is about what
-      // fits before the plan starts shouting over the stays it belongs to, and
-      // the ones with a photograph earn theirs first.
-      var name="";
-      if(named<5 && labelRoom(q, 74*k, 22*k)){
-        named++; lab.push({x:q.x,y:q.y});
-        name=label(q, q.y<MH-(Rr+20*k)?Rr+12*k:-(Rr+7*k), 10.5, "#2C4B3F");
-      }
-      return '<g class="pin plan" data-goday="'+q.day+'" role="button" tabindex="0" '+
-        'aria-label="'+esc(q.n)+'" transform="translate('+q.x.toFixed(1)+','+q.y.toFixed(1)+')">'+
-        '<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+head+name+'</g>';
+      return mk("pin",'data-stay="'+q.idx+'" role="button" tabindex="0" aria-label="'+esc(q.n)+'"',
+        q.x,q.y,'<circle r="'+(Rr+7*k).toFixed(1)+'" fill="transparent"/>'+body,
+        q.n,13.5,"#0C241B",true,Rr+17*k);
     }).join("");
 
     var airpin="";
-    if(ap && ap.has){
-      // Drawn first so the airport marker sits on top of where it ends.
-      airpin+='<path d="M'+ap.bx.toFixed(1)+' '+ap.by.toFixed(1)+' L'+ap.x.toFixed(1)+' '+
-        ap.y.toFixed(1)+'" fill="none" stroke="#FFFFFF" stroke-width="'+(4.5*k).toFixed(1)+'" '+
-        'stroke-linecap="round" opacity=".8"/>'+
-        '<path d="M'+ap.bx.toFixed(1)+' '+ap.by.toFixed(1)+' L'+ap.x.toFixed(1)+' '+
-        ap.y.toFixed(1)+'" fill="none" stroke="#10362A" stroke-width="'+(1.8*k).toFixed(1)+'" '+
-        'stroke-linecap="round" stroke-dasharray="'+(5*k).toFixed(1)+' '+(6*k).toFixed(1)+'" opacity=".5"/>'+
-        (ap.from?'<text x="'+(ap.x+(ap.bx-ap.x)*0.74).toFixed(1)+'" y="'+
-          (ap.y+(ap.by-ap.y)*0.74-8*k).toFixed(1)+'" '+
-          'text-anchor="middle" font-family="Outfit,sans-serif" font-size="'+(10.5*k).toFixed(1)+'" '+
-          'font-weight="700" stroke="#FFFFFF" stroke-width="'+(3*k).toFixed(1)+'" paint-order="stroke" '+
-          'fill="#4C6157">from '+esc(ap.from)+'</text>':'');
+    if(ap && ap.has && ap.from){
+      // Where they are flying in from, on the leg itself. A marker rather than
+      // part of the drawn route, so it stays legible at every zoom.
+      airpin+=mk("fromlab","",ap.x+(ap.bx-ap.x)*0.74,ap.y+(ap.by-ap.y)*0.74,
+        "","from "+ap.from,10.5,"#4C6157",false,8*k);
     }
     if(ap){
-      // Appended, not assigned: the incoming leg is written above and this used
-      // to wipe it.
-      airpin+='<g class="airpin" transform="translate('+ap.x.toFixed(1)+','+ap.y.toFixed(1)+')">'+
+      airpin+=mk("airpin","",ap.x,ap.y,
         '<circle r="'+(13*k).toFixed(1)+'" fill="#FFFFFF"/>'+
         '<circle r="'+(13*k).toFixed(1)+'" fill="none" stroke="#10362A" stroke-width="'+(1.3*k).toFixed(1)+'" opacity=".25"/>'+
         '<g transform="translate('+(-8*k).toFixed(1)+','+(-8*k).toFixed(1)+') scale('+(0.68*k).toFixed(3)+')" '+
         'fill="none" stroke="#10362A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+
         '<path d="M12 2.5c.9 0 1.6.8 1.6 1.7v5.1l7.4 4.3v2.1l-7.4-2.3v4.7l2.6 1.9v1.6L12 20.5'+
-        'l-4.2 1.1v-1.6l2.6-1.9v-4.7L3 15.7v-2.1l7.4-4.3V4.2c0-.9.7-1.7 1.6-1.7z"/></g>'+
-        (ap.code?'<text x="0" y="'+(26*k).toFixed(1)+'" text-anchor="middle" font-family="Outfit,sans-serif" '+
-          'font-size="'+(11*k).toFixed(1)+'" font-weight="700" stroke="#FFFFFF" stroke-width="'+(3*k).toFixed(1)+'" '+
-          'paint-order="stroke" fill="#0C241B">'+esc(ap.code)+'</text>':'')+
-        '</g>';
+        'l-4.2 1.1v-1.6l2.6-1.9v-4.7L3 15.7v-2.1l7.4-4.3V4.2c0-.9.7-1.7 1.6-1.7z"/></g>',
+        ap.code,11,"#0C241B",true,26*k);
     }
 
-    // The map carries the page's title now that it fills the screen, so the
-    // heading above it goes. Counts rather than a sentence: a map does not need
-    // telling you what a map is.
+    // The map carries the page's title now that it fills the screen. Counts
+    // rather than a sentence: a map does not need telling you what a map is.
     var found=pl.length+sp.length;
-    var head='<div class="rmaphead"><span class="eyebrow">Where you go</span>'+
+    // What the drawer says while it is only peeking. It has to clear the
+    // floating nav, which is why the peek is as tall as it is.
+    var hd=document.getElementById("rshead");
+    if(hd){
+      var total=xy.length+found;
+      hd.innerHTML='<b>'+total+' place'+(total===1?"":"s")+'</b>'+
+        '<span id="rshint">Drag up for the list</span>';
+    }
+    var head='<div class="rmaphead"><div class="rsin"><span class="eyebrow">Where you go</span>'+
       '<h1>'+esc((T.trip&&T.trip.title)||"Your route")+'</h1>'+
       '<p class="rsub">'+xy.length+(xy.length===1?" stay":" stays")+
-      (found?" \\u00b7 "+found+" place"+(found===1?"":"s")+" on the map":"")+'</p></div>';
-
-    var legend = xy.length>1
-      ? '<div class="rlegend">'+xy.map(function(q){
-          return '<button class="rleg" data-stay="'+q.idx+'"><i>'+q.i+'</i>'+esc(q.n)+'</button>';
-        }).join("")+'</div>'
-      : '';
+      (found?" \\u00b7 "+found+" place"+(found===1?"":"s")+" nearby":"")+'</p></div></div>';
     var key = (pl.length||sp.length)
-      ? '<div class="rkey"><span><b class="k1"></b>Stays</span>'+
+      ? '<div class="rkey"><div class="rsin"><span><b class="k1"></b>Stays</span>'+
         (pl.length?'<span><b class="k2"></b>In your plan</span>':'')+
-        (sp.length?'<span><b class="k3"></b>Worth a look</span>':'')+'</div>'
+        (sp.length?'<span><b class="k3"></b>Worth a look</span>':'')+'</div></div>'
       : '';
-
     var zoombtns='<div class="rzoom">'+
       '<button type="button" data-zoom="in" aria-label="Zoom in">'+
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">'+
@@ -482,22 +450,102 @@ const ROUTE_MAP_JS = `
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">'+
       '<path d="M5 12h14"/></svg></button></div>';
 
-    box.innerHTML='<div class="rmapz">'+ground+
-      '<svg class="pins" viewBox="0 0 '+MW+' '+MH+'" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+
-      spots+line+'<g id="rarrows"></g>'+airpin+plan+pins+'</svg></div>'+
-      head+legend+key+zoombtns;
+    host.innerHTML='<div class="rmap">'+
+      '<div class="rmapz">'+ground+'</div>'+
+      '<svg class="pins" viewBox="0 0 '+MW+' '+MH+'" preserveAspectRatio="xMidYMid slice">'+
+      '<g id="rgeo">'+line+'</g><g id="rarrows"></g>'+
+      '<g id="rmk">'+spots+airpin+plan+pins+'</g></svg>'+
+      head+key+zoombtns+'</div>';
 
-    // The arrows need the path measured, so they are added once it is real.
-    var rl=box.querySelector("#rline"), ra=box.querySelector("#rarrows");
-    if(rl&&ra) ra.innerHTML=routeArrows(rl,k);
+    var box=host.querySelector(".rmap");
+    box.style.setProperty("--peek",PEEK+"px");
+    var zl=box.querySelector(".rmapz"), geo=box.querySelector("#rgeo");
+    var arr=box.querySelector("#rarrows"), rl=box.querySelector("#rline");
+    var marks=Array.prototype.slice.call(box.querySelectorAll("#rmk > g"));
+    var f=W/MW;   // css pixels per map unit
 
-    // The page heading would only push the map down the screen.
-    var eh=document.getElementById("exhead"); if(eh) eh.hidden=true;
+    // Where everything is, at the current zoom and pan.
+    //
+    // The ground is one CSS transform; the drawn route is one SVG transform
+    // with non-scaling strokes; every marker is moved individually and never
+    // scaled. That last part is the difference between a map and a photograph
+    // of a map, and it is what raffy asked for.
+    function place(sc,tx,ty){
+      zl.style.transform="translate("+(tx*f).toFixed(1)+"px,"+(ty*f).toFixed(1)+"px) scale("+sc.toFixed(3)+")";
+      geo.setAttribute("transform","translate("+tx.toFixed(1)+","+ty.toFixed(1)+") scale("+sc.toFixed(3)+")");
+
+      var shown=[];
+      for(var i=0;i<marks.length;i++){
+        var g=marks[i];
+        var mx=+g.getAttribute("data-mx")*sc+tx, my=+g.getAttribute("data-my")*sc+ty;
+        // Off the frame: hidden rather than drawn and clipped, so a zoomed-in
+        // map is not still hit-testing forty markers nobody can see.
+        var off = mx<-30*k||my<-30*k||mx>MW+30*k||my>MH+30*k;
+        g.style.display = off ? "none" : "";
+        if(off) continue;
+        g.setAttribute("transform","translate("+mx.toFixed(1)+","+my.toFixed(1)+")");
+
+        // Names appear as there becomes room for them, which is what zooming in
+        // on a map is for. Stays always keep theirs; everything else earns it.
+        var lab=g.querySelector("text.mlab");
+        if(!lab) continue;
+        var lw=+g.getAttribute("data-lw")||0;
+        var must=g.classList.contains("pin")&&!g.classList.contains("plan");
+        var room=true;
+        if(!must){
+          for(var j=0;j<shown.length;j++){
+            if(Math.abs(shown[j].x-mx) < (shown[j].w+lw)/2+10*k && Math.abs(shown[j].y-my) < 27*k){ room=false; break; }
+          }
+        }
+        lab.style.display = room ? "" : "none";
+        if(room){
+          shown.push({x:mx,y:my,w:lw});
+          // A name that runs off the edge reads as a rendering fault rather than
+          // a long place name, so it is pulled back inside by anchoring it to
+          // whichever edge it was about to cross.
+          var ax=0, anc="middle";
+          if(mx-lw/2 < 10*k){ anc="start"; ax=10*k-mx; }
+          else if(mx+lw/2 > MW-10*k){ anc="end"; ax=(MW-10*k)-mx; }
+          lab.setAttribute("text-anchor",anc);
+          lab.setAttribute("x",ax.toFixed(1));
+        }
+      }
+
+      // Arrowheads along the route, so it reads as a journey with a direction
+      // rather than a line joining dots. raffy: "make it like a journey with
+      // arrows etc make it nice."
+      //
+      // Sampled off the real path rather than computed from the control points:
+      // the route is a bezier, and the angle its handles point in is exactly
+      // the wrong angle to draw an arrowhead at. Redrawn on every zoom because
+      // they are markers, not line decoration, and must not grow.
+      if(!arr) return;
+      var out="";
+      if(rl&&rl.getTotalLength){
+        var L=0; try{ L=rl.getTotalLength(); }catch(e){ L=0; }
+        if(L>70*k/sc){
+          var n=Math.max(2,Math.min(7,Math.round(L*sc/(110*k))));
+          var step=L/(n+1);
+          for(var d=step; d<L-4*k; d+=step){
+            var a,b;
+            try{ a=rl.getPointAtLength(d); b=rl.getPointAtLength(Math.min(L,d+0.5)); }catch(e){ break; }
+            var ang=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+            var px=a.x*sc+tx, py=a.y*sc+ty;
+            if(px<0||py<0||px>MW||py>MH) continue;
+            out+='<g transform="translate('+px.toFixed(1)+','+py.toFixed(1)+') rotate('+ang.toFixed(1)+')">'+
+              '<path d="M'+(-4.6*k).toFixed(1)+' '+(-6.2*k).toFixed(1)+' L'+(6.6*k).toFixed(1)+' 0 L'+
+              (-4.6*k).toFixed(1)+' '+(6.2*k).toFixed(1)+' Z" fill="#EE7B45" stroke="#FFFFFF" '+
+              'stroke-width="'+(2*k).toFixed(1)+'" stroke-linejoin="round"/></g>';
+          }
+        }
+      }
+      arr.innerHTML=out;
+    }
 
     // A map that will not load simply goes; the sage ground, the route and the
     // labelled pins still read as the shape of the trip.
-    var g=box.querySelector("img.ground");
-    if(g) g.addEventListener("error", function(){ this.remove(); });
+    var g0=box.querySelector("img.ground");
+    if(g0) g0.addEventListener("error", function(){ this.remove(); });
 
     // Tapping a stop opens that stay, a plan marker jumps to its day, an idea
     // opens the idea. raffy, 2026-09-01: "make it so that the location is
@@ -508,98 +556,111 @@ const ROUTE_MAP_JS = `
         if(e.key==="Enter"||e.key===" "){ e.preventDefault(); go(); }
       });
     }
-    Array.prototype.forEach.call(host.querySelectorAll("[data-stay]"), function(el){
+    Array.prototype.forEach.call(box.querySelectorAll("g.pin[data-stay]"), function(el){
       wire(el, function(){ openSheet(+el.getAttribute("data-stay")); });
     });
-    Array.prototype.forEach.call(host.querySelectorAll("svg g.plan"), function(el){
+    Array.prototype.forEach.call(box.querySelectorAll("g.plan"), function(el){
       wire(el, function(){ setView("days"); renderDay(+el.getAttribute("data-goday")); });
     });
-    Array.prototype.forEach.call(host.querySelectorAll("svg g.spot"), function(el){
+    Array.prototype.forEach.call(box.querySelectorAll("g.spot"), function(el){
       wire(el, function(){ openIdea(+el.getAttribute("data-idea")); });
     });
 
-    zoomable(box, W, H);
+    zoomable(box,MW,MH,k,place);
+    drawer(PEEK);
   }
 
-  // Pinch, wheel, double-tap and two buttons — bounded, and free.
+  // Pinch, drag, wheel, double-tap and two buttons — bounded, and free.
   //
-  // The ceiling is 3x because that is where a scale=2 static tile stops looking
-  // like a map and starts looking like a photograph of one. The floor is 1
-  // because below it the frame would show background instead of ground.
+  // raffy, 2026-09-05: "a good solution would be if user can zoom in or zoom out
+  // the map up to certain level right."
   //
-  // Panning is clamped to the tile on both axes, so the map cannot be thrown
-  // off its own frame and left blank — which is the failure mode of every
-  // hand-rolled pan.
-  function zoomable(box,W,H){
-    var layer=box.querySelector(".rmapz"); if(!layer) return;
-    var MAXZ=3, sc=1, tx=0, ty=0;
+  // The ceiling is 2.6x. The ground is one static tile, so past that its own
+  // place names — which Google draws into the image — grow with everything else
+  // and it stops reading as a map. Our markers do not scale, which is what
+  // keeps it usable that far. The floor is 1, because below it the frame would
+  // show background instead of ground.
+  //
+  // Everything is in map units, so it agrees with the marker positions without
+  // a conversion at every step.
+  function zoomable(box,MW,MH,k,place){
+    var MAXZ=2.6, sc=1, tx=0, ty=0;
     var inb=box.querySelector('[data-zoom="in"]'), outb=box.querySelector('[data-zoom="out"]');
-
+    var rect=null;
+    function frame(){ rect=box.getBoundingClientRect(); return rect; }
+    function toUnits(clientX,clientY){
+      var r=rect||frame();
+      return { x:(clientX-r.left)/r.width*MW, y:(clientY-r.top)/r.height*MH };
+    }
     function apply(){
       // Clamped after every change rather than during the gesture: a pinch that
       // ends out of bounds still has to land inside it.
-      var minx=W-W*sc, miny=H-H*sc;
-      tx=Math.min(0,Math.max(minx,tx)); ty=Math.min(0,Math.max(miny,ty));
-      layer.style.transform="translate("+tx.toFixed(1)+"px,"+ty.toFixed(1)+"px) scale("+sc.toFixed(3)+")";
+      tx=Math.min(0,Math.max(MW-MW*sc,tx));
+      ty=Math.min(0,Math.max(MH-MH*sc,ty));
+      place(sc,tx,ty);
       if(inb) inb.disabled = sc>=MAXZ-0.001;
       if(outb) outb.disabled = sc<=1.001;
     }
     // Zoom about a point, so what is under the fingers stays under them.
     function zoomAt(next,px,py){
       next=Math.min(MAXZ,Math.max(1,next));
-      if(next===sc) return;
+      if(Math.abs(next-sc)<0.0005) return;
       var r=next/sc;
       tx=px-(px-tx)*r; ty=py-(py-ty)*r;
       sc=next; apply();
     }
-    function centre(next){ zoomAt(next,W/2,H/2); }
+    function centre(next){ zoomAt(next,MW/2,MH/2); }
 
-    if(inb) inb.addEventListener("click",function(e){ e.preventDefault(); centre(sc*1.6); });
-    if(outb) outb.addEventListener("click",function(e){ e.preventDefault(); centre(sc/1.6); });
+    if(inb) inb.addEventListener("click",function(e){ e.preventDefault(); frame(); centre(sc*1.6); });
+    if(outb) outb.addEventListener("click",function(e){ e.preventDefault(); frame(); centre(sc/1.6); });
 
     box.addEventListener("wheel",function(e){
-      e.preventDefault();
-      var r=box.getBoundingClientRect();
-      zoomAt(sc*(e.deltaY<0?1.12:1/1.12), e.clientX-r.left, e.clientY-r.top);
+      e.preventDefault(); frame();
+      var p=toUnits(e.clientX,e.clientY);
+      zoomAt(sc*(e.deltaY<0?1.12:1/1.12),p.x,p.y);
     },{passive:false});
 
     box.addEventListener("dblclick",function(e){
-      var r=box.getBoundingClientRect();
-      zoomAt(sc>1.05?1:2.2, e.clientX-r.left, e.clientY-r.top);
+      frame();
+      var p=toUnits(e.clientX,e.clientY);
+      zoomAt(sc>1.05?1:2.2,p.x,p.y);
     });
 
-    // One pointer pans, two pinch. Tracked here rather than with touch events
-    // so a trackpad, a stylus and a finger all behave the same.
+    // One pointer pans, two pinch. Pointer events rather than touch events so a
+    // trackpad, a stylus and a finger all behave the same.
     var live={}, n=0, last=null, moved=0, gap=0, mid=null;
     function pts(){ var a=[]; for(var id in live) a.push(live[id]); return a; }
-    layer.addEventListener("pointerdown",function(e){
+    box.addEventListener("pointerdown",function(e){
+      // The buttons are inside the map and are not a pan.
+      if(e.target.closest && e.target.closest(".rzoom")) return;
       live[e.pointerId]={x:e.clientX,y:e.clientY}; n++;
-      moved=0; last={x:e.clientX,y:e.clientY};
+      moved=0; last={x:e.clientX,y:e.clientY}; frame();
       if(n===2){ var p=pts(); gap=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y); mid=null; }
       // Captured only when there is something to capture for. Taking the
       // pointer on every press redirects the click to this layer, and every pin
       // underneath it stops opening — which is most of what the map is for.
-      if(n>1||sc>1.001){ try{ layer.setPointerCapture(e.pointerId); }catch(err){} }
+      if(n>1||sc>1.001){ try{ box.setPointerCapture(e.pointerId); }catch(err){} }
     });
-    layer.addEventListener("pointermove",function(e){
+    box.addEventListener("pointermove",function(e){
       if(!live[e.pointerId]) return;
       live[e.pointerId]={x:e.clientX,y:e.clientY};
-      var p=pts(), r=box.getBoundingClientRect();
+      var p=pts(), r=rect||frame();
+      var u=MW/r.width, v=MH/r.height;
       if(p.length>=2){
-        var d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
-        var cx=(p[0].x+p[1].x)/2-r.left, cy=(p[0].y+p[1].y)/2-r.top;
+        var dd=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);
+        var cx=((p[0].x+p[1].x)/2-r.left)*u, cy=((p[0].y+p[1].y)/2-r.top)*v;
         if(gap>0){
           if(mid){ tx+=cx-mid.x; ty+=cy-mid.y; }
-          zoomAt(sc*(d/gap),cx,cy);
+          zoomAt(sc*(dd/gap),cx,cy);
         }
-        gap=d; mid={x:cx,y:cy}; moved=99;
+        gap=dd; mid={x:cx,y:cy}; moved=99;
         e.preventDefault();
         return;
       }
       if(sc<=1.001||!last) return;
       var dx=e.clientX-last.x, dy=e.clientY-last.y;
       moved+=Math.abs(dx)+Math.abs(dy);
-      tx+=dx; ty+=dy; last={x:e.clientX,y:e.clientY}; apply();
+      tx+=dx*u; ty+=dy*v; last={x:e.clientX,y:e.clientY}; apply();
       e.preventDefault();
     });
     function up(e){
@@ -607,15 +668,147 @@ const ROUTE_MAP_JS = `
       if(n<2){ gap=0; mid=null; }
       if(n===0) last=null;
     }
-    layer.addEventListener("pointerup",up);
-    layer.addEventListener("pointercancel",up);
+    box.addEventListener("pointerup",up);
+    box.addEventListener("pointercancel",up);
     // A drag that ended on a pin must not also open it.
-    layer.addEventListener("click",function(e){
+    box.addEventListener("click",function(e){
       if(moved>8){ e.stopPropagation(); e.preventDefault(); moved=0; }
     },true);
+    window.addEventListener("resize",function(){ rect=null; });
 
     apply();
   }
+
+  // The drawer.
+  //
+  // raffy, 2026-09-05: "there's a drawer at the bottom for all the contents of
+  // the places that we go to."
+  //
+  // Three heights, because two is not enough to both see the map and read the
+  // list. It opens peeking, so the map is the first thing you see — which is
+  // the point of the tab — and the list is one drag away.
+  //
+  // Dragging is allowed from the handle, and from the list itself only while it
+  // is scrolled to the top and moving down. That second rule is what stops the
+  // sheet fighting its own scroll, which is the thing that makes a hand-rolled
+  // drawer feel broken.
+  function drawer(PEEK){
+    var sh=document.getElementById("rsheet"); if(!sh) return;
+    var body=sh.querySelector(".rsbody"), grab=sh.querySelector(".rgrab");
+    var map=document.querySelector("#routemap .rmap");
+    var H=Math.max(260,(window.innerHeight||760)-64);
+    var VH=window.innerHeight||760;
+    var snaps=[0, Math.round(H*0.46), H-PEEK];
+    var at=2, y=snaps[2];
+
+    function put(v,drag){
+      sh.setAttribute("data-drag",drag?"true":"false");
+      sh.style.setProperty("--y",v.toFixed(1)+"px");
+      var op=Math.max(0,Math.min(1,(snaps[2]-v)/110));
+      sh.style.setProperty("--bodyop",op.toFixed(2));
+      sh.style.pointerEvents = op<0.05 ? "none" : "";
+      if(grab) grab.style.pointerEvents="auto";
+      if(map){
+        // How much of the screen the drawer is taking, so the zoom buttons and
+        // the key can sit on top of it instead of behind it.
+        var vis=Math.max(0,H-v);
+        map.setAttribute("data-drag",drag?"true":"false");
+        map.style.setProperty("--peek",Math.min(vis,VH*0.52).toFixed(0)+"px");
+        map.style.setProperty("--furn", vis>VH*0.62 ? "0" : "1");
+      }
+    }
+    function snap(i){
+      at=Math.max(0,Math.min(snaps.length-1,i));
+      y=snaps[at]; put(y,false);
+      sh.setAttribute("data-snap",["full","mid","peek"][at]);
+      // Only the open sheet scrolls; a peeking one that scrolls swallows the
+      // drag that was meant to open it.
+      body.style.overflowY = at===2 ? "hidden" : "auto";
+      if(at===2) body.scrollTop=0;
+      if(grab) grab.setAttribute("aria-label", at===2?"Show the list of places":"Hide the list");
+      var hint=document.getElementById("rshint");
+      if(hint) hint.textContent = at===2 ? "Drag up for the list" : (at===0 ? "Drag down for the map" : "Keep going");
+    }
+    function nearest(v,vel){
+      var best=0, d=Infinity;
+      // A flick counts for about a fifth of the travel, so a short fast drag
+      // still changes height and a long slow one still lands where you left it.
+      var target=v+vel*120;
+      for(var i=0;i<snaps.length;i++){
+        var dd=Math.abs(snaps[i]-target);
+        if(dd<d){ d=dd; best=i; }
+      }
+      return best;
+    }
+
+    // Pointer capture is what makes a drag survive the finger leaving the
+    // element — and also what redirects the eventual click away from whatever
+    // was underneath. Taken late, only once a drag is real, so a tap on a card
+    // in the list stays a tap on that card. Taking it on every press is how
+    // both the handle and then every idea card stopped responding.
+    var down=null, from=0, vel=0, lastY=0, lastT=0, fromBody=false, dragging=false, pid=null;
+    function arm(e,viaBody){
+      down=e.clientY; from=y; vel=0; lastY=e.clientY; lastT=Date.now();
+      fromBody=!!viaBody; dragging=false; pid=e.pointerId;
+    }
+    function grip(){
+      if(dragging) return;
+      dragging=true;
+      sh.setAttribute("data-drag","true");
+      try{ sh.setPointerCapture(pid); }catch(err){}
+    }
+    sh.addEventListener("pointerdown",function(e){
+      if(e.target.closest(".rgrab")){ arm(e,false); return; }
+      // From the list: only at the very top, and the direction is not known
+      // until it moves, so this arms rather than starts.
+      if(e.target.closest(".rsbody") && body.scrollTop<=0){ arm(e,true); }
+    });
+    sh.addEventListener("pointermove",function(e){
+      if(down===null||e.pointerId!==pid) return;
+      var dy=e.clientY-down;
+      // Armed from the list: an upward drag is a scroll, so hand it back.
+      if(fromBody && dy<0 && !dragging){ down=null; return; }
+      if(!dragging && Math.abs(dy)<5) return;
+      grip();
+      var now=Date.now();
+      if(now>lastT){ vel=(e.clientY-lastY)/(now-lastT); lastY=e.clientY; lastT=now; }
+      var v=from+dy;
+      // Rubber-banding past the ends, so the sheet has edges you can feel.
+      if(v<0) v=v/3;
+      if(v>snaps[2]) v=snaps[2]+(v-snaps[2])/3;
+      y=v; put(v,true);
+      e.preventDefault();
+    });
+    function end(e){
+      if(down===null) return;
+      var tap=!dragging && !fromBody;
+      down=null; dragging=false;
+      try{ sh.releasePointerCapture(e.pointerId); }catch(err){}
+      // A press that never moved is a tap, and a tap on the handle steps the
+      // drawer open — then shut again from the top. Handled here rather than
+      // with a click listener because the pointer capture that makes dragging
+      // work also redirects the click away from the handle, so the listener
+      // never fired and the handle looked dead.
+      if(tap){ snap(at===0?2:at-1); return; }
+      snap(nearest(y,vel));
+    }
+    sh.addEventListener("pointerup",end);
+    sh.addEventListener("pointercancel",end);
+    if(grab){
+      grab.addEventListener("keydown",function(e){
+        if(e.key==="Enter"||e.key===" "){ e.preventDefault(); snap(at===0?2:at-1); }
+      });
+    }
+
+    window.addEventListener("resize",function(){
+      H=Math.max(260,(window.innerHeight||760)-64);
+      snaps=[0,Math.round(H*0.46),H-PEEK];
+      snap(at);
+    });
+
+    snap(2);
+  }
+
   renderRouteMap();
 `;
 
@@ -768,13 +961,25 @@ export function render(T, templateSrc) {
   // Ideas tab instead. Removing the whole section would also null out the
   // `ordered` and `ideas` containers the renderer appends into.
   if (!T.map) {
+    // The illustrated header and the hand-drawn SVG both go, and what replaces
+    // them is not a heading but the map itself.
+    //
+    // raffy, 2026-09-05: "I've been trying to make the explorer section to be,
+    // like, Google Map. How Google Map experience feels like... there's a drawer
+    // at the bottom for all the contents of the places that we go to... it's got
+    // quite stuck... it blocks the scrolling down experience."
+    //
+    // So Explore stops being a page with a map on it and becomes a map with a
+    // drawer over it. That is also the fix for the scroll trap: the tab is
+    // exactly one viewport tall and cannot scroll, so the only thing that
+    // scrolls is the drawer, and there is no longer a gesture that means one
+    // thing over the map and another over the page.
     replaceRange(589, 685,
       '<div style="padding:calc(14px + env(safe-area-inset-top)) 0 16px">',
-      '    <div id="exhead" style="padding:calc(14px + env(safe-area-inset-top)) 0 16px">\n' +
-      '      <span class="eyebrow">Worth doing</span>\n' +
-      '      <h1 style="font-size:34px;font-weight:700;margin-top:8px">Explore</h1>\n' +
-      '    </div>',
+      '    <div id="routemap"></div>',
       'strip illustrated map');
+    replaceOnce('<section class="view" id="v-map" hidden>',
+      '<section class="view mapview" id="v-map" hidden>', 'explore is a map stage');
   }
 
   // "Before you lock this in" — three caveat cards plus a credits line, all
@@ -2146,90 +2351,121 @@ export function render(T, templateSrc) {
   // One island, one city, two countries, two continents: same component, and
   // the zoom is computed rather than chosen. No key, no library, and the tiles
   // are the ones already used for photo fallbacks.
-  // The map moves to the head of Ideas rather than being a destination of its
-  // The map is the first thing in Explore and carries its own title, because
-  // raffy, 2026-09-05: "englarge the map so it can take the whole screen on
-  // mobile. i want user to have that immersive feeling when they see the map."
-  // A page heading above a full-screen map is a page heading pushing the map
-  // off the screen. renderRouteMap hides #exhead once it has drawn; a trip with
-  // no coordinates at all keeps the plain heading and loses nothing.
+  //
+  // Everything that used to sit under the map now sits in a drawer over it —
+  // the stays in order, then the ideas. The containers keep their ids, so
+  // renderShell and renderIdeas fill them exactly as before and neither knows
+  // it moved.
   if (!T.map) {
     insertBefore('    <div class="sect"><h2>In order</h2></div>',
-      '    <div id="routemap"></div>\n', 'route map slot');
+      '    <div class="rsheet" id="rsheet" data-snap="peek">\n' +
+      '      <div class="rgrab" id="rgrab" role="button" tabindex="0"\n' +
+      '           aria-label="Show the list of places"><span></span></div>\n' +
+      '      <div class="rshead" id="rshead"></div>\n' +
+      '      <div class="rsbody" id="rsbody"><div class="rsin">\n', 'drawer open');
+    insertAfter('    <div id="ideas"></div>',
+      '\n      </div></div>\n    </div>', 'drawer close');
   }
 
   insertBefore('</style>', [
-    // Full-bleed, and tall. It escapes .wrap's padding and its 520px ceiling,
-    // because a map inset in a column is a diagram and a map running to both
-    // edges is a place. Capped at 700 so a desktop does not get a mural.
+    // The Explore tab is a map, not a page.
     //
-    // The height is explicit rather than an aspect-ratio: the tile is ordered
-    // to fit this box (see MW below), not the other way round. A tile that
-    // fails to load must never collapse the map — the pins and route are
-    // absolutely positioned and contribute no height, so it would look exactly
-    // like the feature was missing. That cost an evening once.
-    '  .rmap{position:relative;overflow:hidden;background:var(--sage);',
-    '    width:min(100vw,700px);margin-left:calc(50% - min(50vw,350px));',
-    '    height:min(calc(100dvh - 104px),860px);min-height:430px;box-shadow:var(--sh-s)}',
-    '  @supports not (height:100dvh){ .rmap{height:min(calc(100vh - 104px),860px)} }',
-    '  @media(min-width:560px){ .rmap{border-radius:var(--r-card)} }',
-    // The zoom layer. raffy, 2026-09-05: "a good solution would be if user can
-    // zoom in or zoom out the map up to certain level right."
-    //
-    // A transform rather than a fresh tile at each level: the ground is a
-    // static image and re-fetching it per pinch is a billed request per pinch.
-    // It is served at scale=2, so it is pixel-sharp to 2x and acceptable to the
-    // 3x ceiling; the markers are vector and stay sharp all the way. touch-action
-    // is none so the browser does not steal the gesture to scroll the page.
-    '  .rmapz{position:absolute;inset:0;transform-origin:0 0;will-change:transform;touch-action:none}',
+    // Exactly one viewport tall and clipped, so the document has nothing to
+    // scroll: raffy, 2026-09-05, "it's got quite stuck... it blocks the
+    // scrolling down experience." A tall map inside a scrolling page gives one
+    // gesture two meanings, and the map wins whichever one you wanted. Here the
+    // drag over the map is unambiguously the map, and the only thing that
+    // scrolls is the drawer.
+    '  .mapview{position:relative;height:100dvh;overflow:hidden;padding:0;',
+    '    width:100vw;margin-left:calc(50% - 50vw);max-width:none}',
+    '  @supports not (height:100dvh){ .mapview{height:100vh} }',
+    '',
+    '  .rmap{position:absolute;inset:0;overflow:hidden;background:var(--sage);touch-action:none}',
+    // Only the ground is transformed. The markers are moved individually so
+    // they keep their size at every zoom, the way a real map behaves — see
+    // place() in the renderer.
+    '  .rmapz{position:absolute;inset:0;transform-origin:0 0;will-change:transform}',
     '  .rmap img.ground{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0}',
-    '  .rzoom{position:absolute;right:14px;bottom:calc(120px + env(safe-area-inset-bottom));',
+    '  .rmap svg.pins{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}',
+    '  .rmap svg.pins g.pin,.rmap svg.pins g.spot{cursor:pointer;pointer-events:auto}',
+    // Lifts the markers off the ground the way the Phu Quoc map does — without
+    // it a photo circle reads as a hole cut in the map rather than a pin on it.
+    '  .rmap svg.pins g.pin{filter:drop-shadow(0 2px 5px rgba(12,36,27,.28))}',
+    '  .rmap svg.pins g.spot{filter:drop-shadow(0 1px 3px rgba(12,36,27,.25))}',
+    '  .rmap svg.pins g.pin:active,.rmap svg.pins g.spot:active{opacity:.7}',
+    '',
+    // The title sits on the map. A gradient rather than a bar: a hard edge
+    // across the top of a map reads as a crop, a fade reads as depth.
+    '  .rmaphead{position:absolute;left:0;right:0;top:0;z-index:2;pointer-events:none;',
+    '    padding:calc(16px + env(safe-area-inset-top)) 18px 38px;',
+    // The fade has to stay solid all the way past the subtitle: the basemap
+    // draws its own town names right through there, and a half-covered
+    // "Taib Andak" behind "2 stays" reads as a rendering fault.
+    '    background:linear-gradient(180deg,rgba(244,241,234,.99) 0%,rgba(244,241,234,.97) 44%,',
+    '      rgba(244,241,234,.8) 66%,rgba(244,241,234,.34) 84%,rgba(244,241,234,0) 100%)}',
+    '  .rmaphead .rsin{max-width:520px;margin:0 auto}',
+    '  .rmaphead h1{font-size:25px;font-weight:700;margin-top:5px;letter-spacing:-.03em}',
+    '  .rmaphead .rsub{margin:5px 0 0;font-size:12.5px;font-weight:600;color:var(--ink-soft)}',
+    '',
+    // Map furniture, held clear of the drawer by --peek so it moves with it
+    // rather than hiding underneath.
+    // The controls ride on top of the drawer rather than hiding underneath it,
+    // and fade out once it has taken most of the screen — at which point the
+    // map is not what anybody is looking at.
+    '  .rzoom{position:absolute;right:14px;bottom:calc(var(--peek,152px) + 16px);',
     '    z-index:3;display:flex;flex-direction:column;gap:1px;border-radius:14px;overflow:hidden;',
-    '    box-shadow:var(--sh-s)}',
-    '  .rzoom button{width:38px;height:36px;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);',
-    '    display:grid;place-items:center;color:var(--deep)}',
+    '    box-shadow:var(--sh-s);opacity:var(--furn,1);',
+    '    transition:bottom 340ms cubic-bezier(.22,1,.36,1),opacity 220ms linear}',
+    '  .rmap[data-drag="true"] .rzoom,.rmap[data-drag="true"] .rkey{transition:opacity 120ms linear}',
+    '  .rzoom button{width:38px;height:36px;background:rgba(255,255,255,.94);',
+    '    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:grid;place-items:center;color:var(--deep)}',
     '  .rzoom button:disabled{opacity:.42}',
     '  .rzoom button:active{background:rgba(255,255,255,.75)}',
     '  .rzoom svg{width:17px;height:17px}',
-    // slice, to match object-fit:cover on the ground exactly. The default
-    // (meet) letterboxes, and then every pin sits somewhere the map does not.
-    '  .rmap svg.pins{position:absolute;inset:0;width:100%;height:100%}',
-    '  .rmap svg g.pin,.rmap svg g.spot{cursor:pointer}',
-    // Lifts the markers off the ground the way the Phu Quoc map does — without
-    // it a photo circle reads as a hole cut in the map rather than a pin on it.
-    '  .rmap svg g.pin{filter:drop-shadow(0 2px 5px rgba(12,36,27,.28))}',
-    '  .rmap svg g.spot{filter:drop-shadow(0 1px 3px rgba(12,36,27,.25))}',
-    '  .rmap svg g.pin:active,.rmap svg g.spot:active{opacity:.7}',
-    // The title sits on the map. Gradient rather than a bar: a hard edge across
-    // the top of a map reads as a crop, a fade reads as depth.
-    '  .rmaphead{position:absolute;left:0;right:0;top:0;z-index:2;pointer-events:none;',
-    '    padding:calc(16px + env(safe-area-inset-top)) 18px 34px;',
-    '    background:linear-gradient(180deg,rgba(244,241,234,.94) 0%,rgba(244,241,234,.62) 42%,rgba(244,241,234,0) 100%)}',
-    '  .rmaphead h1{font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-.03em}',
-    '  .rmaphead .rsub{margin:6px 0 0;font-size:12.5px;font-weight:600;color:var(--ink-soft)}',
-    // The legend floats clear of the bottom nav rather than sitting under the
-    // map: under it, a full-screen map has its key off the screen.
-    // pointer-events on the chips, not on the strip: the strip runs the full
-    // width of the map and would swallow every tap on a pin behind it.
-    '  .rlegend{position:absolute;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom));',
-    '    z-index:2;display:flex;gap:7px;padding:0 18px 2px;overflow-x:auto;pointer-events:none;',
-    '    scrollbar-width:none;-webkit-overflow-scrolling:touch}',
-    '  .rlegend::-webkit-scrollbar{display:none}',
-    '  .rleg{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:var(--r-pill);',
-    '    background:rgba(255,255,255,.94);backdrop-filter:blur(8px);box-shadow:var(--sh-s);',
-    '    font-size:12.5px;font-weight:600;white-space:nowrap;flex:none;pointer-events:auto}',
-    '  .rleg i{width:19px;height:19px;border-radius:99px;background:var(--coral);color:#3A1405;',
-    '    display:grid;place-items:center;font-size:11px;font-weight:800;font-style:normal;flex:none}',
-    // What the three sizes of marker mean. Three unexplained shapes on a map is
-    // a puzzle; one line of key turns it into a legend.
-    '  .rkey{position:absolute;left:0;right:0;bottom:calc(46px + env(safe-area-inset-bottom));',
-    '    z-index:2;display:flex;gap:12px;padding:0 18px;pointer-events:none;overflow:hidden}',
+    '  .rkey{position:absolute;left:0;right:0;bottom:calc(var(--peek,152px) + 20px);',
+    '    z-index:3;padding:0 18px;pointer-events:none;overflow:hidden;',
+    '    opacity:var(--furn,1);',
+    '    transition:bottom 340ms cubic-bezier(.22,1,.36,1),opacity 220ms linear}',
+    '  .rkey .rsin{display:flex;gap:12px}',
     '  .rkey span{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;',
     '    color:var(--ink-soft);text-shadow:0 1px 3px rgba(244,241,234,.95),0 0 6px rgba(244,241,234,.9);white-space:nowrap}',
     '  .rkey b{display:inline-block;border-radius:99px;background:var(--coral);flex:none}',
     '  .rkey .k1{width:13px;height:13px;background:var(--deep);box-shadow:0 0 0 2.5px #fff}',
     '  .rkey .k2{width:9px;height:9px;box-shadow:0 0 0 2px #fff}',
     '  .rkey .k3{width:8px;height:8px;background:#fff;box-shadow:inset 0 0 0 2.5px var(--coral)}',
+    '',
+    // The drawer. Three heights — peeking, half, and open — because two is not
+    // enough to both see the map and read the list, and four is fiddling.
+    '  .rsheet{position:absolute;left:0;right:0;bottom:0;z-index:40;',
+    '    height:calc(100dvh - 64px);display:flex;flex-direction:column;',
+    '    background:var(--bg);border-radius:24px 24px 0 0;',
+    '    box-shadow:0 -12px 34px rgba(12,36,27,.16);',
+    '    transform:translate3d(0,var(--y,60vh),0);touch-action:none;',
+    '    transition:transform 340ms cubic-bezier(.22,1,.36,1)}',
+    '  @supports not (height:100dvh){ .rsheet{height:calc(100vh - 64px)} }',
+    // No transition while a finger is on it, or the sheet lags behind the drag.
+    '  .rsheet[data-drag="true"]{transition:none}',
+    '  .rgrab{flex:none;height:28px;display:grid;place-items:center;cursor:grab}',
+    // The one line the drawer shows while it is only peeking. It sits above the
+    // floating nav, which is what sets how tall a peek has to be.
+    '  .rshead{flex:none;padding:0 18px 12px;display:flex;align-items:baseline;gap:10px;',
+    '    max-width:520px;margin:0 auto;width:100%}',
+    '  .rshead b{font-family:\'Outfit\',sans-serif;font-size:17px;font-weight:700;letter-spacing:-.02em}',
+    '  .rshead span{font-size:11.5px;font-weight:600;color:var(--ink-faint)}',
+    '  .rgrab span{width:44px;height:5px;border-radius:99px;background:#D9D4C9}',
+    '  .rgrab:active{cursor:grabbing}',
+    // min-height:0 is what lets a flex child actually scroll instead of growing.
+    // Faded out at rest. A peeking drawer that shows the top inch of the list
+    // shows it half behind the floating nav, which reads as a layout fault
+    // rather than as a hint. It comes in as the drawer comes up.
+    '  .rsbody{opacity:var(--bodyop,1);transition:opacity 180ms linear;',
+    '    flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;',
+    '    -webkit-overflow-scrolling:touch;touch-action:pan-y;',
+    '    padding:0 18px calc(116px + env(safe-area-inset-bottom))}',
+    '  .rsin{max-width:520px;margin:0 auto}',
+    // The list starts right under the handle, so the first heading loses the
+    // 34px it uses when it follows a card.
+    '  .rsbody .sect:first-child{margin-top:2px}',
     '',
   ].join('\n'), 'route map css');
 

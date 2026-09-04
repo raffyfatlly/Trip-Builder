@@ -40,6 +40,12 @@ const openIdeas = async (T) => {
   await page.waitForTimeout(700);
   await page.locator('#nav button[data-view="map"]').click();
   await page.waitForTimeout(400);
+  // Explore is a map with a drawer over it now, and the drawer opens peeking so
+  // the map is what you see first. The list lives inside it, so open it before
+  // asking anything about the list.
+  const grab = page.locator('#rgrab');
+  if (await grab.count()) { await grab.click(); await page.waitForTimeout(420); await grab.click(); }
+  await page.waitForTimeout(400);
   return { ctx, page, errs };
 };
 
