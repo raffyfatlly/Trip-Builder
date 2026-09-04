@@ -114,6 +114,71 @@ check('and the itinerary survives to the end', r.itinerary.trip.title === 'Da Na
 check('a finished build is not run again',
   (await or.advanceBuild(id)).building === false && seen.length === 3);
 
+// --- what a build carries between its own steps -----------------------------
+//
+// raffy, 2026-09-05: "it seems like its taking so long if it just filling json."
+//
+// It was not filling one JSON. The eight real builds in Firestore made five to
+// fifteen model calls AFTER the itinerary was already written, each re-sending
+// a conversation that had grown to between 57 and 87 kB, and two of them ran
+// out of steps before they finished.
+//
+// Two things had to change, and both are checked here: several corrections can
+// be applied in one turn, and arguments that have already been applied stop
+// being re-sent.
+{
+  seen = [];
+  // Big enough to be worth dropping — the guard leaves small calls alone, so a
+  // toy fixture would prove nothing.
+  const fat = { ...ITIN, days: [ITIN.days[0], {
+    ...ITIN.days[0], title: 'Second',
+    items: [{ t: 'Morning', h: 'A long day', p: 'Prose about the day. '.repeat(60) }],
+  }] };
+  turns = [
+    { message: { role: 'assistant', content: '', tool_calls: [tc('save_itinerary', fat)] } },
+    // Three corrections in one turn is one wait. Three turns is three, and the
+    // traveller watches a progress bar through every one of them.
+    { message: { role: 'assistant', content: '', tool_calls: [
+      tc('update_trip', { trip: { title: 'Renamed' } }, 'b1'),
+      tc('update_day', { index: 1, day: { ...fat.days[1], title: 'Rewritten' } }, 'b2'),
+      tc('add_idea', { idea: { n: 'A late idea', verdict: 'yes' } }, 'b3'),
+    ] } },
+    { message: { role: 'assistant', content: 'Done.' } },
+  ];
+  const bid = await or.startBuild('Build it.\n\nDestination: Da Nang');
+  await or.advanceBuild(bid);
+  const n = seen.length;
+  const batched = await or.advanceBuild(bid);
+
+  check('several calls in one turn are all applied', seen.length === n + 1,
+    (seen.length - n) + ' model call for three edits');
+  check('and applied in order', batched.itinerary.trip.title === 'Renamed' &&
+    batched.itinerary.days[1].title === 'Rewritten' &&
+    (batched.itinerary.ideas || []).some((i) => i.n === 'A late idea'));
+  check('each one gets its own result',
+    JSON.parse(DOCS.get(bid).messages.stringValue)
+      .filter((m) => m.role === 'tool' && ['b1', 'b2', 'b3'].includes(m.tool_call_id)).length === 3);
+
+  await or.advanceBuild(bid);                       // the turn that says Done
+  const last = seen[seen.length - 1].messages;
+  const heavy = (name) => last
+    .flatMap((m) => m.tool_calls || [])
+    .filter((c) => c.function.name === name);
+  check('an applied itinerary is not re-sent on every later step',
+    heavy('save_itinerary').every((c) => c.function.arguments.length < 40),
+    (heavy('save_itinerary')[0] || { function: {} }).function.arguments);
+  check('nor is a whole rewritten day',
+    heavy('update_day').every((c) => c.function.arguments.length < 40),
+    (heavy('update_day')[0] || { function: {} }).function.arguments);
+  check('but the calls are still there for their results to answer to',
+    heavy('save_itinerary').length === 1 && !!heavy('save_itinerary')[0].id);
+  check('and the model is handed the index instead',
+    last.some((m) => m.role === 'tool' && /days:\s+0 /.test(m.content || '')));
+  check('the brief itself is never compacted away', last[1].content.includes('Da Nang'));
+  check('and the build then finishes', (await or.advanceBuild(bid)).building === false);
+  seen = [];
+}
+
 // --- the ways it goes wrong ----------------------------------------------
 seen = [];
 turns = [
