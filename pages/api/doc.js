@@ -11,8 +11,9 @@
 // reference — worth one proxied read.
 
 import { getDoc, storageConfigured } from '../../lib/storage.js';
+import { billed } from '../../lib/billed.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const session = String(req.query.s || '');
   const id = String(req.query.d || '');
   if (!session || !id) return res.status(400).send('Missing document.');
@@ -32,3 +33,5 @@ export default async function handler(req, res) {
     res.status(500).send('Could not open that.');
   }
 }
+
+export default billed(handler);

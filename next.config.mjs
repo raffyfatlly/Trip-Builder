@@ -26,6 +26,22 @@ const templateHash = createHash('sha256')
 
 const nextConfig = {
   env: { NEXT_PUBLIC_TEMPLATE_V: templateHash },
+  // lib/net.js is the single chokepoint every outbound request goes through,
+  // and lib/meter.js hangs off it to count what each one costs. The meter needs
+  // AsyncLocalStorage, which is node-only — and net.js is also reachable from
+  // the browser bundle, through renderer/render.js, which runs client-side to
+  // draw the preview.
+  //
+  // Rather than give up the single chokepoint (the whole reason the meter
+  // catches services nobody remembered to instrument), the browser build gets
+  // an empty module here and lib/meter.js degrades to a no-op when
+  // AsyncLocalStorage is not a function. Nothing in the browser is billed to us.
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = { ...(config.resolve.fallback || {}), async_hooks: false };
+    }
+    return config;
+  },
   async rewrites() {
     return [{ source: '/welcome', destination: '/welcome/index.html' }];
   },

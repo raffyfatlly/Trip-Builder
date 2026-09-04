@@ -1,5 +1,6 @@
 import { fetchWith } from '../../lib/net.js';
 import { placesKey } from '../../lib/photos.js';
+import { billed } from '../../lib/billed.js';
 
 // A styled map of the trip, served from here.
 //
@@ -43,7 +44,7 @@ const STYLE = [
 
 const COORD = /^-?\d{1,3}(\.\d{1,6})?$/;
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const key = placesKey();
   if (!key) return res.status(501).json({ error: 'maps are not configured' });
 
@@ -93,3 +94,5 @@ export default async function handler(req, res) {
     res.status(502).json({ error: 'could not fetch that map' });
   }
 }
+
+export default billed(handler);

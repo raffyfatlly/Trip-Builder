@@ -1,4 +1,5 @@
 import { advanceState } from '../../lib/managedAgents.js';
+import { billed } from '../../lib/billed.js';
 
 // The slow half of the loop: answer the agent's pending tool calls, start a
 // builder when it asks for one, take the build forward by a step.
@@ -13,7 +14,7 @@ import { advanceState } from '../../lib/managedAgents.js';
 
 export const config = { maxDuration: 300 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const session = (req.query && req.query.session) || (req.body && req.body.session);
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ error: 'session required' });
@@ -25,3 +26,5 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Could not advance the conversation.' });
   }
 }
+
+export default billed(handler);

@@ -19,6 +19,7 @@
 // picture is worth a wait; it is not worth a failed download.
 
 import { fetchWith } from '../../lib/net.js';
+import { billed } from '../../lib/billed.js';
 
 const T_ONE = 8000;       // any single image
 const T_ALL = 45000;      // the whole bake, however many
@@ -29,7 +30,7 @@ const OK_TYPE = /^image\/(jpeg|png|webp|gif|avif)$/i;
 
 export const config = { api: { responseLimit: false } };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   const urls = (req.body && req.body.urls) || {};
@@ -66,3 +67,5 @@ export default async function handler(req, res) {
 
   res.status(200).json({ photos });
 }
+
+export default billed(handler);

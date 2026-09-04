@@ -1,5 +1,6 @@
 import { PHOTO_REF, photoMediaUrl, placesKey } from '../../lib/photos.js';
 import { fetchWith } from '../../lib/net.js';
+import { billed } from '../../lib/billed.js';
 
 // A Google Places photo, served from here.
 //
@@ -13,7 +14,7 @@ import { fetchWith } from '../../lib/net.js';
 
 export const config = { api: { responseLimit: false } };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const ref = String((req.query && req.query.ref) || '');
   if (!PHOTO_REF.test(ref)) return res.status(400).json({ error: 'bad ref' });
   if (!placesKey()) return res.status(501).json({ error: 'photos are not configured' });
@@ -32,3 +33,7 @@ export default async function handler(req, res) {
     res.status(502).json({ error: 'could not fetch that photo' });
   }
 }
+
+// Tagged with ?s=<session> by lib/photos.js, so the media request lands on the
+// trip that wanted the picture.
+export default billed(handler);

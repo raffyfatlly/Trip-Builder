@@ -15,8 +15,9 @@
 export const config = { maxDuration: 30 };
 
 import { getState } from '../../lib/managedAgents.js';
+import { billed } from '../../lib/billed.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const session = req.query.session;
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ error: 'session required' });
@@ -28,3 +29,5 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Could not read the conversation.' });
   }
 }
+
+export default billed(handler);

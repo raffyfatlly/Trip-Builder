@@ -4,12 +4,13 @@
 import { apiKey } from '../../lib/config.js';
 import { fetchWith } from '../../lib/net.js';
 import { putDoc, storageConfigured, docUrl } from '../../lib/storage.js';
+import { billed } from '../../lib/billed.js';
 
 export const config = { api: { bodyParser: { sizeLimit: '12mb' } } };
 
 const MIME_OK = /^(image\/(png|jpeg|webp|gif)|application\/pdf|text\/plain)$/;
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   const { name, type, data, session } = req.body || {};
@@ -70,3 +71,5 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Could not upload that.' });
   }
 }
+
+export default billed(handler);

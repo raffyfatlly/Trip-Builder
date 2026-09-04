@@ -1,4 +1,5 @@
 import { lookupPlace, placesKey } from '../../lib/photos.js';
+import { billed } from '../../lib/billed.js';
 
 // What a chat card needs to stop being a name in a list: the photograph, the
 // rating, and the venue's own site.
@@ -12,7 +13,7 @@ import { lookupPlace, placesKey } from '../../lib/photos.js';
 // URL from anywhere else usually blocks hotlinking on a phone even when it
 // works from here.
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const q = String((req.query && req.query.q) || '').trim();
   if (!q || q.length > 200) return res.status(400).json({ error: 'bad query' });
   if (!placesKey()) return res.status(501).json({ error: 'places are not configured' });
@@ -24,3 +25,5 @@ export default async function handler(req, res) {
   // simply stays as it was.
   res.status(200).json(found || {});
 }
+
+export default billed(handler);

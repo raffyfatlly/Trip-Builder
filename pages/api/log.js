@@ -11,6 +11,7 @@
 // record.
 
 import { note } from '../../lib/journal.js';
+import { billed } from '../../lib/billed.js';
 
 // A closed list. An open one is an invitation to fill the journal with
 // whatever a page happens to feel like sending.
@@ -18,7 +19,7 @@ const ALLOWED = new Set([
   'open', 'onboard', 'build.asked', 'preview.failed', 'download', 'error', 'edit',
 ]);
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   const { session, ev, data } = req.body || {};
   if (!session || typeof session !== 'string') return res.status(400).json({ error: 'session required' });
@@ -33,3 +34,7 @@ export default async function handler(req, res) {
   note(session, ev, clean);
   res.status(200).json({ ok: true });
 }
+
+// Wrapped for the person, not the money: 'open' is the first thing a session
+// does, so it is the earliest chance to put a name against what follows.
+export default billed(handler);

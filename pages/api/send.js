@@ -8,8 +8,9 @@ import { sendUserMessage, listEvents } from '../../lib/managedAgents.js';
 import { MAX_TURNS_PER_SESSION } from '../../lib/config.js';
 import { geoFrom, contextBlock } from '../../lib/context.js';
 import { note } from '../../lib/journal.js';
+import { billed } from '../../lib/billed.js';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   const { session, text, files, client, memory } = req.body || {};
@@ -67,3 +68,5 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Could not send that.' });
   }
 }
+
+export default billed(handler);
