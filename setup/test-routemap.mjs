@@ -99,10 +99,10 @@ for (const [label, stays] of Object.entries(TRIPS)) {
     // thing on the card worth looking at.
     ok('nothing floats over the map',
        (await page.locator('.rmap .rcap, .rmap .hint').count()) === 0);
-    // The numbered list moved off the map and into the drawer, where it is
-    // the list of places rather than a key.
-    ok('the stays are listed in the drawer',
-       (await page.locator('#rsheet #ordered .stop, #rsheet #ordered > *').count()) >= stays.length);
+    // The numbers on the map need their names, and a small card has no room —
+    // so they sit under it, the way the Phu Quoc map does.
+    ok('the stays are numbered in a legend under the map',
+       (await page.locator('#routemap .rleg').count()) === stays.length);
   }
   await page.screenshot({ path: 'shots/routemap-' + label.replace(/ /g, '-') + '.png' });
   await ctx.close();
@@ -186,7 +186,8 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   ok('and it is the stay photo, not a map tile',
      (await page.locator('#routemap svg.pins image').getAttribute('href')) === 'https://pics.test/1.jpg');
   ok('it is round, not a square stuck on the map',
-     (await page.locator('#routemap svg clipPath circle').count()) === 1);
+     (await page.locator('#routemap svg.pins clipPath circle').count()) === 1,
+     (await page.locator('#routemap svg.pins clipPath circle').count()) + ' clips');
   ok('a stay with no photo keeps its marker',
      (await page.locator('#routemap svg.pins g.pin').count()) === 2);
   ok('both are still tappable', (await page.locator('#routemap svg.pins g.pin[role=button]').count()) === 2);
@@ -323,12 +324,18 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   await page.waitForTimeout(700);
   await page.locator('#nav button[data-view="map"]').click();
   await page.waitForTimeout(400);
+  // After the entrance, not during it: the stops scale in, so a click mid-flight
+  // waits for an element that is still moving and then times out.
+  await page.waitForTimeout(1800);
   ok('pins are marked up as buttons',
      (await page.locator('#routemap svg.pins g.pin[role="button"]').count()) === 2);
-  await page.locator('#routemap svg.pins g.pin').nth(1).click();
+  // The photograph in the margin, which is what anybody actually aims at — and
+  // where its own waypoint happens to sit underneath it, the same stay opens
+  // either way.
+  await page.locator('#routemap svg.pins g.bub[data-stay="1"]').click();
   await page.waitForTimeout(500);
   const sheet = await page.locator('#sheet').innerText();
-  ok('tapping the second pin opens the second stay', /Hoi An/.test(sheet), sheet.split('\n')[0]);
+  ok('tapping the second stay opens the second stay', /Hoi An/.test(sheet), sheet.split('\n')[0]);
   ok('no page errors', errs.length === 0, errs.join(' / '));
   await page.screenshot({ path: 'shots/routemap-no-tile.png' });
   await ctx.close();
@@ -349,7 +356,12 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
 {
   console.log('');
   const dense = JSON.parse(JSON.stringify(REAL));
-  dense.stays = [stay('Furama', 16.0296, 108.2497), stay('Hoi An', 15.8801, 108.3380)];
+  dense.photos = { h1: 'https://pics.test/1.jpg', h2: 'https://pics.test/2.jpg' };
+  dense.stays = [
+    { ...stay('Furama', 16.0296, 108.2497), photo: 'h1' },
+    // Not booked yet, which is what earns the dashed ring on his own map.
+    { ...stay('Hoi An', 15.8801, 108.3380), photo: 'h2', draft: true },
+  ];
   dense.ideas = (dense.ideas || []).slice(0, 4).map((o, n) => ({
     ...o, lat: 16.04 + n * 0.012, lon: 108.235 + n * 0.011,
   }));
@@ -380,17 +392,20 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   ok('and so are the ideas nobody picked', spots > 0, spots + ' idea markers');
   ok('no page errors', errs.length === 0, errs.join(' / '));
 
-  // Prominence, in the only terms the page has: a stay is bigger and a
-  // different colour, and an idea is hollow.
+  // Prominence. raffy, 2026-09-05: "u can see it pulls the image to the side
+  // not use the image as dots." So the loudest thing a stay has is a
+  // photograph parked in the margin, and what sits on the route itself is a
+  // small ring — which is why a stop and a plan marker are near enough the same
+  // size and it does not matter.
   const size = (sel) => page.locator(sel).first().evaluate(
     (g) => Math.max(...Array.from(g.querySelectorAll('circle,image'))
       .map((e) => +(e.getAttribute('r') || (+e.getAttribute('width') / 2) || 0))
       .filter((v) => v && v < 900)));
-  const sStay = await size('#routemap svg.pins g.pin:not(.plan)');
+  const sBub = await size('#routemap svg.pins g.bub');
   const sPlan = await size('#routemap svg.pins g.plan');
   const sSpot = await size('#routemap svg.pins g.spot');
-  ok('a stay is drawn larger than a plan stop', sStay > sPlan, sStay + ' vs ' + sPlan);
-  ok('and a plan stop larger than an idea', sPlan > sSpot, sPlan + ' vs ' + sSpot);
+  ok('a stay is the biggest thing on the map', sBub > sPlan * 2, sBub + ' vs ' + sPlan);
+  ok('and a plan stop bigger than an idea', sPlan > sSpot, sPlan + ' vs ' + sSpot);
   ok('an idea is a ring, not a disc',
      await page.locator('#routemap svg.pins g.spot circle[stroke="#EE7B45"][fill="#FFFFFF"]').count() > 0);
 
@@ -433,15 +448,64 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
   ok('arrows point the way along the route',
      (await page.locator('#routemap #rarrows g').count()) >= 2);
 
-  // raffy, 2026-09-05: "englarge the map so it can take the whole screen on
-  // mobile. i want user to have that immersive feeling."
+  // --- the photographs, parked in the margins ---------------------------------
+  //
+  // raffy, 2026-09-05, on his Phu Quoc map: "u can see it pulls the image to the
+  // side not use the image as dots. than it produces s clear one."
+  //
+  // A photograph used as a pin has to sit where the place is, so it covers the
+  // route, the coastline and its neighbour. Parked in the gutter it can be big
+  // and still collide with nothing.
+  const bubs = await page.locator('#routemap svg.pins g.bub').evaluateAll((els) => {
+    const vb = els[0].ownerSVGElement.viewBox.baseVal;
+    return els.map((e) => {
+      const m = /translate\(([-\d.]+),([-\d.]+)\)/.exec(e.getAttribute('transform') || '');
+      const r = +(e.querySelector('image') || {}).getAttribute('width') / 2;
+      return { x: m ? +m[1] : null, y: m ? +m[2] : null, r, w: vb.width, h: vb.height,
+        dashed: !!e.querySelector('circle[stroke-dasharray]') };
+    });
+  });
+  ok('every stay with a photo gets one', bubs.length === 2, bubs.length + ' bubbles');
+  ok('and they sit against the edges, not over the route',
+     bubs.every((b) => b.x < b.w * 0.28 || b.x > b.w * 0.72),
+     bubs.map((b) => Math.round(b.x / b.w * 100) + '%').join(' / '));
+  ok('none of them runs off the card',
+     bubs.every((b) => b.x > b.r && b.y > b.r && b.x < b.w - b.r && b.y < b.h - b.r));
+  ok('and no two of them touch', bubs.every((a, i) => bubs.every((c, j) =>
+     i === j || Math.hypot(a.x - c.x, a.y - c.y) > a.r + c.r)));
+  ok('the picture is big, because it can be now', bubs[0].r > 30, 'r=' + Math.round(bubs[0].r));
+  ok('a stay that is not booked wears the dashed ring',
+     bubs.filter((b) => b.dashed).length === 1);
+
+  // A bubble in the margin is only readable if a line says which stop it is.
+  ok('a leader runs from each bubble to its stop',
+     (await page.locator('#routemap #rleads path').count()) >= bubs.length,
+     (await page.locator('#routemap #rleads path').count()) + ' segments');
+  // And what sits on the route is small, so the map underneath stays visible.
+  const stopR = await page.locator('#routemap svg.pins g.pin:not(.plan) circle:not([fill="transparent"])')
+    .first().evaluate((c) => +c.getAttribute('r'));
+  ok('while the stop on the route stays small', stopR < bubs[0].r / 3,
+     'stop r=' + stopR.toFixed(1) + ' vs bubble r=' + Math.round(bubs[0].r));
+
+  await page.locator('#routemap svg.pins g.bub').first().click();
+  await page.waitForTimeout(400);
+  ok('and tapping the photograph opens its stay',
+     (await page.locator('#sheet[data-open="true"]').count()) === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+
+  // raffy, 2026-09-05: "cancel doing it the drawer thing. should keep like
+  // before. fix map size. something like phu quoc." His is a portrait card in
+  // the page, not a stage the page lives inside.
   const box = await page.locator('#routemap .rmap').boundingBox();
-  ok('the map fills the phone', box.width === 390 && box.height > 600,
+  ok('the map is a card, not the whole screen', box.height < 620 && box.width < 390,
      Math.round(box.width) + '×' + Math.round(box.height));
-  ok('and takes the page heading with it',
-     await page.locator('#exhead').count() === 0 ||
-     await page.locator('#exhead').isHidden());
-  ok('the page does not scroll sideways',
+  ok('and it is portrait, the shape his is',
+     Math.abs(box.width / box.height - 0.75) < 0.06,
+     (box.width / box.height).toFixed(2));
+  ok('the page scrolls again', await page.evaluate(
+     () => document.body.scrollHeight > window.innerHeight));
+  ok('and never sideways',
      await page.evaluate(() => document.body.scrollWidth <= document.body.clientWidth));
 
   // The tile is ordered to fit the box rather than cropped down to it.
@@ -531,109 +595,15 @@ ok('a wider trip zooms out further', far < near, 'two cities z' + near + ' vs tw
      Math.abs(await scaleOf() - 1) < 0.01 && Math.abs(back.x) < 1 && Math.abs(back.y) < 1,
      Math.round(back.x) + ',' + Math.round(back.y));
 
-  // The whole point of the pins is that they open things. A pan layer that
-  // swallows their taps is worse than no pan layer.
-  await page.locator('#routemap svg.pins g.pin').nth(1).click();
+  // The whole point of the markers is that they open things. A pan layer that
+  // swallows their taps is worse than no pan layer. The photograph is what
+  // anybody aims at, and where a stop sits under its own bubble it is the same
+  // stay either way.
+  await page.locator('#routemap svg.pins g.bub').first().click();
   await page.waitForTimeout(400);
-  ok('and a pin still opens its stay after all that',
+  ok('and a stay still opens after all that',
      (await page.locator('#sheet[data-open="true"]').count()) === 1);
 
-  ok('no page errors', errs.length === 0, errs.join(' / '));
-  await ctx.close();
-}
-
-
-// --- the drawer -------------------------------------------------------------
-//
-// raffy, 2026-09-05: "there's a drawer at the bottom for all the contents of the
-// places that we go to... it's got quite stuck because... I'm trying to scroll
-// down, and then it blocks the scrolling down experience."
-//
-// So the tab is exactly one viewport tall and never scrolls; the drawer does.
-// And the thing that breaks every hand-rolled drawer — pointer capture taken on
-// the first press, which quietly redirects the click away from whatever was
-// underneath — is checked here, because it has now bitten twice.
-{
-  console.log('');
-  const rich = JSON.parse(JSON.stringify(REAL));
-  rich.stays = TRIPS['two cities'];
-  const { html } = render(rich, tpl);
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const page = await ctx.newPage();
-  const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-  await page.route('**/api/map**', (r) => r.fulfill({ contentType: 'image/png', body: PNG }));
-  await serve(ctx, html);
-  await page.goto(ORIGIN + '/', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(700);
-  await page.locator('#nav button[data-view="map"]').click();
-  await page.waitForTimeout(500);
-
-  const snap = () => page.locator('#rsheet').getAttribute('data-snap');
-  const top = () => page.locator('#rsheet').evaluate((el) => el.getBoundingClientRect().top);
-
-  ok('the page itself does not scroll',
-     await page.evaluate(() => document.body.scrollHeight <= window.innerHeight + 1),
-     await page.evaluate(() => document.body.scrollHeight + '/' + window.innerHeight));
-  ok('the drawer opens peeking, so the map is what you see', await snap() === 'peek');
-
-  const peekTop = await top();
-  ok('and it leaves most of the screen to the map', peekTop > 600, Math.round(peekTop) + 'px down');
-  ok('it says how many places there are',
-     /\d+ places/.test(await page.locator('#rshead').innerText()),
-     (await page.locator('#rshead').innerText()).replace(/\n/g, ' '));
-
-  // raffy, 2026-09-05: "to pull it up seems hard I keep moving the map itself."
-  // The handle bar alone was 28px of target with map either side of it, so most
-  // attempts to pull the drawer up landed on the map and panned it instead. The
-  // whole head of the sheet drags now, and this is the drag he was trying to
-  // make.
-  const head = await page.locator('#rshead').boundingBox();
-  await page.mouse.move(head.x + 120, head.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(head.x + 120, head.y - 300, { steps: 14 });
-  await page.mouse.up();
-  await page.waitForTimeout(500);
-  ok('dragging it by its heading opens it', await snap() !== 'peek', await snap());
-  while ((await snap()) !== 'peek') {
-    await page.locator('#rgrab').click();
-    await page.waitForTimeout(420);
-  }
-  ok('and it goes back', await snap() === 'peek');
-
-  await page.locator('#rgrab').click();
-  await page.waitForTimeout(500);
-  ok('a tap on the handle opens it', await snap() === 'mid');
-  const midTop = await top();
-  ok('and it actually moved', midTop < peekTop - 100, Math.round(midTop) + ' vs ' + Math.round(peekTop));
-
-  await page.locator('#rgrab').click();
-  await page.waitForTimeout(500);
-  ok('again and it opens fully', await snap() === 'full');
-  ok('the map is still behind it, not unloaded',
-     (await page.locator('#routemap img.ground').count()) === 1);
-
-  // The list is real content and has to stay tappable through the drag layer.
-  const card = page.locator('#rsheet #ordered .stop, #rsheet #ordered button, #rsheet #ordered [data-stay]').first();
-  if (await card.count()) {
-    await card.click();
-    await page.waitForTimeout(400);
-    ok('a card inside the drawer still opens', await page.locator('#sheet[data-open="true"]').count() === 1);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-  }
-
-  // Dragging down from the top of the list closes it; that is the gesture
-  // everybody tries first.
-  const b2 = await page.locator('#rsheet').boundingBox();
-  await page.mouse.move(195, b2.y + 90);
-  await page.mouse.down();
-  await page.mouse.move(195, b2.y + 420, { steps: 14 });
-  await page.mouse.up();
-  await page.waitForTimeout(500);
-  ok('dragging down from the list closes it', (await snap()) !== 'full', await snap());
-
-  ok('and the page still does not scroll',
-     await page.evaluate(() => document.body.scrollHeight <= window.innerHeight + 1));
   ok('no page errors', errs.length === 0, errs.join(' / '));
   await ctx.close();
 }

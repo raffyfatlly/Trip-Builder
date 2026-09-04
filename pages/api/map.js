@@ -20,26 +20,45 @@ import { billed } from '../../lib/billed.js';
 
 // The app's palette, as Static Maps styling. Cream land, sage parks, pale
 // water, white roads — the same values as --bg, --sage and --surface.
+// The app's palette, as Static Maps styling.
+//
+// raffy, 2026-09-05: "something like phu quoc . its artistic."
+//
+// His Phu Quoc map is an illustration: one shape of pale land on one field of
+// water, and nothing else. A street map with the colours changed is still a
+// street map — the roads, the district names and the motorway shields are what
+// make it read as Google rather than as his app.
+//
+// So everything that is not land, water or a town name is turned off. What is
+// left is the silhouette, which is the part that carries the trip.
 const STYLE = [
-  'feature:all|element:geometry|color:0xF4F1EA',
-  'feature:all|element:labels.text.fill|color:0x4C6157',
-  'feature:all|element:labels.text.stroke|color:0xFFFFFF|weight:2.5',
-  'feature:all|element:labels.icon|visibility:off',
-  'feature:administrative|element:geometry.stroke|color:0xD8D3C8',
-  'feature:administrative.land_parcel|visibility:off',
-  'feature:landscape.natural|element:geometry|color:0xEDEAE1',
-  'feature:poi|element:labels|visibility:off',
-  'feature:poi.park|element:geometry|color:0xE2EBDE',
-  'feature:road|element:geometry|color:0xFFFFFF',
-  'feature:road|element:geometry.stroke|color:0xE8E4DC',
-  'feature:road.arterial|element:labels|visibility:off',
-  'feature:road.local|element:labels|visibility:off',
-  'feature:road.highway|element:geometry|color:0xF7F2E7',
-  'feature:road.highway|element:geometry.stroke|color:0xE3DCCB',
+  'feature:all|element:geometry|color:0xF2F8F3',
+  // Every label, gone. The Phu Quoc map has four names on it and all four are
+  // ours, placed where they belong to the trip. Google's own — every kampung
+  // and industrial estate inside the frame — are what made this read as a
+  // street map with the colours changed. The app writes the names that matter.
+  'feature:all|element:labels|visibility:off',
+  'feature:administrative|element:geometry|visibility:off',
+  'feature:landscape|element:geometry|color:0xF3F8F3',
+  'feature:landscape.natural|element:geometry|color:0xF0F7F1',
+  'feature:poi|visibility:off',
+  'feature:poi.park|element:geometry|color:0xE4F0E5',
+  // No roads at all. This is the single biggest difference between a map that
+  // looks drawn and one that looks fetched.
+  'feature:road|visibility:off',
   'feature:transit|visibility:off',
-  // raffy picked this one himself: RGB 207, 232, 227.
-  'feature:water|element:geometry|color:0xCFE8E3',
-  'feature:water|element:labels.text.fill|color:0x6E938C',
+  // NOT the colour raffy picked, and that is deliberate — flag it if he asks.
+  //
+  // He chose 0xCFE8E3 (RGB 207, 232, 227) on 2026-09-01, for a map whose land
+  // was cream and whose roads carried the shape. With the roads gone the whole
+  // illustration IS the contrast between land and sea, and at his value the
+  // coastline nearly disappears — rendered both and looked. This is the same
+  // hue carrying enough weight to hold an edge, and closer to his own Phu Quoc
+  // map, which is what he asked this to look like on 2026-09-05.
+  //
+  // One line to put back if he prefers his.
+  'feature:water|element:geometry|color:0xA6CBC3',
+  'feature:water|element:labels|visibility:off',
 ];
 
 const COORD = /^-?\d{1,3}(\.\d{1,6})?$/;

@@ -103,9 +103,22 @@ ok('and what to write instead', /write what to DO, not what you do not know/.tes
 ok('and to say nothing rather than shrug', /say nothing about it at all/.test(BP));
 
 
-// The sea, as raffy picked it: RGB 207, 232, 227.
+// The map is an illustration, not a street map with the colours changed.
+//
+// raffy, 2026-09-05: "something like phu quoc . its artistic." His own map is
+// one shape of pale land on one field of water and nothing else, so everything
+// Google draws on top of that is turned off. The roads are the single biggest
+// tell and the one most likely to creep back in.
 const mapSrc = (await import('fs')).readFileSync('pages/api/map.js', 'utf8');
-ok('the water is the colour he chose', mapSrc.includes('feature:water|element:geometry|color:0xCFE8E3'));
+ok('no roads are drawn at all', mapSrc.includes('feature:road|visibility:off'));
+ok('and no labels of Google’s own', mapSrc.includes('feature:all|element:labels|visibility:off'));
+// He picked 0xCFE8E3 on 2026-09-01, for a map whose land was cream and whose
+// roads carried the shape. With the roads gone his value leaves the coastline
+// almost invisible, so the sea is deeper now — same hue, enough weight to hold
+// an edge. Recorded rather than quietly swapped: if he wants his back, this is
+// the line that says it changed.
+ok('the sea is deep enough to show a coastline',
+   mapSrc.includes('feature:water|element:geometry|color:0xA6CBC3'));
 
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
