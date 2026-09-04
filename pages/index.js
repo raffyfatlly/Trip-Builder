@@ -36,6 +36,9 @@ export default function Home() {
   const [thinking, setThinking] = useState(false);
   // What the agent is doing, in its own words, and how long it has been at it.
   const [doing, setDoing] = useState(null);
+  // And what it has already done this turn, so a long wait shows progress
+  // rather than one line that might mean it is stuck.
+  const [steps, setSteps] = useState([]);
   const [since, setSince] = useState(0);
   // Consecutive failed polls. A blank page after a refresh reads as "my trip
   // is gone" when the truth is "the server did not answer" — say which.
@@ -175,6 +178,7 @@ export default function Home() {
         setBuilding(!!d.building);
         setProgress(d.progress || null);
         setDoing(d.doing || null);
+        setSteps(Array.isArray(d.steps) ? d.steps : []);
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
         setPlan(d.plan || {});
@@ -396,7 +400,7 @@ export default function Home() {
   useEffect(() => {
     const el = scroller.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [messages, thinking, building]);
+  }, [messages, thinking, building, steps.length]);
 
   // Sending is the one moment to override that: their own message should
   // always bring them back to the bottom.
@@ -899,21 +903,49 @@ export default function Home() {
 
             {thinking && (
               <div className="msg assistant typing">
+                {/* What it has already done, ticked off. raffy, 2026-09-05:
+                    "can it leave some of the steps or action it taken then
+                    continue it's task? or else user might think it got stuck."
+                    Every line here is a tool call that is really on the event
+                    log, and the tick is really its result. */}
+                {steps.length > 0 && (
+                  <ul className="trail">
+                    {steps.map((s) => (
+                      <li key={s.id} data-step={s.done ? 'done' : 'now'}>
+                        <span className="tick">
+                          {s.done ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                              strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          ) : <i />}
+                        </span>
+                        <span className="tw">
+                          {s.what}
+                          {s.detail ? <em>{s.detail}</em> : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <span className="dots"><span /><span /><span /></span>
                 {/* Says what it is actually doing, from the event log — not a
                     rotating list of invented phrases. After a minute it stops
                     pretending this is normal and says so, because a status that
                     keeps reassuring you through a genuine hang is worse than
                     three dots. (raffy, 2026-09-01) */}
-                <span className="says">
-                  {stalled > 2
-                    ? "Lost the connection — still trying"
-                    : since > 120
-                      ? (doing || 'Still working') + " — longer than usual, it hasn't given up"
-                      : since > 25
-                        ? (doing || 'Thinking') + ' — this one is taking a moment'
-                        : (doing || 'Thinking')}
-                </span>
+                {/* With a trail above, this line stops repeating the step it
+                    is on and says only the thing the trail cannot: that the
+                    wait has gone on longer than it should have. */}
+                {(() => {
+                  const note = stalled > 2 ? 'Lost the connection — still trying'
+                    : since > 120 ? "Longer than usual, it hasn't given up"
+                      : since > 25 ? 'This one is taking a moment' : '';
+                  const text = steps.length
+                    ? note
+                    : [doing || 'Thinking', note].filter(Boolean).join(' — ');
+                  return text ? <span className="says">{text}</span> : null;
+                })()}
               </div>
             )}
             {building && (
@@ -1370,6 +1402,42 @@ export default function Home() {
           display:flex;gap:10px;align-items:center;width:fit-content;max-width:none;
           padding:10px 2px;
         }
+        /* With a trail above it, the row of dots belongs under the list rather
+           than beside it. */
+        .typing:has(.trail){flex-wrap:wrap;width:100%}
+        .typing .trail{
+          list-style:none;margin:0 0 2px;padding:0;width:100%;
+          display:flex;flex-direction:column;gap:5px;
+        }
+        /* An attribute rather than a class, because .done belongs to the To do
+           list and every finished step was picking up its dark card. The
+           background reset below is there for the same reason: this list sits
+           inside a message row. */
+        .typing .trail li{
+          display:flex;align-items:flex-start;gap:8px;font-size:12.5px;line-height:1.35;
+          color:var(--ink-faint);background:none;padding:0;border-radius:0;box-shadow:none;
+          animation:steprise 260ms var(--e) both;
+        }
+        .typing .trail li[data-step="now"]{color:var(--ink-soft);font-weight:600}
+        .typing .trail .tick{
+          flex:none;width:14px;height:14px;margin-top:1px;
+          display:grid;place-items:center;color:var(--coral-text);
+        }
+        .typing .trail .tick svg{width:12px;height:12px}
+        /* The one still running gets a pulse rather than a tick, because it has
+           not earned one yet. */
+        .typing .trail .tick i{
+          width:7px;height:7px;border-radius:99px;background:var(--coral);
+          animation:pulse 1.1s ease-in-out infinite;
+        }
+        .typing .trail .tw{min-width:0}
+        .typing .trail em{
+          font-style:normal;color:var(--ink-faint);font-weight:500;
+          display:block;
+        }
+        .typing .trail li[data-step="now"] em{color:var(--ink-faint);font-weight:500}
+        @keyframes steprise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+        @keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
         .typing .dots{display:flex;gap:5px;align-items:center;flex:none}
         .typing .dots span{
           width:7px;height:7px;border-radius:99px;background:var(--ink-faint);opacity:.45;
