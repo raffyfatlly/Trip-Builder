@@ -29,6 +29,12 @@ await withSession(S, async () => {
   count('https://api.open-meteo.com/v1/forecast', true);
   count('https://some-new-thing.example.com/v1/go', true);
 
+  // Nothing on this machine is billed to us, and the test suite calls both of
+  // these deliberately. They must not turn up as services.
+  count('http://127.0.0.1:3400/api/state', true);
+  count('http://localhost:3400/api/state', true);
+  count('https://nothing.invalid/', false);
+
   // The two that report their own cost are skipped here so they are not
   // counted twice — once as a guess, once for real. Their money is written by
   // spendTotal and spendAdd instead.
@@ -54,6 +60,8 @@ await withSession(S, async () => {
   // is how the next unbilled service gets noticed instead of vanishing.
   assert.ok(t['other:some-new-thing.example.com'], 'unknown host was dropped');
   assert.equal(t['other:some-new-thing.example.com'].unknown, true);
+  assert.ok(!t['other:127.0.0.1'] && !t['other:localhost'] && !t['other:nothing.invalid'],
+    'a local address was counted as a service');
 
   assert.ok(!t.chat, 'anthropic double-counted');
   assert.ok(!t.builder, 'openrouter double-counted');
