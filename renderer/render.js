@@ -2883,6 +2883,336 @@ export function render(T, templateSrc) {
     '',
   ].join('\n'), 'collapsible day copy css');
 
+  // --- editing a day without spending a turn ----------------------------------
+  //
+  // raffy, 2026-09-04: "i want to make editing the app part easier and more
+  // intuitive... right now they need to chat to make any changes... also
+  // ability to like sort the arrangement of the cards of the daily activity.
+  // y know like tap and move... goal is so we don't need to incur cost for
+  // every changes they want to make on their own app."
+  //
+  // Everything here writes to the same localStorage the times, the ticks and
+  // the packing list already use. Nothing calls the agent, nothing touches the
+  // itinerary the agent built, and "Reset this day back to the plan" still
+  // undoes all of it — which is what keeps this from being a second source of
+  // truth fighting the first one.
+  //
+  // Reordering is the one that could have broken things. Every live feature on
+  // this screen — the now line, what is next, the countdown on an item — reads
+  // r.mins, so an ordering that disagreed with the times would make the day
+  // contradict itself. Dragging therefore rewrites the TIME rather than
+  // introducing a rank: moving something later in the day is moving it later in
+  // the day. One source of truth, and the clock still works.
+
+  // 1. The overrides have to survive a reload, and store() drops what it does
+  //    not know about.
+  replaceOnce(
+    '    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],seq:0};',
+    '    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],text:{},hide:{},own:{},seq:0};',
+    'edits in the store');
+  replaceOnce(
+    'MEM.packAdd=o.packAdd||[]; MEM.seq=o.seq||0; } }',
+    'MEM.packAdd=o.packAdd||[]; MEM.text=o.text||{}; MEM.hide=o.hide||{};\n' +
+    '          MEM.own=o.own||{}; MEM.seq=o.seq||0; } }',
+    'edits out of the store');
+
+  // 2. rows() is the single place a day is assembled, so it is the only place
+  //    that has to know an item can be edited, hidden, or his own.
+  replaceOnce(
+    "    d.items.forEach(function(it,k){\n" +
+    "      var id=di+'.'+k, base=parseT(it.t);",
+    "    d.items.forEach(function(it,k){\n" +
+    "      var id=di+'.'+k;\n" +
+    "      if(st.hide[id]) return;\n" +
+    "      var ed=st.text[id]; if(ed) it=merge(it,ed);\n" +
+    "      var base=parseT(it.t);",
+    'hidden and edited items');
+  replaceOnce(
+    "    out.sort(function(a,b){ return (a.mins-b.mins)||(a.seq-b.seq); });",
+    "    (st.own[String(di)]||[]).forEach(function(o){\n" +
+    "      var id='o'+di+'.'+o.k;\n" +
+    "      if(st.hide[id]) return;\n" +
+    "      var it=merge({t:hhmm(o.t),h:o.h||'Something you added',p:o.p||'',mine:true},st.text[id]);\n" +
+    "      var over=st.times[id];\n" +
+    "      out.push({kind:'fixed',id:id,it:it,base:o.t,mins:(over==null?o.t:over),set:over!=null,seq:seq++});\n" +
+    "    });\n" +
+    "    out.sort(function(a,b){ return (a.mins-b.mins)||(a.seq-b.seq); });",
+    'his own items');
+
+  // 3. Edit mode is a mode, not data: it is not worth persisting, and coming
+  //    back to a day still holding a screwdriver would be a surprise.
+  insertBefore('  function rows(di){', [
+    '  function merge(a,b){ var o={},k; for(k in a) o[k]=a[k]; for(k in b||{}) if(b[k]!=null) o[k]=b[k]; return o; }',
+    '  var EDIT=false;',
+    '  function ownAdd(di,mins){',
+    '    var st=store(), key=String(di);',
+    '    st.seq=(st.seq||0)+1;',
+    '    (st.own[key]=st.own[key]||[]).push({k:st.seq,t:mins,h:"",p:""});',
+    '    save(); return "o"+di+"."+st.seq;',
+    '  }',
+    '  function setText(id,field,val){',
+    '    var st=store(); var cur=st.text[id]||{};',
+    '    cur[field]=val; st.text[id]=cur; save();',
+    '  }',
+    // Dragging writes times, so the whole day has to stay strictly increasing
+    // or two items land on the same minute and the sort falls back to the
+    // order they were built in, which is the order the drag just changed.
+    '  function reorder(di,ids){',
+    '    var st=store(), R=rows(di), by={};',
+    '    R.forEach(function(r){ by[r.id]=r; });',
+    '    var mins=R.map(function(r){ return r.mins; }).sort(function(a,b){ return a-b; });',
+    '    var t=-1;',
+    '    ids.forEach(function(id,n){',
+    '      var want=mins[n]==null?t+1:mins[n];',
+    '      if(want<=t) want=t+1;',
+    '      t=want;',
+    '      var r=by[id]; if(!r) return;',
+    '      if(r.mins===want) return;',
+    '      if(id.charAt(0)==="p"){ planTime(di,+id.split(".")[1],want); }',
+    '      else { st.times[id]=want; }',
+    '    });',
+    '    save();',
+    '  }',
+    '',
+  ].join('\n'), 'local edit helpers');
+
+  // 4. The controls, only while editing.
+  replaceOnce(
+    "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "          'aria-expanded=\"false\">'+r.it.h+'</h3>'+",
+    "        if(EDIT) h+=evEdit(r);\n" +
+    "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "          'aria-expanded=\"false\">'+r.it.h+'</h3>'+",
+    'edit controls on a fixed item');
+  replaceOnce(
+    "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "          'aria-expanded=\"false\">'+r.idea.n+'</h3>'+",
+    "        if(EDIT) h+=evEdit(r);\n" +
+    "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "          'aria-expanded=\"false\">'+r.idea.n+'</h3>'+",
+    'edit controls on a planned idea');
+
+  insertBefore('  function rows(di){', [
+    '  function evEdit(r){',
+    '    return \'<div class="evedit">\'+',
+    '      \'<button class="evgrip" data-grip="\'+r.id+\'" aria-label="Drag to reorder">\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" \'+',
+    '      \'stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg></button>\'+',
+    '      \'<button class="evdel" data-del="\'+r.id+\'" aria-label="Take this off the day">\'+',
+    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '      \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>\';',
+    '  }',
+    '',
+  ].join('\n'), 'the edit controls');
+
+  // 5. In edit mode the words themselves are the field. Same move as the
+  //    packing list: no form, no mode inside the mode, type on the thing.
+  replaceOnce(
+    "    h+='<div class=\"tl\">';",
+    "    h+='<div class=\"tl'+(EDIT?' editing':'')+'\" data-day=\"'+i+'\">';",
+    'mark the timeline as editable');
+  replaceRegex(
+    /h\+='<div class="ev'\+\(r\.kind==='plan'\?' mine':\(r\.it\.major\?'':' soft'\)\)\+\(done\?' done':''\)\+/,
+    "h+='<div class=\"ev'+(r.kind==='plan'?' mine':(r.it.major?'':' soft'))+(done?' done':'')+(EDIT?' edit':'')+",
+    'mark an item as editable');
+
+  insertBefore('</style>', [
+    '  /* ---- editing a day ---- */',
+    '  .edbtn{',
+    "    display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:var(--r-pill);",
+    '    background:var(--surface);box-shadow:var(--sh-s);font-size:11.5px;font-weight:700;',
+    '    color:var(--ink);',
+    '  }',
+    '  .edbtn svg{width:12.5px;height:12.5px;color:var(--ink-faint)}',
+    '  .edbtn.on{background:var(--deep);color:#fff}',
+    '  .edbtn.on svg{color:#fff}',
+    '  .evedit{',
+    '    grid-column:1/-1;grid-row:1;justify-self:end;display:flex;align-items:center;gap:2px;',
+    '    margin:-6px -4px 0 0;',
+    '  }',
+    '  .evgrip,.evdel{',
+    '    width:28px;height:28px;border-radius:8px;display:grid;place-items:center;',
+    '    color:var(--ink-faint);',
+    '  }',
+    '  .evgrip{cursor:grab;touch-action:none}',
+    '  .evgrip svg,.evdel svg{width:15px;height:15px}',
+    '  .evgrip:active{cursor:grabbing;background:var(--sage)}',
+    '  .evdel:active{background:rgba(238,123,69,.18);color:var(--coral-text)}',
+    '  .ev.edit .evchev{display:none}',
+    // Editable text says so: a dotted rule under it, and a real box the moment
+    // it has focus. Without either it is a paragraph that mysteriously accepts
+    // typing.
+    '  .ev.edit [data-edit]{',
+    '    outline:none;border-radius:7px;',
+    '    box-shadow:inset 0 -1px 0 0 rgba(12,36,27,.18);',
+    '  }',
+    '  .ev.edit [data-edit]:focus{',
+    '    box-shadow:0 0 0 2px var(--coral);padding:2px 5px;margin:0 -5px;',
+    '    background:var(--surface);',
+    '  }',
+    '  .ev.edit [data-edit]:empty::before{',
+    '    content:attr(data-ph);color:var(--ink-faint);font-weight:500;',
+    '  }',
+    // The card wraps the rail rather than the rail escaping the card: pushing
+    // the knots left put them half off the edge of the screen.
+    '  .tl.editing .ev{background:var(--surface);border-radius:14px;',
+    '    padding:11px 12px 12px 30px;margin-bottom:9px;box-shadow:var(--sh-s)}',
+    '  .tl.editing .ev::before{left:14.5px;top:31px}',
+    '  .tl.editing .knot{left:8px;top:14px}',
+    '  .tl.editing .ev:last-child::before{display:none}',
+    '  .ev.drag{opacity:.45}',
+    '  .ev.over{box-shadow:0 0 0 2px var(--coral)}',
+    '  .ownadd{',
+    '    display:flex;align-items:center;gap:8px;width:100%;margin-top:10px;padding:11px;',
+    '    border:1.5px dashed var(--line);border-radius:14px;font-size:12.5px;font-weight:650;',
+    '    color:var(--ink-soft);justify-content:center;',
+    '  }',
+    '  .ownadd svg{width:14px;height:14px}',
+    '',
+  ].join('\n'), 'edit mode css');
+
+  // 6. The title and the paragraph become the fields, in place.
+  replaceOnce(
+    "        h+='<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "          'aria-expanded=\"false\">'+r.it.h+'</h3>'+" + CHEV + ";",
+    "        h+= EDIT\n" +
+    "          ? '<h3 class=\"evh\" contenteditable=\"true\" data-edit=\"'+r.id+'\" '+\n" +
+    "            'data-field=\"h\" data-ph=\"What is it?\">'+r.it.h+'</h3>'\n" +
+    "          : '<h3 class=\"evh\" data-more=\"'+r.id+'\" role=\"button\" tabindex=\"0\" '+\n" +
+    "            'aria-expanded=\"false\">'+r.it.h+'</h3>'+" + CHEV + ";",
+    'the title is the field');
+  replaceOnce(
+    "        if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';",
+    "        if(EDIT) h+='<p class=\"evp\" contenteditable=\"true\" data-edit=\"'+r.id+'\" '+\n" +
+    "          'data-field=\"p\" data-ph=\"Anything worth remembering about it\">'+(r.it.p||'')+'</p>';\n" +
+    "        else if(r.it.p) h+='<p class=\"evp\">'+r.it.p+'</p>';",
+    'the paragraph is the field');
+
+  // 7. The toggle, on the day's own header, and a way to add a blank one.
+  replaceOnce(
+    "      (today?'<span class=\"pill tiny coral\">Today</span>':'')+",
+    "      (today?'<span class=\"pill tiny coral\">Today</span>':'')+\n" +
+    "      '<button class=\"edbtn'+(EDIT?' on':'')+'\" id=\"edtoggle\">'+\n" +
+    "      (EDIT?'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.6\" '+\n" +
+    "        'stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m5 12.5 4.5 4.5L19 7\"/></svg>Done'\n" +
+    "       :'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" '+\n" +
+    "        'stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20h9\"/>'+\n" +
+    "        '<path d=\"M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z\"/></svg>Edit')+'</button>'+",
+    'the edit toggle');
+  replaceOnce(
+    "       '<div class=\"hint\">Times you change and places you add are kept on this phone.",
+    "       '<button class=\"ownadd\" id=\"ownadd\">'+\n" +
+    "       '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" '+\n" +
+    "       'stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>'+\n" +
+    "       'Write your own for this day</button>'+\n" +
+    "       '<div class=\"hint\">Times you change and places you add are kept on this phone.",
+    'a blank item of his own');
+
+  // 8. Reset takes the new overrides with it, or "back to the plan" would be a
+  //    lie the moment anyone typed anything.
+  replaceOnce(
+    "    delete st.plans[String(di)];\n    save();",
+    "    delete st.plans[String(di)];\n" +
+    "    delete st.own[String(di)];\n" +
+    "    Object.keys(st.text).forEach(function(id){ if(dayOf(id)===String(di)) delete st.text[id]; });\n" +
+    "    Object.keys(st.hide).forEach(function(id){ if(dayOf(id)===String(di)) delete st.hide[id]; });\n" +
+    "    save();",
+    'reset clears the edits too');
+  insertBefore('  function resetDay(di){',
+    '  // "3.2", "p3.7" and "o3.9" all belong to day 3.\n' +
+    '  function dayOf(id){ return String(id).replace(/^[po]/,"").split(".")[0]; }\n',
+    'which day an id belongs to');
+
+  // 9. Wiring.
+  insertAfter("    if(b.hasAttribute('data-openidea')){ openIdea(+b.getAttribute('data-openidea')); return; }",
+    "\n    if(b.id==='edtoggle'){ EDIT=!EDIT; renderDay(cur,true); return; }" +
+    "\n    if(b.id==='ownadd'){" +
+    "\n      var p=pqNow(), m=(cur===pqIndex(p))?(Math.floor(pqMins(p)/60)+1)*60:9*60;" +
+    "\n      ownAdd(cur,m); EDIT=true; renderDay(cur,true);" +
+    "\n      // Straight into the first field: he pressed add because he has" +
+    "\n      // something to type, not because he wanted a blank card." +
+    "\n      var box=panel.querySelector('.ev:last-of-type [data-field=\"h\"]');" +
+    "\n      if(box){ box.focus(); }" +
+    "\n      return;" +
+    "\n    }" +
+    "\n    if(b.hasAttribute('data-del')){" +
+    "\n      var did=b.getAttribute('data-del');" +
+    "\n      if(did.charAt(0)==='p') planDrop(cur,+did.split('.')[1]);" +
+    "\n      else { st.hide[did]=1; save(); }" +
+    "\n      renderDay(cur,true); return;" +
+    "\n    }",
+    'edit-mode buttons');
+
+  // Saved when the field loses focus, which is the only moment a half-typed
+  // word is not the answer.
+  insertBefore("  document.getElementById('todayjump')", [
+    '  panel.addEventListener(\'focusout\',function(e){',
+    '    var f=e.target.closest&&e.target.closest(\'[data-edit]\'); if(!f) return;',
+    '    setText(f.getAttribute(\'data-edit\'), f.getAttribute(\'data-field\'),',
+    '      (f.textContent||\'\').replace(/\\s+/g,\' \').trim());',
+    '  });',
+    '  // Enter finishes a title rather than starting a second line of it.',
+    '  panel.addEventListener(\'keydown\',function(e){',
+    '    if(e.key!==\'Enter\') return;',
+    '    var f=e.target.closest&&e.target.closest(\'[data-field="h"]\'); if(!f) return;',
+    '    e.preventDefault(); f.blur();',
+    '  });',
+    '',
+  ].join('\n'), 'saving an edited field');
+
+  // 10. Tap and move.
+  //
+  // Pointer events on a dedicated grip, not on the card: a long-press on the
+  // card would fight the scroll, and on a phone that is the difference between
+  // a feature and a bug report. The list reorders live under the finger, and
+  // only on release is anything written — so a drag you abandon costs nothing.
+  insertBefore("  document.getElementById('todayjump')", [
+    '  (function(){',
+    '    var drag=null, tl=null, ph=null, pid=null, dy=0, sy=0;',
+    '    function items(){ return Array.prototype.slice.call(tl.querySelectorAll(".ev")); }',
+    '    panel.addEventListener("pointerdown",function(e){',
+    '      var g=e.target.closest&&e.target.closest("[data-grip]"); if(!g) return;',
+    '      drag=g.closest(".ev"); tl=drag&&drag.closest(".tl"); if(!drag||!tl){ drag=null; return; }',
+    '      e.preventDefault();',
+    '      pid=e.pointerId; sy=e.clientY; dy=0;',
+    '      drag.classList.add("drag");',
+    '      try{ g.setPointerCapture(pid); }catch(x){}',
+    '    });',
+    '    panel.addEventListener("pointermove",function(e){',
+    '      if(!drag||e.pointerId!==pid) return;',
+    '      dy=e.clientY-sy;',
+    '      // Whichever card the finger is currently over, by its middle.',
+    '      var list=items(), me=list.indexOf(drag);',
+    '      for(var n=0;n<list.length;n++){',
+    '        if(list[n]===drag) continue;',
+    '        var b=list[n].getBoundingClientRect();',
+    '        if(e.clientY>b.top && e.clientY<b.bottom){',
+    '          var mid=b.top+b.height/2;',
+    '          if(n<me && e.clientY<mid) tl.insertBefore(drag,list[n]);',
+    '          else if(n>me && e.clientY>mid) tl.insertBefore(drag,list[n].nextSibling);',
+    '          sy=e.clientY;',
+    '          break;',
+    '        }',
+    '      }',
+    '    });',
+    '    function drop(e){',
+    '      if(!drag||(e&&e.pointerId!==pid)) return;',
+    '      var order=items().map(function(el){',
+    '        var g=el.querySelector("[data-grip]");',
+    '        return g?g.getAttribute("data-grip"):null;',
+    '      }).filter(Boolean);',
+    '      drag.classList.remove("drag");',
+    '      drag=null; pid=null;',
+    '      var di=+tl.getAttribute("data-day");',
+    '      tl=null;',
+    '      if(order.length){ reorder(di,order); renderDay(di,true); }',
+    '    }',
+    '    panel.addEventListener("pointerup",drop);',
+    '    panel.addEventListener("pointercancel",drop);',
+    '  })();',
+    '',
+  ].join('\n'), 'drag to reorder');
+
   // --- boot ------------------------------------------------------------------
 
   replaceOnce('  function reduce(){', '  renderShell();\n\n  function reduce(){', 'renderShell boot call');
