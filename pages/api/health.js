@@ -1,5 +1,5 @@
 import { storeConfigured } from '../../lib/db.js';
-import { orBuilderReady, MODEL } from '../../lib/orBuilder.js';
+import { orBuilderReady, MODEL, builderProbe } from '../../lib/orBuilder.js';
 import { setting } from '../../lib/settings.js';
 
 // The key can arrive from the environment or from the config document, and
@@ -50,9 +50,14 @@ async function checkDocStore() {
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   const sources = req.query && req.query.sources ? await checkSources() : undefined;
+  // `?builder=1` asks OpenRouter whether the configured model is real and what
+  // it charges. Reads the catalogue only, so it sends no completion and costs
+  // nothing; opt-in anyway, because it is a real outbound request.
+  const builderModel = req.query && req.query.builder ? await builderProbe() : undefined;
   res.status(200).json({
     accounts: storeConfigured(),
     builder: (await orBuilderReady()) ? MODEL() : 'anthropic (managed agents)',
+    builderModel,
     openrouterKey: !!settingOR(),
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
     googlePhotos: !!placesKey(),
