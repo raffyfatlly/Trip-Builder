@@ -13,7 +13,7 @@
 //
 //   node setup/test-photofill.mjs
 
-import { photoGaps, applyFill, fillKey, fillPhotoGaps, fillWhere, localise as _localise } from '../lib/photos.js';
+import { photoGaps, applyFill, fillKey, fillPhotoGaps, fillWhere, localise as _localise, placeNameFrom } from '../lib/photos.js';
 
 let fail = 0;
 const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '   ' + x : '')); if (!c) fail++; };
@@ -177,6 +177,49 @@ ok('a one-city trip still qualifies its lookups', _localise('Chiang Mai') === 'C
 ok('a two-city trip qualifies nothing', _localise('Hanoi & Ninh Binh') === '');
 ok('nor does one written with a comma', _localise('Hanoi, Ninh Binh') === '');
 ok('nor with an arrow', _localise('Hanoi → Ninh Binh') === '');
+
+
+// --- the place inside the heading ------------------------------------------
+//
+// Every string here is one the fill actually sent to Google on 2026-09-05,
+// billed at $0.032 each. The heading was being sent whole: only the cache key
+// was ever cleaned up, so the saving was imaginary.
+
+const CASES = [
+  ['Egg coffee at Café Giảng', 'Café Giảng'],
+  ['Boat ride through Tam Coc', 'Tam Coc'],
+  ['Walk Hoan Kiem Lake', 'Hoan Kiem Lake'],
+  ['Browse Dong Xuan Market', 'Dong Xuan Market'],
+  ['Lunch around Truc Bach', 'Truc Bach'],
+  ['Lunch: bún chả at Hương Liên', 'Hương Liên'],
+  ['Last Old Quarter dinner', 'Old Quarter'],
+  ['Food-heavy evening back in the Old Quarter', 'Old Quarter'],
+  ['Trang An boat ride', 'Trang An'],
+  // Left alone: these are already names, and "of" is not a preposition that
+  // splits a place from what you do there.
+  ['Temple of Literature', 'Temple of Literature'],
+  ['Bún chả Hương Liên', 'Bún chả Hương Liên'],
+  ['Hoa Lu Ancient Capital', 'Hoa Lu Ancient Capital'],
+  ['Tran Quoc Pagoda, West Lake', 'Tran Quoc Pagoda, West Lake'],
+  // A restaurant inside a resort. There is no activity word here, so the whole
+  // string stays: "Anantara" alone would find the wrong door.
+  ['Turmeric at Anantara', 'Turmeric at Anantara'],
+  ['Thang Long Water Puppet Theatre', 'Thang Long Water Puppet Theatre'],
+];
+for (const [raw, want] of CASES) {
+  ok(JSON.stringify(raw) + ' -> ' + JSON.stringify(want), placeNameFrom(raw) === want,
+    placeNameFrom(raw) === want ? '' : 'got ' + JSON.stringify(placeNameFrom(raw)));
+}
+
+ok('and it is the extracted name that gets looked up, not the heading', (() => {
+  const g = photoGaps({ days: [{ items: [{ h: 'Egg coffee at Café Giảng' }] }] });
+  return g.length === 1 && g[0].name === 'Café Giảng';
+})());
+
+ok('the whole Hanoi day costs fewer lookups than it has headings', (() => {
+  const raw = CASES.map(([r]) => r).concat(['Check back in to La Siesta Classic Hang Thung']);
+  return photoGaps({ days: [{ items: raw.map((h) => ({ h })) }] }).length < raw.length;
+})());
 
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
