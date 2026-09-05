@@ -24,6 +24,7 @@ import { NOTE_TOOL } from '../lib/plan.js';
 import { REMEMBER_TOOL, FORGET_TOOL } from '../lib/memory.js';
 import { FACT_TOOLS } from '../lib/facts.js';
 import { PRICE_TOOL } from '../lib/prices.js';
+import { RESEARCH_TOOL } from '../lib/research.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) throw new Error('ANTHROPIC_API_KEY not set');
@@ -59,17 +60,21 @@ const chat = await post('/v1/agents', {
   model: MODEL,
   system: SYSTEM,
   tools: [
-    // The chat agent researches now: a travel agent that cannot tell you what
-    // a hotel costs is not a travel agent. Bounded by the prompt rather than
-    // switched off, because a search turn is still far cheaper than a build.
+    // No web search on the chat agent any more.
+    //
+    // It researched by searching directly, and the results stayed in the
+    // conversation forever: one Chiang Mai request reached 454,870 tokens and
+    // nine of twenty passed 200K, re-read at cache rates on every later turn.
+    // Cache reads and writes were 79% of that trip's chat bill.
+    //
+    // It still researches — through RESEARCH_TOOL, which runs a cheap model on
+    // our own server and hands back a few hundred words instead of fifteen web
+    // pages. See lib/research.js.
     {
       type: 'agent_toolset_20260401',
       default_config: { enabled: false },
-      configs: [
-        { name: 'web_search', enabled: true },
-        { name: 'web_fetch', enabled: true },
-      ],
     },
+    RESEARCH_TOOL,
     BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL, PROPOSE_TOOL, NOTE_TOOL,
     REMEMBER_TOOL, FORGET_TOOL,
     // Hours, real travel times, the weather on their dates, the live rate.
