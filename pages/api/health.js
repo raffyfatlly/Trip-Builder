@@ -1,6 +1,7 @@
 import { storeConfigured } from '../../lib/db.js';
 import { orBuilderReady, MODEL, builderProbe, modelSearch } from '../../lib/orBuilder.js';
 import { setting } from '../../lib/settings.js';
+import { research, WORKER } from '../../lib/research.js';
 
 // The key can arrive from the environment or from the config document, and
 // health saying "no key" while the builder happily uses one is the kind of
@@ -58,11 +59,30 @@ export default async function handler(req, res) {
   // that can reach it, so a model is chosen against real prices rather than
   // remembered ones. Reads the catalogue only; costs nothing.
   const models = req.query && req.query.models ? await modelSearch(req.query.models) : undefined;
+  // `?research=<question>` actually runs one research call. Unlike every other
+  // probe here this one SPENDS money — a few tenths of a cent — because the one
+  // thing that could not be checked from the catalogue is whether OpenRouter's
+  // web search works on this account at all. Opt-in, and it reports which of
+  // the two shapes answered.
+  let desk;
+  if (req.query && req.query.research) {
+    const t0 = Date.now();
+    const r = await research([String(req.query.research)],
+      req.query.worker ? { model: String(req.query.worker) } : {});
+    desk = {
+      worker: r.model || WORKER(), webSearchVia: r.shape || 'neither',
+      seconds: +((Date.now() - t0) / 1000).toFixed(1),
+      usd: r.usage ? +Number(r.usage.usd).toFixed(5) : null,
+      tokens: r.usage ? { in: r.usage.in, out: r.usage.out } : null,
+      answer: r.text,
+    };
+  }
   res.status(200).json({
     accounts: storeConfigured(),
     builder: (await orBuilderReady()) ? MODEL() : 'anthropic (managed agents)',
     builderModel,
     models,
+    desk,
     openrouterKey: !!settingOR(),
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
     googlePhotos: !!placesKey(),
