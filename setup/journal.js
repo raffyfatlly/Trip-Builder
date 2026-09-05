@@ -253,6 +253,47 @@ if (!costs.length) {
 // a per-trip price can be right and the business still be wrong.
 const wasted = all.filter((j) => !built(j)).reduce((a, j) => a + totalUsd(j), 0);
 
+// --- the research desk -----------------------------------------------------
+//
+// raffy, 2026-09-05: "ill try soon. and catch it and analyse."
+//
+// The two open questions about the desk are whether it works in the real app
+// and whether the wait is bearable, and both are answered here rather than by
+// reading a transcript.
+{
+  const rounds = [];
+  for (const j of all) for (const l of j.lines || []) if (l.ev === 'research') rounds.push(l);
+  if (rounds.length) {
+    const qs = rounds.reduce((a, r) => a + (Number(r.asked) || 0), 0);
+    const bad = rounds.filter((r) => Number(r.failed) === 1);
+    const secs = rounds.map((r) => Number(r.seconds) || 0).filter(Boolean).sort((a, b) => a - b);
+    const at = (p) => secs.length ? secs[Math.min(secs.length - 1, Math.floor(secs.length * p))] : 0;
+    const usd = all.reduce((a, j) => a + (((j.spend || {}).research || {}).usd || 0), 0);
+
+    console.log('  THE RESEARCH DESK');
+    console.log('  ' + rounds.length + ' rounds, ' + qs + ' questions, '
+      + (rounds.length ? (qs / rounds.length).toFixed(1) : 0) + ' per round');
+    if (secs.length) {
+      console.log('  wait         median ' + at(0.5) + 's   p90 ' + at(0.9) + 's   worst '
+        + secs[secs.length - 1] + 's'
+        + (secs[secs.length - 1] > 30 ? '   *** the open complaint ***' : ''));
+    }
+    console.log('  spent        ' + money(usd) + '   ' + RM(usd)
+      + (qs ? '   ' + money(usd / qs) + ' a question' : ''));
+    const models = [...new Set(rounds.map((r) => r.model).filter(Boolean))];
+    if (models.length) console.log('  worker       ' + models.join(', '));
+    const vias = [...new Set(rounds.map((r) => r.via).filter(Boolean))];
+    if (vias.length) console.log('  web search   via ' + vias.join(', '));
+    if (bad.length) {
+      console.log('  FAILED       ' + bad.length + ' of ' + rounds.length + ' rounds');
+      for (const b of bad.slice(0, 5)) console.log('               ' + (b.why || 'every question came back empty'));
+    } else {
+      console.log('  failed       none');
+    }
+    console.log('');
+  }
+}
+
 // --- the ledger ------------------------------------------------------------
 //
 // raffy, 2026-09-05: "really plan the cost so that like i said im safe and have
