@@ -271,9 +271,30 @@ const wasted = all.filter((j) => !built(j)).reduce((a, j) => a + totalUsd(j), 0)
   try { ledgers = await listLedgers(400); } catch (e) { /* none yet */ }
 
   console.log('  THE LEDGER');
-  console.log('  markup ' + cfg.markup + 'x   1 credit = RM0.01   '
-    + 'signed-in grant ' + cfg.grant.toLocaleString('en') + ' (RM' + cfg.grantWorthMyr
-    + ' retail, RM' + cfg.grantCostsMyr + ' of real cost)   anonymous ' + cfg.anonGrant.toLocaleString('en'));
+  console.log('  1 credit costs RM' + cfg.myrPerCredit + ' to serve and should sell for RM'
+    + cfg.creditSellsFor + ' at ' + cfg.markup + 'x');
+  console.log('  free grant ' + cfg.grant + ' credits (RM' + cfg.grantCostsMyr
+    + ' of real cost, RM' + cfg.grantWorthMyr + ' of retail)   anonymous ' + cfg.anonGrant);
+
+  // What the landing page promises, against what a credit actually costs.
+  //
+  // public/welcome/index.html has been quoting these packs since it went up,
+  // and they were priced off an estimate that measurement has since moved a
+  // long way. Checked here rather than in a note, because a note goes stale
+  // and this recomputes every time he looks.
+  const PACKS = [['Traveller', 29, 120], ['Frequent', 89, 500]];
+  console.log('');
+  console.log('  THE LANDING PAGE, AGAINST WHAT IT COSTS');
+  for (const [name, price, credits] of PACKS) {
+    const cost = C.costMyr(credits);
+    const mult = price / cost;
+    console.log('  ' + name.padEnd(12) + ('RM' + price).padStart(6) + ' for ' + String(credits).padStart(4)
+      + ' credits   costs RM' + cost.toFixed(2).padStart(7) + ' to serve   '
+      + mult.toFixed(2) + 'x   '
+      + (mult >= 3 ? 'ok' : mult >= 1 ? '*** THIN ***' : '*** SOLD BELOW COST ***'));
+  }
+  console.log('  at ' + cfg.markup + 'x those packs would be RM'
+    + PACKS.map(([, , c]) => C.retailMyr(c).toFixed(0)).join(' and RM'));
 
   if (!ledgers.length) {
     console.log('  nobody has spent a credit yet.');

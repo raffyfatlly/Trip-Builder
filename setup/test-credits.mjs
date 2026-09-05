@@ -52,9 +52,16 @@ console.log('\nthe rate card');
 
 const cfg = C.explain();
 ok('markup is inside the 3-5x he asked for', cfg.markup >= 3 && cfg.markup <= 5, cfg.markup + 'x');
-ok('a free grant is one median trip and a bit', cfg.grant === 10000);
-ok('and it can cost him at most RM20', cfg.grantCostsMyr === 20, 'RM' + cfg.grantCostsMyr);
-ok('worth RM100 of retail', cfg.grantWorthMyr === 100);
+// raffy, 2026-09-05: "reflect the credit to be alligned with the one we use in
+// landing page. maybe thousands seems to much." public/welcome/index.html says
+// "Planning a whole trip — 50". Everything here is that number's consequence.
+ok('a whole trip is about 50 credits, as the landing page says',
+   Math.abs(C.creditsFor(3.55) - 50) <= 3, C.creditsFor(3.55) + ' for the median trip');
+ok('a free grant is one trip and a bit', cfg.grant === 70);
+ok('and it can cost him about RM22', Math.abs(cfg.grantCostsMyr - 21.7) < 0.01, 'RM' + cfg.grantCostsMyr);
+ok('a credit costs RM0.31 to serve and should sell for RM1.55',
+   cfg.myrPerCredit === 0.31 && cfg.creditSellsFor === 1.55);
+ok('nothing is in the thousands any more', cfg.grant < 1000 && C.creditsFor(9.30) < 1000);
 
 console.log('\nwhat the measured trips would charge');
 
@@ -68,14 +75,14 @@ const TRIPS = [
 ];
 for (const [name, usd] of TRIPS) {
   const c = C.creditsFor(usd);
-  const covered = c <= cfg.grant;
-  console.log('   ' + name.padEnd(38) + String(c).padStart(6) + ' credits   RM'
-    + C.retailMyr(c).toFixed(2).padStart(7) + ' retail   RM' + C.costMyr(c).toFixed(2).padStart(6)
-    + ' cost   ' + (covered ? 'inside the free grant' : 'RUNS OUT'));
+  console.log('   ' + name.padEnd(38) + String(c).padStart(4) + ' credits   RM'
+    + C.costMyr(c).toFixed(2).padStart(6) + ' to serve   RM'
+    + C.retailMyr(c).toFixed(2).padStart(7) + ' at ' + cfg.markup + 'x   '
+    + (c <= cfg.grant ? 'inside the free grant' : 'RUNS OUT'));
 }
 
 ok('the median trip fits inside the free grant', C.creditsFor(3.55) < cfg.grant);
-ok('with something left over — "a bit more"', cfg.grant - C.creditsFor(3.55) > 1500,
+ok('with something left over — "a bit more"', cfg.grant - C.creditsFor(3.55) >= 15,
    (cfg.grant - C.creditsFor(3.55)) + ' spare');
 ok('a p90 research marathon does NOT fit, so it is capped', C.creditsFor(9.30) > cfg.grant);
 
@@ -123,7 +130,7 @@ ok('spent out, the gate closes', !broke.ok && broke.left === 0);
 
 const anon = await C.allowed('', 'sesn_' + 'y'.repeat(20));
 ok('anonymous gets its own, smaller allowance', anon.ok && anon.granted === C.explain().anonGrant);
-ok('which stops short of a build', anon.granted < C.creditsFor(2.95));
+ok('which stops short of a whole trip', anon.granted < C.creditsFor(2.95));
 
 
 console.log('\nthe ring: two arcs that add up');
