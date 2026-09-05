@@ -43,6 +43,9 @@ export default function Home() {
   // The credit balance, polled with everything else. null when the deployment
   // has no store and nothing is metered — the app then behaves as it always did.
   const [purse, setPurse] = useState(null);
+  // True while a message has been sent but the server's log does not show it
+  // yet. Used to suppress the previous turn's steps — see the poll.
+  const pendingSend = useRef(false);
   // And what it has already done this turn, so a long wait shows progress
   // rather than one line that might mean it is stuck.
   const [steps, setSteps] = useState([]);
@@ -192,11 +195,12 @@ export default function Home() {
         if (d.transcript) {
           setMessages((prev) => {
             const waiting = prev.filter((m) => String(m.id || '').startsWith('tmp'));
-            if (!waiting.length) return d.transcript;
+            if (!waiting.length) { pendingSend.current = false; return d.transcript; }
             const flat = (t) => String(t || '').replace(/\s+/g, ' ').trim();
             const landed = new Set(
               d.transcript.filter((m) => m.role === 'user').map((m) => flat(m.text)));
             const keep = waiting.filter((m) => !landed.has(flat(m.text)));
+            pendingSend.current = keep.length > 0;
             return keep.length ? [...d.transcript, ...keep] : d.transcript;
           });
         }
@@ -206,7 +210,18 @@ export default function Home() {
         setDoing(d.doing || null);
         setAgentErr(d.agentError || null);
         if (d.credits !== undefined) setPurse(d.credits);
-        setSteps(Array.isArray(d.steps) ? d.steps : []);
+        // Steps belong to a turn, and stepsNow() reads them from the last
+        // user.message on the SERVER's log. Between sending and that message
+        // being recorded there is a window where the server still has the
+        // previous turn — so the old round's "Looked it up: budget hotels…"
+        // hung around under the new question.
+        //
+        // raffy, 2026-09-05: "the note (what it search) from past message crept
+        // for awhile after I ask new question."
+        //
+        // The optimistic bubble is the signal that the server has not caught up
+        // yet. While one is waiting, show nothing rather than something stale.
+        setSteps(pendingSend.current || !Array.isArray(d.steps) ? [] : d.steps);
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
         setPlan(d.plan || {});
@@ -542,6 +557,9 @@ export default function Home() {
     const label = [pending.map((f) => '📎 ' + f.name).join('\n'), text]
       .filter(Boolean).join('\n');
     setMessages((m) => [...m, { role: 'user', text: label, id: 'tmp' + stamp }]);
+    // The previous turn's trail goes now, not when the server catches up.
+    pendingSend.current = true;
+    setSteps([]);
     if (typeof override !== 'string') setDraft('');
     const files = pending;
     setPending([]);

@@ -40,6 +40,7 @@ const tools = [
 
 const before = await (await fetch('https://api.anthropic.com/v1/agents/' + CHAT_AGENT_ID, { headers: H })).json();
 console.log('now      v' + before.version + '  ' + (before.model || {}).id
+  + '  effort ' + (((before.model || {}).effort || {}).type || '?')
   + '  ' + (before.tools || []).length + ' tool entries');
 
 const names = tools.map((t) => t.name || t.type);
@@ -50,14 +51,37 @@ if (process.argv.includes('--dry')) {
   process.exit(0);
 }
 
+// Effort, as well as prompt and tools.
+//
+// raffy, 2026-09-05: "chat is still expensive in general. lets work on it
+// further if possible."
+//
+// Measured on his Madura trip, the $0.63 chat splits: cache writes 43%, output
+// 35%, cache reads 21%. Managed Agents does its own prompt caching and exposes
+// no TTL, so the write half is the platform's to spend — but the output half is
+// ours, and it was running at effort `high`.
+//
+// A travel conversation is judgement, not hard reasoning: which hotel suits
+// these two, is this day too full. Anthropic's own guidance puts chat among the
+// workloads that do not repay high effort. `medium` is the step down to try
+// first, and it cuts the wait as well as the bill.
+//
+// Set EFFORT=high to put it back in one command if the conversation gets worse.
+const effort = process.env.EFFORT || 'medium';
+
 const res = await fetch('https://api.anthropic.com/v1/agents/' + CHAT_AGENT_ID, {
   method: 'POST',
   headers: H,
-  body: JSON.stringify({ system: SYSTEM, tools }),
+  body: JSON.stringify({
+    system: SYSTEM,
+    tools,
+    model: { ...(before.model || {}), effort: { type: effort } },
+  }),
 });
 const text = await res.text();
 if (!res.ok) throw new Error(res.status + ' ' + text.slice(0, 600));
 const after = JSON.parse(text);
-console.log('now      v' + after.version + '  ' + (after.model || {}).id);
+console.log('now      v' + after.version + '  ' + (after.model || {}).id
+  + '  effort ' + (((after.model || {}).effort || {}).type || '?'));
 console.log('\nSessions started from here on pick this up. Sessions already');
 console.log('running stay pinned to the version they started on.');
