@@ -180,7 +180,26 @@ export default function Home() {
         if (!r.ok) throw new Error('state ' + r.status);
         const d = await r.json();
         if (!alive) return;
-        if (d.transcript) setMessages(d.transcript);
+        // Merged, not replaced.
+        //
+        // raffy, 2026-09-05: "everytime i replied, the bubble like a glitch, or
+        // appear late." Sending drops an optimistic bubble in straight away, and
+        // this line then overwrote the list with the server's transcript — which
+        // does not contain that message until the send has been recorded. So
+        // their own words appeared, vanished for a poll or two, and came back.
+        //
+        // An optimistic message is kept until the transcript actually has it.
+        if (d.transcript) {
+          setMessages((prev) => {
+            const waiting = prev.filter((m) => String(m.id || '').startsWith('tmp'));
+            if (!waiting.length) return d.transcript;
+            const flat = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+            const landed = new Set(
+              d.transcript.filter((m) => m.role === 'user').map((m) => flat(m.text)));
+            const keep = waiting.filter((m) => !landed.has(flat(m.text)));
+            return keep.length ? [...d.transcript, ...keep] : d.transcript;
+          });
+        }
         setThinking(!!d.thinking);
         setBuilding(!!d.building);
         setProgress(d.progress || null);

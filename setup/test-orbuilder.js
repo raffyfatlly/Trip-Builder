@@ -294,5 +294,40 @@ await or.advanceBuild(id6);
 check('a tool that does not exist is refused',
   JSON.parse(DOCS.get(id6).messages.stringValue).some((m) => m.role === 'tool' && m.content === 'Unknown tool.'));
 
+// --- the lease -------------------------------------------------------------
+//
+// raffy's Tokyo trip, 2026-09-05: he asked it to build, fell asleep, and woke to
+// find it still building — /api/advance was only ever called by the browser, so
+// a build froze the moment the tab did. It now hands off to another invocation
+// of itself and carries on unwatched.
+//
+// That makes two callers possible at once: the chain and a live page. A build
+// step is a large model call, so doing it twice costs real money. The lease is
+// what stops that, and this is the test of it.
+{
+  process.env.BUILDER = 'openrouter';
+  turns = [
+    { message: { role: 'assistant', content: '', tool_calls: [tc('save_itinerary', ITIN)] } },
+    { message: { role: 'assistant', content: 'Done.' } },
+  ];
+  const id = await or.startBuild('Build it.\n\nDestination: Da Nang');
+  const before = seen.length;
+
+  // Two advances at the same moment, which is exactly what a chain plus an open
+  // page looks like.
+  const [a, b] = await Promise.all([or.advanceBuild(id), or.advanceBuild(id)]);
+  check('two advances at once make one model call, not two', seen.length - before === 1,
+    (seen.length - before) + ' call(s)');
+  check('and both callers are told it is still building or done',
+    (a.building || a.itinerary || a.error !== undefined)
+    && (b.building || b.itinerary || b.error !== undefined));
+
+  // The lease must not outlive the step, or the build stalls for its duration.
+  const mid = await or.advanceBuild(id);
+  check('the next step runs straight after, not after a lease timeout',
+    seen.length - before === 2, (seen.length - before) + ' call(s)');
+  check('and the build finishes', !mid.building || mid.itinerary);
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

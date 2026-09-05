@@ -12,8 +12,30 @@ import { SLOTS, filled, missing } from '../lib/plan.js';
 // chat — an earlier version of the itinerary button did, and it covered the
 // last thing the agent said.
 
+// Whether the checklist starts open. Their choice, remembered.
+const OPEN_KEY = 'tb.plan.open.v1';
+const startOpen = () => {
+  try {
+    const v = localStorage.getItem(OPEN_KEY);
+    return v === null ? true : v === '1';
+  } catch (e) { return true; }
+};
+
 export default function Plan({ plan, onBuild, built, building }) {
-  const [open, setOpen] = useState(false);
+  // Open by default now.
+  //
+  // raffy, 2026-09-05: "I think the planning tab (the 6 out of 7) etc should
+  // open much early so user also can track at which phase they are at."
+  //
+  // It was collapsed, so the phases were behind a tap nobody knew to make and
+  // the bar was just a number. Open, it is the map of the conversation: what
+  // has been settled, what is still coming. Collapsing it is remembered, so
+  // anyone who finds it in the way only has to say so once.
+  const [open, setOpen] = useState(startOpen);
+  const toggle = () => setOpen((v) => {
+    try { localStorage.setItem(OPEN_KEY, v ? '0' : '1'); } catch (e) { /* private mode */ }
+    return !v;
+  });
   const have = filled(plan);
   const left = missing(plan);
 
@@ -25,7 +47,7 @@ export default function Plan({ plan, onBuild, built, building }) {
 
   return (
     <div className={'plan' + (open ? ' open' : '')}>
-      <button className="planbar" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+      <button className="planbar" onClick={toggle} aria-expanded={open}>
         <span className="dots">
           {SLOTS.map((s) => <i key={s.key} className={plan[s.key] ? 'on' : ''} />)}
         </span>

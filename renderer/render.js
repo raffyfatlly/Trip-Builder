@@ -1309,6 +1309,27 @@ export function render(T, templateSrc) {
       return mapTile(o, zoom);
     }
 
+    // The first real photograph anywhere in the trip, for a feature card the
+    // builder left without one.
+    function borrowedShot(){
+      var i, j, st, d, it;
+      for(i=0;i<(T.stays||[]).length;i++){
+        st = T.stays[i];
+        if(st && st.photo && P[st.photo]) return P[st.photo];
+      }
+      for(i=0;i<(T.days||[]).length;i++){
+        d = T.days[i];
+        for(j=0;j<((d&&d.items)||[]).length;j++){
+          it = d.items[j];
+          if(it && it.photo && P[it.photo]) return P[it.photo];
+        }
+      }
+      for(i=0;i<(T.ideas||[]).length;i++){
+        if(T.ideas[i] && T.ideas[i].photo && P[T.ideas[i].photo]) return P[T.ideas[i].photo];
+      }
+      return '';
+    }
+
     // How they are getting there, from the trip itself.
     //
     // raffy, 2026-09-02, of his Desaru trip: "its road trip right , but in my
@@ -1400,7 +1421,18 @@ export function render(T, templateSrc) {
         // out. So drop the img entirely and let CSS restack the card.
         // The feature card has no coordinates of its own, so it borrows the
         // first stay's — a wider map of the area they are going to.
-        var fsrc = shotFor(f) || ((T.stays||[])[0] ? mapTile(T.stays[0], 12) : '');
+        // raffy's Tokyo trip, 2026-09-05: "the main image on trip is not
+        // available." The feature card is the first thing anyone sees, and the
+        // builder had left f.photo empty — so it fell straight through to a map
+        // tile, which is not a picture of anywhere.
+        //
+        // The trip is full of real photographs by this point. Borrow one:
+        // whichever stay or day item actually has a picture, in the order they
+        // appear, so it is the top of the trip rather than something from the
+        // last afternoon. The map tile stays as the final fallback for a trip
+        // with no photographs at all.
+        var fsrc = (f.photo && P[f.photo]) || borrowedShot() ||
+          ((T.stays||[])[0] ? mapTile(T.stays[0], 12) : '');
         // The veil exists to make text readable over a photograph. With no
         // text it is just a photograph made darker for no reason, so the card
         // shows the picture clean instead. (The builder is told to always
