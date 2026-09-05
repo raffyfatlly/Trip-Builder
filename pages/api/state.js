@@ -35,7 +35,8 @@ async function handler(req, res) {
     res.status(200).json({
       ...state,
       credits: purse.unmetered ? null : {
-        left: purse.left, granted: purse.granted, used: purse.used, signedIn: purse.who,
+        left: purse.left, granted: purse.granted, used: purse.used,
+        plan: purse.plan, build: purse.build, signedIn: purse.who,
       },
     });
   } catch (err) {

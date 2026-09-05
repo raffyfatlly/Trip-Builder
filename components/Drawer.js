@@ -1,3 +1,4 @@
+import { Credits } from './Ring.js';
 import { useState, useEffect } from 'react';
 import { shortDate } from '../lib/trips.js';
 import Account from './Account.js';
@@ -15,7 +16,7 @@ import { peopleText } from '../lib/memory.js';
 export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onEditSlot, onForgetSlot, onForgetAll,
-                                nudge, onNudgeSave, onNudgeLater, signInNow }) {
+                                nudge, onNudgeSave, onNudgeLater, signInNow, credits }) {
   // Which trip is being removed, if any. Inline rather than a dialog: the row
   // is where the mistake would happen, so that is where the second look
   // belongs — and it keeps the trip's name in front of you while you decide.
@@ -55,6 +56,16 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
         </div>
 
         <div className="dscroll">
+          {/* What is left, and roughly where it went. raffy, 2026-09-05:
+              "make it simple they don't have to know the details."
+              Two arcs and a number. No dollars and no model names — a
+              traveller does not need to know what any of it runs on. */}
+          {credits && (
+            <div className="purse">
+              <Credits credits={credits} size={116} />
+            </div>
+          )}
+
           {/* One identity row, folded shut. raffy, 2026-09-01: "for profile i
               prefer it we click the account and expand. not live in side bar."
               So the account IS the profile — tapping it opens who you are,
@@ -198,6 +209,10 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
         .close svg{width:15px;height:15px}
 
         .dscroll{flex:1;min-height:0;overflow-y:auto;padding:0 12px}
+        .purse{
+          margin:6px 4px 16px;padding:16px 16px 15px;border-radius:20px;
+          background:var(--sage);
+        }
         h3{
           margin:6px 4px 8px;font-size:11px;font-weight:750;letter-spacing:.07em;
           text-transform:uppercase;color:var(--ink-faint);

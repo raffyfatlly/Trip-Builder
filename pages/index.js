@@ -1,3 +1,4 @@
+import { Credits } from '../components/Ring.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview, downloadName } from '../lib/preview.js';
@@ -1061,9 +1062,7 @@ export default function Home() {
                 {!purse.signedIn && (
                   <button className="wbtn" onClick={() => setMenu(true)}>Sign in</button>
                 )}
-                <span className="wmeter">
-                  {purse.granted ? purse.granted.toLocaleString('en') : 0} credits used
-                </span>
+                <div className="wring"><Credits credits={purse} size={104} /></div>
               </div>
             ) : (
             <>
@@ -1072,10 +1071,11 @@ export default function Home() {
                 exactly the feeling this should not create while they are still
                 deciding whether they like it. */}
             {purse && purse.left > 0 && purse.used / (purse.granted || 1) > 0.6 && (
-              <div className="fuel" role="status">
+              <button className="fuel" onClick={() => setMenu(true)}
+                title="See what's left" aria-label="See what's left">
                 <i><b style={{ width: Math.max(3, Math.round(100 * purse.left / (purse.granted || 1))) + '%' }} /></i>
                 <span>{purse.left.toLocaleString('en')} credits left</span>
-              </div>
+              </button>
             )}
             {pending.length > 0 && (
               <div className="chips">
@@ -1327,6 +1327,7 @@ export default function Home() {
         onNudgeSave={() => { nudgeLater(); setMenu(true); setSignInNow(true); }}
         signInNow={signInNow}
         onNudgeLater={nudgeLater}
+        credits={purse}
         accounts={account.accounts}
         user={account.user}
         onSignedIn={onSignedIn}
@@ -1538,6 +1539,9 @@ export default function Home() {
           transition:width 500ms var(--e);
         }
         .fuel span{white-space:nowrap}
+        .fuel{background:none;border:0;cursor:pointer;width:100%}
+        .fuel:active{opacity:.6}
+        .wall .wring{margin-top:14px}
 
         /* The paywall replaces the composer. It is not an error state and does
            not look like one — the trip is still theirs and the first line they

@@ -125,5 +125,42 @@ const anon = await C.allowed('', 'sesn_' + 'y'.repeat(20));
 ok('anonymous gets its own, smaller allowance', anon.ok && anon.granted === C.explain().anonGrant);
 ok('which stops short of a build', anon.granted < C.creditsFor(2.95));
 
+
+console.log('\nthe ring: two arcs that add up');
+
+{
+  const S2 = 'sesn_' + 'r'.repeat(20);
+  // A trip shaped like the real ones: the conversation costs more than the
+  // build, and the Places lookups sit between them.
+  J.spendTotal(S2, 'chat', 'claude-sonnet-5', { in: 1, out: 1, calls: 1 }, 1.90);
+  J.spendAdd(S2, 'builder', 'deepseek/deepseek-chat-v3-0324', { in: 1, out: 1, usd: 0.30 });
+  await new Promise((r) => setTimeout(r, 40));
+  await J.addMetered(S2, { 'places.search': { calls: 42, usd: 1.34 } }, 'ringer@example.com');
+
+  const d = await C.settle(S2);
+  ok('the split adds back to the total charged', d && d.plan + d.build === d.credits,
+     d ? d.plan + ' + ' + d.build + ' = ' + d.credits : 'nothing');
+  ok('planning is the bigger half, as measured', d && d.plan > d.build,
+     d ? Math.round(100 * d.plan / d.credits) + '% planning' : '');
+  ok('and building is not zero', d && d.build > 0);
+
+  const p2 = await C.allowed('ringer@example.com', S2);
+  ok('the ledger keeps both halves', p2.plan > 0 && p2.build > 0,
+     p2.plan + ' planning, ' + p2.build + ' building');
+  ok('and they still add up on the ledger', p2.plan + p2.build === p2.used);
+}
+
+{
+  // A session that never built anything. The ring must not draw an orange arc
+  // for work that did not happen.
+  const S3 = 'sesn_' + 'q'.repeat(20);
+  J.spendTotal(S3, 'chat', 'claude-sonnet-5', { in: 1, out: 1, calls: 1 }, 0.80);
+  await new Promise((r) => setTimeout(r, 40));
+  await J.addMetered(S3, { 'places.search': { calls: 5, usd: 0.16 } }, 'talker@example.com');
+  const d = await C.settle(S3);
+  ok('an abandoned session is all planning', d && d.build === 0 && d.plan === d.credits,
+     d ? d.plan + ' planning, ' + d.build + ' building' : 'nothing');
+}
+
 console.log(fail ? '\n' + fail + ' FAILED\n' : '\nall passed\n');
 process.exit(fail ? 1 : 0);
