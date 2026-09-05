@@ -119,5 +119,37 @@ ok('the researched answer reaches the agent', /Kinabalu Park is the anchor/.test
 ok('and NOT the generic failure line', !/failed unexpectedly/i.test(body));
 deskWorks = false;
 
+
+console.log('\nthe spinner stays on while we are working');
+
+// raffy, 2026-09-05: "ensure while it's working, the loading icon or text
+// doesn't go off." The Managed Agents session emits status_idle the instant it
+// hands over a tool call — from its side it IS waiting on us — so the app read
+// "not thinking" for the whole half-minute a research round takes, dropped the
+// spinner, and looked finished at its busiest.
+events = [
+  { type: 'user.message', content: [{ type: 'text', text: 'hi' }] },
+  call('research', { questions: [{ q: 'what is there to do?', about: 'things to do' }] }, 'p1'),
+  { type: 'session.status_idle' },
+];
+let st = await M.getState(SESSION).catch(() => null);
+ok('an unanswered tool call still reads as thinking', st && st.thinking === true,
+   st ? 'thinking=' + st.thinking : 'no state');
+ok('and it says what it is doing', st && /looking/i.test(String(st.doing || '')), st && st.doing);
+ok('with the short label, not the whole question',
+   st && (st.steps || []).some((x) => x.detail === 'things to do'),
+   JSON.stringify((st && st.steps) || []));
+
+events = [
+  { type: 'user.message', content: [{ type: 'text', text: 'hi' }] },
+  call('research', { questions: [{ q: 'what is there to do?', about: 'things to do' }] }, 'p1'),
+  { type: 'user.custom_tool_result', custom_tool_use_id: 'p1', content: [{ type: 'text', text: 'stuff' }] },
+  { type: 'agent.message', content: [{ type: 'text', text: 'Here you go.' }] },
+  { type: 'session.status_idle' },
+];
+st = await M.getState(SESSION).catch(() => null);
+ok('and it stops once the call is answered and the turn ends', st && st.thinking === false,
+   st ? 'thinking=' + st.thinking : 'no state');
+
 console.log(fail ? '\n' + fail + ' FAILED\n' : '\nall passed\n');
 process.exit(fail ? 1 : 0);

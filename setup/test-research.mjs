@@ -38,7 +38,10 @@ console.log('\nasking');
 
 reply = () => answer('It costs 40,000 VND.\n\nsources: example.com');
 calls = [];
-let out = await R.research(['What does bun cha cost?', 'Is Tam Coc quiet?']);
+let out = await R.research([
+  { q: 'What does bun cha cost?', about: 'street food prices' },
+  { q: 'Is Tam Coc quiet?', about: 'crowds' },
+]);
 ok('every question is asked', calls.length === 2);
 ok('each is its own call, so they run in parallel', calls.every((c) => c.messages.length === 2));
 ok('the worker model is the one configured', /^deepseek\//.test(calls[0].model), calls[0].model);
@@ -82,6 +85,15 @@ console.log('\nthe tool the agent sees');
 ok('is named research', R.RESEARCH_TOOL.name === 'research');
 ok('is a custom tool', R.RESEARCH_TOOL.type === 'custom');
 ok('takes a batch', R.RESEARCH_TOOL.input_schema.properties.questions.maxItems === 6);
+ok('and each question carries a short label for the traveller',
+   !!R.RESEARCH_TOOL.input_schema.properties.questions.items.properties.about);
+
+// A model that ignores the schema and sends bare strings must still work.
+reply = () => answer('ok');
+calls = [];
+await R.research(['a bare string question']);
+ok('a bare string question is still asked', calls.length === 1
+   && /bare string/.test(JSON.stringify(calls[0].messages)));
 ok('and at most six', (await R.research(['a','b','c','d','e','f','g'])) && calls.length >= 0);
 
 console.log('\nthe worker is switchable');
