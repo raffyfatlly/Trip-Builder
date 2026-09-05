@@ -1,5 +1,5 @@
 import { storeConfigured } from '../../lib/db.js';
-import { orBuilderReady, MODEL, builderProbe } from '../../lib/orBuilder.js';
+import { orBuilderReady, MODEL, builderProbe, modelSearch } from '../../lib/orBuilder.js';
 import { setting } from '../../lib/settings.js';
 
 // The key can arrive from the environment or from the config document, and
@@ -54,10 +54,15 @@ export default async function handler(req, res) {
   // it charges. Reads the catalogue only, so it sends no completion and costs
   // nothing; opt-in anyway, because it is a real outbound request.
   const builderModel = req.query && req.query.builder ? await builderProbe() : undefined;
+  // `?models=deepseek,qwen` searches OpenRouter's catalogue from the deployment
+  // that can reach it, so a model is chosen against real prices rather than
+  // remembered ones. Reads the catalogue only; costs nothing.
+  const models = req.query && req.query.models ? await modelSearch(req.query.models) : undefined;
   res.status(200).json({
     accounts: storeConfigured(),
     builder: (await orBuilderReady()) ? MODEL() : 'anthropic (managed agents)',
     builderModel,
+    models,
     openrouterKey: !!settingOR(),
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
     googlePhotos: !!placesKey(),
