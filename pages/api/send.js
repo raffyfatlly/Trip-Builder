@@ -9,6 +9,8 @@ import { MAX_TURNS_PER_SESSION } from '../../lib/config.js';
 import { geoFrom, contextBlock } from '../../lib/context.js';
 import { note } from '../../lib/journal.js';
 import { billed } from '../../lib/billed.js';
+import { allowed, leftOf } from '../../lib/credits.js';
+import { userFrom } from '../../lib/auth.js';
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -22,6 +24,33 @@ async function handler(req, res) {
   }
 
   try {
+    // Out of credit is where a new turn stops, and only a NEW turn.
+    //
+    // raffy, 2026-09-05: "if they move beyond they can't use chat or rebuild
+    // anymore except just edit their iteniry manually."
+    //
+    // A rebuild is a tool call inside a chat turn, so gating here covers both
+    // with one check. Manual edits need no gate at all — they live in the
+    // browser's own storage and are applied over the itinerary on render, so
+    // they cost nothing and keep working exactly as they did.
+    //
+    // Nothing is checked in /api/advance: a turn already underway has been paid
+    // for, and stopping it halfway leaves a half-built trip AND charges for it.
+    let who = '';
+    try { who = userFrom(req) || ''; } catch (e) { /* anonymous */ }
+    const purse = await allowed(who, session);
+    if (!purse.ok) {
+      return res.status(402).json({
+        error: 'out of credits',
+        paywall: {
+          signedIn: !!who,
+          granted: purse.granted,
+          used: purse.used,
+          left: 0,
+        },
+      });
+    }
+
     // No link gating here, and the key bills a real card, so a session cannot
     // run forever.
     const events = await listEvents(session);

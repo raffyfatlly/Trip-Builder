@@ -253,6 +253,72 @@ if (!costs.length) {
 // a per-trip price can be right and the business still be wrong.
 const wasted = all.filter((j) => !built(j)).reduce((a, j) => a + totalUsd(j), 0);
 
+// --- the ledger ------------------------------------------------------------
+//
+// raffy, 2026-09-05: "really plan the cost so that like i said im safe and have
+// some profit. 3-5 x minimum."
+//
+// The per-action markup is a setting. Whether the BUSINESS is at 3-5x is a
+// different question, and this is where it gets answered: what has actually
+// been given away, what it actually cost, and what the blend comes to. A
+// markup that is right per action and wrong in aggregate is the failure mode
+// the pricing note warned about.
+{
+  const { listLedgers } = await import('../lib/firestore.js');
+  const C = await import('../lib/credits.js');
+  const cfg = C.explain();
+  let ledgers = [];
+  try { ledgers = await listLedgers(400); } catch (e) { /* none yet */ }
+
+  console.log('  THE LEDGER');
+  console.log('  markup ' + cfg.markup + 'x   1 credit = RM0.01   '
+    + 'signed-in grant ' + cfg.grant.toLocaleString('en') + ' (RM' + cfg.grantWorthMyr
+    + ' retail, RM' + cfg.grantCostsMyr + ' of real cost)   anonymous ' + cfg.anonGrant.toLocaleString('en'));
+
+  if (!ledgers.length) {
+    console.log('  nobody has spent a credit yet.');
+  } else {
+    const users = ledgers.filter((l) => l.id.startsWith('u:'));
+    const anon = ledgers.filter((l) => l.id.startsWith('s:'));
+    console.log('');
+    console.log('  WHO' + ' '.repeat(29) + 'GRANTED     USED     LEFT   REAL COST   AT RETAIL');
+    for (const l of ledgers.sort((a, b) => b.used - a.used).slice(0, 25)) {
+      const who = l.id.startsWith('u:') ? l.id.slice(2) : 'anonymous ' + l.id.slice(2, 14) + '…';
+      console.log('  ' + who.slice(0, 30).padEnd(30)
+        + String(l.granted).padStart(7) + String(l.used).padStart(9)
+        + String(Math.max(0, l.granted - l.used)).padStart(9)
+        + ('RM' + C.costMyr(l.used).toFixed(2)).padStart(12)
+        + ('RM' + C.retailMyr(l.used).toFixed(2)).padStart(12));
+    }
+    const usedCredits = ledgers.reduce((a, l) => a + l.used, 0);
+    const outstanding = ledgers.reduce((a, l) => a + Math.max(0, l.granted - l.used), 0);
+    console.log('');
+    console.log('  ' + users.length + ' signed-in, ' + anon.length + ' anonymous');
+    console.log('  given away   ' + usedCredits.toLocaleString('en') + ' credits   '
+      + 'RM' + C.retailMyr(usedCredits).toFixed(2) + ' of retail value, which cost RM'
+      + C.costMyr(usedCredits).toFixed(2) + ' to serve');
+    console.log('  still owed   ' + outstanding.toLocaleString('en') + ' credits   '
+      + 'worst case another RM' + C.costMyr(outstanding).toFixed(2) + ' if every grant is spent to the last credit');
+
+    // The number the 3-5x floor is actually about. Charged credits against
+    // what the sessions really cost — not against the rate card, which is
+    // right by construction and therefore proves nothing.
+    const charged = all.reduce((a, j) => a + (Number(j.chargedCredits) || 0), 0);
+    const chargedUsd = all.reduce((a, j) => a + (Number(j.chargedUsd) || 0), 0);
+    if (chargedUsd > 0.0001) {
+      const blended = C.retailMyr(charged) / (chargedUsd * 4.4);
+      console.log('  blended      ' + blended.toFixed(2) + 'x   '
+        + (blended >= 3 ? 'inside his 3-5x floor' : '*** BELOW THE 3x FLOOR ***'));
+    }
+    const unbilled = total - chargedUsd;
+    if (unbilled > 0.01) {
+      console.log('  unbilled     ' + money(unbilled) + '   ' + RM(unbilled)
+        + '   spent before the ledger existed, or by sessions with nobody attached');
+    }
+  }
+  console.log('');
+}
+
 console.log('');
 console.log('  ' + all.length + ' sessions, ' + builds.length + ' of them built an itinerary, ' +
   people.filter(([w]) => w !== '(not signed in)').length + ' known people');

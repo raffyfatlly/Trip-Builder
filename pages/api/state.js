@@ -16,6 +16,8 @@ export const config = { maxDuration: 30 };
 
 import { getState } from '../../lib/managedAgents.js';
 import { billed } from '../../lib/billed.js';
+import { allowed } from '../../lib/credits.js';
+import { userFrom } from '../../lib/auth.js';
 
 async function handler(req, res) {
   const session = req.query.session;
@@ -23,7 +25,19 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'session required' });
   }
   try {
-    res.status(200).json(await getState(session));
+    // The balance rides along with the state the app already polls, rather than
+    // getting an endpoint of its own. It is read from the same document the
+    // charge is written to, so what the bar shows and what the gate enforces
+    // can never disagree — and the poll is already happening.
+    let who = '';
+    try { who = userFrom(req) || ''; } catch (e) { /* anonymous */ }
+    const [state, purse] = await Promise.all([getState(session), allowed(who, session)]);
+    res.status(200).json({
+      ...state,
+      credits: purse.unmetered ? null : {
+        left: purse.left, granted: purse.granted, used: purse.used, signedIn: purse.who,
+      },
+    });
   } catch (err) {
     console.error('state failed:', err);
     res.status(500).json({ error: 'Could not read the conversation.' });

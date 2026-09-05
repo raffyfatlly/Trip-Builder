@@ -39,6 +39,9 @@ export default function Home() {
   // A turn that died on the model's side. Silence is the worst thing the chat
   // can do, and until this it was the only thing it did.
   const [agentErr, setAgentErr] = useState(null);
+  // The credit balance, polled with everything else. null when the deployment
+  // has no store and nothing is metered — the app then behaves as it always did.
+  const [purse, setPurse] = useState(null);
   // And what it has already done this turn, so a long wait shows progress
   // rather than one line that might mean it is stuck.
   const [steps, setSteps] = useState([]);
@@ -182,6 +185,7 @@ export default function Home() {
         setProgress(d.progress || null);
         setDoing(d.doing || null);
         setAgentErr(d.agentError || null);
+        if (d.credits !== undefined) setPurse(d.credits);
         setSteps(Array.isArray(d.steps) ? d.steps : []);
         if (d.itinerary) setItinerary(d.itinerary);
         setAgentEdits(d.agentEdits || []);
@@ -253,6 +257,10 @@ export default function Home() {
   // declared here, above every use: a const referenced from a hook's
   // dependency array higher up hits the temporal dead zone and takes the whole
   // page down.
+  // Out of credit, and the deployment is actually metering. `purse` is null
+  // when there is no store, and the app is then what it always was.
+  const spent = !!(purse && purse.left <= 0);
+
   const tripName =
     (working && working.trip && working.trip.title)
     || (plan && plan.destination)
@@ -508,10 +516,12 @@ export default function Home() {
 
     stickToBottom();
 
-    // Optimistic: the poll will replace this with the real transcript.
+    // Optimistic: the poll will replace this with the real transcript. The
+    // stamp is kept so it can be taken back out again if the send is refused.
+    const stamp = Date.now();
     const label = [pending.map((f) => '📎 ' + f.name).join('\n'), text]
       .filter(Boolean).join('\n');
-    setMessages((m) => [...m, { role: 'user', text: label, id: 'tmp' + Date.now() }]);
+    setMessages((m) => [...m, { role: 'user', text: label, id: 'tmp' + stamp }]);
     if (typeof override !== 'string') setDraft('');
     const files = pending;
     setPending([]);
@@ -536,6 +546,16 @@ export default function Home() {
       });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
+        // 402: out of credit. Not an error to apologise for — it is the
+        // paywall, and it has its own panel below the composer. Take the
+        // optimistic message back out, since it was never sent.
+        if (r.status === 402 && d.paywall) {
+          setPurse({ left: 0, granted: d.paywall.granted, used: d.paywall.used, signedIn: d.paywall.signedIn });
+          setMessages((m) => m.filter((x) => x.id !== 'tmp' + stamp));
+          if (typeof override !== 'string') setDraft(text);
+          setThinking(false);
+          return;
+        }
         setError(d.error || 'Could not send that.');
         setThinking(false);
       }
@@ -903,7 +923,7 @@ export default function Home() {
                   </div>
                 ) : null
               ) : m.role === 'block' ? (
-                <Block key={m.id} block={m} disabled={thinking} where={tripName} onChoose={(t) => send(t)} />
+                <Block key={m.id} block={m} disabled={thinking || spent} where={tripName} onChoose={(t) => send(t)} />
               ) : (
                 <div key={m.id} className={'msg ' + m.role}>
                   {m.role === 'assistant' ? (
@@ -1015,6 +1035,48 @@ export default function Home() {
           )}
 
           <div className="composer">
+            {/* The paywall.
+                raffy, 2026-09-05: "if they move beyond they can't use chat or
+                rebuild anymore except just edit their iteniry manually."
+
+                It replaces the composer rather than sitting above a dead one.
+                A text box you can type into and cannot send from is the worst
+                version of this — it lets somebody write a paragraph before
+                telling them. And the sentence that matters most is the second
+                one: their trip is not taken away, and they can still work on
+                it. */}
+            {spent ? (
+              <div className="wall">
+                <b>{purse.signedIn ? "That's your free credit used up" : 'Free trial used up'}</b>
+                <p>
+                  {ready
+                    ? 'Your itinerary is yours — open it any time, and you can still edit it by hand: move things, rewrite them, tick off the to-do list. Everything saves.'
+                    : 'Anything you have already planned is still here.'}
+                </p>
+                <p className="wsub">
+                  {purse.signedIn
+                    ? 'What stops is the chat and rebuilding. Top-ups are not switched on yet — this is the beta.'
+                    : 'Sign in with your email and you get the full allowance, which covers a whole trip.'}
+                </p>
+                {!purse.signedIn && (
+                  <button className="wbtn" onClick={() => setMenu(true)}>Sign in</button>
+                )}
+                <span className="wmeter">
+                  {purse.granted ? purse.granted.toLocaleString('en') : 0} credits used
+                </span>
+              </div>
+            ) : (
+            <>
+            {/* Shown only once it starts to matter. A balance in somebody's
+                face from the first message reads as a meter running, which is
+                exactly the feeling this should not create while they are still
+                deciding whether they like it. */}
+            {purse && purse.left > 0 && purse.used / (purse.granted || 1) > 0.6 && (
+              <div className="fuel" role="status">
+                <i><b style={{ width: Math.max(3, Math.round(100 * purse.left / (purse.granted || 1))) + '%' }} /></i>
+                <span>{purse.left.toLocaleString('en')} credits left</span>
+              </div>
+            )}
             {pending.length > 0 && (
               <div className="chips">
                 {pending.map((f, i) => (
@@ -1055,6 +1117,8 @@ export default function Home() {
                 </svg>
               </button>
             </div>
+            </>
+            )}
           </div>
             </>
           )}
@@ -1448,6 +1512,59 @@ export default function Home() {
           box-shadow:var(--sh-s);cursor:pointer;
         }
         .agenterr .aeb:active{transform:scale(.96)}
+
+        /* The credit meter. Deliberately small, low-contrast and late: it only
+           appears past 60% spent. A balance visible from the first message
+           reads as a taxi meter, which is the wrong feeling while somebody is
+           still deciding whether they like the thing. */
+        .fuel{
+          display:flex;align-items:center;gap:9px;
+          padding:0 4px 8px;font-size:11.5px;color:var(--ink-faint);
+          animation:rise 300ms var(--e) both;
+        }
+        /* A track and a fill, not a bare bar. A bar sized by percentage inside
+           a flex row is capped by its max-width long before the percentage
+           starts meaning anything — at 24% left it looked identical to full,
+           which is worse than showing nothing. */
+        .fuel i{
+          display:block;flex:none;width:88px;height:3px;border-radius:99px;
+          /* A translucent colour, not opacity: opacity on the track applies to
+             the fill inside it too, which made the fill invisible and the
+             meter useless in exactly the way the max-width bug did. */
+          background:rgba(16,54,42,.15);overflow:hidden;
+        }
+        .fuel i b{
+          display:block;height:100%;border-radius:99px;background:var(--deep);
+          transition:width 500ms var(--e);
+        }
+        .fuel span{white-space:nowrap}
+
+        /* The paywall replaces the composer. It is not an error state and does
+           not look like one — the trip is still theirs and the first line they
+           read should not be a refusal. */
+        .wall{
+          margin:2px 0 6px;padding:18px 18px 16px;border-radius:22px;
+          background:var(--sage);box-shadow:var(--sh-s);
+          animation:rise 320ms var(--e) both;
+        }
+        .wall b{
+          display:block;font-size:15.5px;font-weight:700;color:var(--deep);
+          letter-spacing:-.01em;margin-bottom:7px;
+        }
+        .wall p{
+          margin:0 0 8px;font-size:13.5px;line-height:1.55;color:var(--ink-soft);
+        }
+        .wall .wsub{color:var(--ink-faint);font-size:12.5px;margin-bottom:0}
+        .wall .wbtn{
+          margin-top:12px;font-size:13.5px;font-weight:700;color:var(--surface);
+          background:var(--deep);border-radius:99px;padding:10px 20px;
+          box-shadow:var(--sh-s);cursor:pointer;
+        }
+        .wall .wbtn:active{transform:scale(.97)}
+        .wall .wmeter{
+          display:block;margin-top:12px;font-size:11px;color:var(--ink-faint);
+          letter-spacing:.02em;
+        }
 
         .typing{
           display:flex;gap:10px;align-items:center;width:fit-content;max-width:none;
