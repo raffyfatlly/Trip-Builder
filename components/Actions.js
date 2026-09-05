@@ -55,7 +55,11 @@ export default function Actions({ actions }) {
               <Icon name={a.icon} />
               <span>
                 {a.text}
-                {a.detail && <i>{a.detail}</i>}
+                {/* Research puts its questions here, one per line — the same
+                    reason the live trail does. What it looked up is worth
+                    reading back; "researched something" is not. */}
+                {a.detail && String(a.detail).split('\n').filter(Boolean)
+                  .map((d, di) => <i key={di}>{d}</i>)}
               </span>
             </li>
           ))}

@@ -981,7 +981,15 @@ export default function Home() {
                         </span>
                         <span className="tw">
                           {s.what}
-                          {s.detail ? <em>{s.detail}</em> : null}
+                          {/* A research step's detail is its questions, one per
+                              line. Rendered as separate elements rather than
+                              one string with newlines in it, because five
+                              questions run together into a paragraph and the
+                              whole point is that you can read them as a list of
+                              things being looked up for you. */}
+                          {s.detail
+                            ? s.detail.split('\n').filter(Boolean).map((d, di) => <em key={di}>{d}</em>)
+                            : null}
                         </span>
                       </li>
                     ))}
@@ -1607,6 +1615,9 @@ export default function Home() {
           font-style:normal;color:var(--ink-faint);font-weight:500;
           display:block;
         }
+        /* A question after the first is a sibling line under the same step, so
+           it lines up with the one above rather than restating the tick. */
+        .typing .trail em + em{margin-top:2px}
         .typing .trail li[data-step="now"] em{color:var(--ink-faint);font-weight:500}
         @keyframes steprise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
         @keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}

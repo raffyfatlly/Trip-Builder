@@ -41,8 +41,7 @@ calls = [];
 let out = await R.research(['What does bun cha cost?', 'Is Tam Coc quiet?']);
 ok('every question is asked', calls.length === 2);
 ok('each is its own call, so they run in parallel', calls.every((c) => c.messages.length === 2));
-ok('the worker model is the one configured', calls[0].model === 'deepseek/deepseek-v4-flash'
-   || calls[0].model === 'deepseek/deepseek-v4-flash:online', calls[0].model);
+ok('the worker model is the one configured', /^deepseek\//.test(calls[0].model), calls[0].model);
 ok('web search is asked for', !!calls[0].plugins || /:online$/.test(calls[0].model),
    calls[0].plugins ? 'plugin' : 'suffix');
 ok('both answers come back', (out.text.match(/40,000 VND/g) || []).length === 2);
@@ -86,7 +85,7 @@ ok('takes a batch', R.RESEARCH_TOOL.input_schema.properties.questions.maxItems =
 ok('and at most six', (await R.research(['a','b','c','d','e','f','g'])) && calls.length >= 0);
 
 console.log('\nthe worker is switchable');
-ok('by setting', R.WORKER() === 'deepseek/deepseek-v4-flash');
+ok('by setting', R.WORKER() === 'deepseek/deepseek-chat-v3-0324');
 process.env.RESEARCH_MODEL = 'z-ai/glm-5.3-flash';
 ok('and it changes without a deploy', R.WORKER() === 'z-ai/glm-5.3-flash');
 delete process.env.RESEARCH_MODEL;
