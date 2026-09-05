@@ -13,7 +13,7 @@
 //
 //   node setup/test-photofill.mjs
 
-import { photoGaps, applyFill, fillKey, fillPhotoGaps, fillWhere } from '../lib/photos.js';
+import { photoGaps, applyFill, fillKey, fillPhotoGaps, fillWhere, localise as _localise } from '../lib/photos.js';
 
 let fail = 0;
 const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '   ' + x : '')); if (!c) fail++; };
@@ -146,6 +146,37 @@ const TRIP = {
   ok('a second pass over the same trip buys nothing',
      Object.keys(after).length === Object.keys(all).length);
 }
+
+
+// --- what the Hanoi run on 2026-09-05 showed --------------------------------
+//
+// Reading the shared place cache after a real two-city build turned up billed
+// Places searches for "check back in to la siesta classic hang thung hanoi ninh
+// binh" and "browse dong xuan market hanoi ninh binh". Two separate faults in
+// one string: a heading that is an instruction being treated as a place name,
+// and a two-city trip title being appended to every query.
+
+
+const hanoi = { days: [{ items: [
+  { h: 'Check back in to La Siesta Classic Hang Thung' },
+  { h: 'Browse Dong Xuan Market' },
+  { h: 'Head back to Hanoi' },
+  { h: 'Return to the Old Quarter' },
+  { h: 'Dinner at Bun Cha Huong Lien' },
+  { h: 'Temple of Literature' },
+] }] };
+const names = photoGaps(hanoi).map((g) => g.name);
+
+ok('"check back in to X" is not bought as a place', !names.some((n) => /^Check back/i.test(n)));
+ok('nor "head back to"', !names.some((n) => /^Head back/i.test(n)));
+ok('nor "return to"', !names.some((n) => /^Return to/i.test(n)));
+ok('"browse X" is bought as X', photoGaps(hanoi).some((g) => g.key === 'dong xuan market'));
+ok('a real name still goes through', names.includes('Temple of Literature'));
+
+ok('a one-city trip still qualifies its lookups', _localise('Chiang Mai') === 'Chiang Mai');
+ok('a two-city trip qualifies nothing', _localise('Hanoi & Ninh Binh') === '');
+ok('nor does one written with a comma', _localise('Hanoi, Ninh Binh') === '');
+ok('nor with an arrow', _localise('Hanoi → Ninh Binh') === '');
 
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

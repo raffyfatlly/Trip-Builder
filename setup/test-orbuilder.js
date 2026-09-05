@@ -35,7 +35,7 @@ const or = await import('../lib/orBuilder.js');
 const names = TOOLS.map((t) => t.name);
 check('every itinerary tool is offered', names.includes('save_itinerary') && names.includes('add_photos'));
 check('and so is photo search', FIND_TOOL.name === 'find_photos');
-check('the model id is the one he asked for', or.MODEL() === 'z-ai/glm-5.3');
+check('the model id is the one he asked for', or.MODEL() === 'deepseek/deepseek-chat-v3-0324');
 process.env.OPENROUTER_MODEL = 'z-ai/glm-5.3-flash';
 check('and it can be changed without a code change', or.MODEL() === 'z-ai/glm-5.3-flash');
 delete process.env.OPENROUTER_MODEL;
@@ -83,12 +83,14 @@ global.fetch = async (url, opts = {}) => {
 const tc = (name, args, id = 'c' + Math.random().toString(36).slice(2, 6)) =>
   ({ id, type: 'function', function: { name, arguments: typeof args === 'string' ? args : JSON.stringify(args) } });
 
-// The OpenRouter builder is off by default now — raffy, 2026-09-05, after three
-// bad builds: "switch it back to managed agent first while testing." One
-// environment variable puts it back, and the tests below still exercise it.
-check('it is off unless it is asked for', !or.orBuilderReady());
+// Which builder runs is a setting now, not a constant — raffy, 2026-09-05:
+// "switch to sonnet for now and openrouter v3." The environment still wins, so
+// these two lines are the switch in both directions.
+process.env.BUILDER = 'managed';
+check('it is off when the setting says managed', !(await or.orBuilderReady()));
 process.env.BUILDER = 'openrouter';
-check('and ready once it is, with a key and a store', or.orBuilderReady());
+check('and ready once it is, with a key and a store', await or.orBuilderReady());
+check('the model defaults to DeepSeek v3', /^deepseek\//.test(or.MODEL()));
 
 // A normal build: save, then photos, then stop.
 turns = [

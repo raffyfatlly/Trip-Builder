@@ -1,5 +1,11 @@
 import { storeConfigured } from '../../lib/db.js';
 import { orBuilderReady, MODEL } from '../../lib/orBuilder.js';
+import { setting } from '../../lib/settings.js';
+
+// The key can arrive from the environment or from the config document, and
+// health saying "no key" while the builder happily uses one is the kind of
+// wrong answer that costs an hour.
+const settingOR = () => setting('OPENROUTER_API_KEY', 'openrouterKey');
 import { placesKey } from '../../lib/photos.js';
 import { checkSources } from '../../lib/facts.js';
 import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId } from '../../lib/storage.js';
@@ -46,8 +52,8 @@ export default async function handler(req, res) {
   const sources = req.query && req.query.sources ? await checkSources() : undefined;
   res.status(200).json({
     accounts: storeConfigured(),
-    builder: orBuilderReady() ? MODEL() : 'anthropic (managed agents)',
-    openrouterKey: !!process.env.OPENROUTER_API_KEY,
+    builder: (await orBuilderReady()) ? MODEL() : 'anthropic (managed agents)',
+    openrouterKey: !!settingOR(),
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
     googlePhotos: !!placesKey(),
     // False means the signing key is the deployment id, so every deploy signs
