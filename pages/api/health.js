@@ -17,7 +17,7 @@ import { TOOLS } from '../../lib/schema.js';
 import { SYSTEM } from '../../lib/prompt.js';
 import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
-import { PRICE_TOOL } from '../../lib/prices.js';
+import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 
 // What is actually switched on in this deployment.
 //
@@ -64,6 +64,13 @@ export default async function handler(req, res) {
   // thing that could not be checked from the catalogue is whether OpenRouter's
   // web search works on this account at all. Opt-in, and it reports which of
   // the two shapes answered.
+  // `?prices=<city>` runs one REAL hotel lookup and shows each stage of it.
+  // The hotel provider cannot be reached from the sandbox, so this endpoint is
+  // the only honest way to know whether a rate lookup works.
+  const prices = req.query && req.query.prices
+    ? await priceProbe(String(req.query.prices), req.query.hotel && String(req.query.hotel))
+    : undefined;
+
   let desk;
   if (req.query && req.query.research) {
     const t0 = Date.now();
@@ -82,6 +89,7 @@ export default async function handler(req, res) {
     builder: (await orBuilderReady()) ? MODEL() : 'anthropic (managed agents)',
     builderModel,
     models,
+    prices,
     desk,
     openrouterKey: !!settingOR(),
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
