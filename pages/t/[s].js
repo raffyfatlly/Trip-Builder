@@ -98,6 +98,41 @@ async function bakeGround(it, host, proto) {
   }
 }
 
+// The app template, from disk if it is there and over HTTP if it is not.
+//
+// public/ is served by the CDN and is NOT part of the lambda's filesystem, so
+// the disk read that works in `next start` returned ENOENT in production and
+// this page was a bare 500 (raffy, 2026-09-06). next.config.mjs now traces the
+// file in explicitly; this fallback is here because the same class of failure
+// has now cost two rounds and one bad deploy, and /api/template is known to
+// work.
+let TPL = null;
+async function template(host, proto) {
+  if (TPL) return TPL;
+  try {
+    const [zlib, fs, path] = await Promise.all([import('zlib'), import('fs'), import('path')]);
+    TPL = zlib.gunzipSync(
+      fs.readFileSync(path.join(process.cwd(), 'public', 'app-template.html.gz')),
+    ).toString();
+    return TPL;
+  } catch (err) {
+    console.error('template not on disk, fetching it:', err && err.code);
+  }
+  try {
+    if (!host) return null;
+    const r = await fetchWith(proto + '://' + host + '/api/template?v=' + (
+      process.env.NEXT_PUBLIC_TEMPLATE_V || 'dev'), 12000);
+    if (!r.ok) return null;
+    const text = await r.text();
+    if (!text || text.length < 1000) return null;
+    TPL = text;
+    return TPL;
+  } catch (err) {
+    console.error('template fetch failed:', err && err.message);
+    return null;
+  }
+}
+
 export async function getServerSideProps(ctx) {
   const session = String(ctx.params.s || '');
   const host = ctx.req.headers['x-forwarded-host'] || ctx.req.headers.host || '';
@@ -116,14 +151,18 @@ export async function getServerSideProps(ctx) {
 
   it = await bakeGround(it, host, proto);
 
-  const zlib = await import('zlib');
-  const fs = await import('fs');
-  const path = await import('path');
-  const tpl = zlib.gunzipSync(
-    fs.readFileSync(path.join(process.cwd(), 'public', 'app-template.html.gz')),
-  ).toString();
+  const tpl = await template(host, proto);
+  if (!tpl) return { props: { missing: true, html: '', title: 'Trip', session } };
 
-  const { html } = render(it, tpl);
+  let html;
+  try {
+    ({ html } = render(it, tpl));
+  } catch (err) {
+    // A splice that cannot find its anchor throws, and a 500 tells the
+    // traveller nothing. The page says the trip is not ready instead.
+    console.error('trip page render failed:', err && err.message);
+    return { props: { missing: true, html: '', title: 'Trip', session } };
+  }
   // The document's own head and shell are Next's here, so only the body of the
   // built app is injected. Its own <script> tags come with it.
   const body = html.replace(/^[\s\S]*?<body[^>]*>/i, '').replace(/<\/body>[\s\S]*$/i, '');

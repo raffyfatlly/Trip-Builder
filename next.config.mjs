@@ -26,6 +26,23 @@ const templateHash = createHash('sha256')
 
 const nextConfig = {
   env: { NEXT_PUBLIC_TEMPLATE_V: templateHash },
+  // public/ is served by the CDN, NOT bundled into the lambda.
+  //
+  // /t/[s] renders the built trip on the server, so it needs the template as a
+  // FILE — and got "ENOENT /var/task/public/app-template.html.gz" in production
+  // while working perfectly in `next start`, because locally the whole repo is
+  // on disk. raffy hit it the moment he tapped Install as an app: a bare 500.
+  //
+  // Next only ships files it can see being used, and a path built with
+  // path.join at run time is invisible to that. This says so explicitly. The
+  // page also falls back to fetching /api/template over HTTP if the read still
+  // fails, because a feature that works on one deploy target and not another is
+  // not finished.
+  experimental: {
+    outputFileTracingIncludes: {
+      '/t/[s]': ['./public/app-template.html.gz'],
+    },
+  },
   // lib/net.js is the single chokepoint every outbound request goes through,
   // and lib/meter.js hangs off it to count what each one costs. The meter needs
   // AsyncLocalStorage, which is node-only — and net.js is also reachable from
