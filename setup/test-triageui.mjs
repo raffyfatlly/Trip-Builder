@@ -28,6 +28,21 @@ const block = {
   choose: false, pick: 'many', proposal: null,
 };
 
+// The exact shape raffy's Kuching session produced on 2026-09-06: kind=options,
+// NINE cards, pick=many, and choose FALSE. Every card rendered with a "Tell me
+// more" button and nothing to answer with.
+const OPTIONS_MANY = {
+  role: 'block', id: 'blk2', kind: 'options',
+  title: 'Culture, history & food — Kuching in 2 days',
+  intro: '', spots: [], facts: [],
+  items: SPOTS.map((n, i) => ({
+    name: n, why: 'Why ' + n + ' suits you.',
+    price: 'about RM' + (30 + i * 15), rating: '4.' + (2 + i) + ' on Google, 1,0' + i + '2 reviews',
+    meta: 'Old town', tags: ['2+ hrs'],
+  })),
+  choose: false, pick: 'many', proposal: null,
+};
+
 // A trip caught mid-build: shape and days exist, nothing else does yet.
 const HALF = {
   trip: { title: 'Chiang Mai', sub: 'four nights' },
@@ -107,6 +122,22 @@ console.log('\nYes / maybe / no on a card set');
 }
 
 // --- 3. build stages -------------------------------------------------------
+console.log('\nOptions asking for many answers, with choose unset');
+{
+  const { p, ctx, sent } = await page({ transcript: [OPTIONS_MANY] });
+  await p.waitForSelector('text=Culture, history', { timeout: 8000 });
+  ok('every card can still be answered', await p.locator('button.tri').count() === SPOTS.length * 3,
+    await p.locator('button.tri').count() + ' buttons');
+  await p.locator('button[aria-label="Yes Cooking class"]').click();
+  await p.locator('button[aria-label="No Elephant sanctuary"]').click();
+  await p.locator('button.send').click();
+  await p.waitForTimeout(500);
+  ok('and the answer still goes back as one message',
+    ((sent[0] || {}).text || '') === 'Yes to Cooking class. Not Elephant sanctuary.',
+    (sent[0] || {}).text);
+  await ctx.close();
+}
+
 console.log('\nBuild progress');
 {
   const { p, ctx } = await page({

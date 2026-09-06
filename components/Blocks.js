@@ -392,7 +392,15 @@ export default function Block({ block, onChoose, disabled, where }) {
   // of spots — but a set of spots IS the activities question, which is the one
   // that most needs three answers. So for spots, asking for several answers is
   // enough on its own.
-  const multi = (choose || kind === 'spots') && block.pick === 'many';
+  // `pick: "many"` is enough on its own.
+  //
+  // It used to also require `choose`, which the agent sets to mean "picking
+  // one would move things forward" — a different question entirely, and
+  // meaningless when the whole point is to answer nine at once. raffy's Kuching
+  // session on 2026-09-06 emitted exactly that: kind=options, pick=many, NINE
+  // cards, choose=false. Every one of them rendered with a "Tell me more"
+  // button and nothing to answer with. "Yes no maybe option not showing."
+  const multi = block.pick === 'many';
 
   // Yes, no, maybe — not a tick box.
   //
@@ -622,14 +630,17 @@ export default function Block({ block, onChoose, disabled, where }) {
           )}
           <Source text={o.source} />
           <div className="acts">
-            {choose && (multi ? (
+            {/* Triage does not wait for `choose` either — the same bug lived
+                here too, so even a correctly-flagged set would have rendered
+                nothing. */}
+            {multi ? (
               <Triage name={o.name} state={marks[o.name]} onMark={mark} disabled={disabled} />
-            ) : (
+            ) : choose ? (
               <button className="pick" disabled={disabled}
                 onClick={() => onChoose(`Let's go with ${o.name}.`)}>
                 Choose this
               </button>
-            ))}
+            ) : null}
             <button className="more" disabled={disabled}
               onClick={() => onChoose(`Tell me more about ${o.name}.`)}>
               Tell me more
