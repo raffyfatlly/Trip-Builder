@@ -1,4 +1,5 @@
 import { checklist, dueIn, linkFor, isOwn } from '../lib/checklist.js';
+import { iconsJs } from './icons.js';
 
 // The renderer. Turns one itinerary.json into a finished app.
 //
@@ -45,7 +46,11 @@ import { checklist, dueIn, linkFor, isOwn } from '../lib/checklist.js';
 // rest of this file uses: it is four hundred lines of real code, and quoting
 // every one of them was how a `const CHEV` once shipped as a SyntaxError.
 // Nothing in here may contain a backtick or a dollar-brace.
-const ROUTE_MAP_JS = `
+// Landmark and category glyphs, as plain source. Concatenated rather than
+// interpolated: the template literal below may not contain a dollar-brace, and
+// the matcher ships as its own toString() so the app and the tests in
+// setup/test-icons.mjs run the identical function. See renderer/icons.js.
+const ROUTE_MAP_JS = iconsJs() + `
   // Web Mercator, so a pin lands where the tiles actually put the place.
   var TILE=256;
   function merc(lat,lon,z){
@@ -264,7 +269,10 @@ const ROUTE_MAP_JS = `
       // Markers crowd far less than names do. This gap only has to stop two
       // pins sitting on top of each other; whether they can both be named is
       // decided per zoom level, further down.
-      if(!clear(q,15*k)) return;
+      // An icon marker is wider than the dot this spacing was written for, so
+      // it needs more room or two of them overlap — which they did, visibly,
+      // in the first screenshot of this feature.
+      if(!clear(q,(glyphFor(p.n)?26:15)*k)) return;
       placed.push(q); pl.push(q);
     });
     var sp=[];
@@ -358,6 +366,17 @@ const ROUTE_MAP_JS = `
     // what the arrival animation scales: a CSS transform beats the transform
     // attribute, so animating the positioned group would fling every marker to
     // the corner.
+    // A glyph, centred on the marker. The 24-box is mapped onto a square of
+    // the given size about the origin, because every marker here is drawn
+    // about its own centre rather than from a corner.
+    // (No backticks in here. See the note on ROUTE_MAP_JS — one in a COMMENT
+    // closed the template literal and cost a rebuild to find.)
+    function glyphSvg(d,size,colour){
+      var sc=size/24, o=-size/2;
+      return '<g transform="translate('+o.toFixed(2)+' '+o.toFixed(2)+') scale('+sc.toFixed(4)+')" '+
+        'fill="none" stroke="'+(colour||"#10362A")+'" stroke-width="1.9" '+
+        'stroke-linecap="round" stroke-linejoin="round"><path d="'+d+'"/></g>';
+    }
     function mk(cls,attrs,x,y,rad,body,labText,labSize,labFill){
       var lab="";
       if(labText){
@@ -379,12 +398,27 @@ const ROUTE_MAP_JS = `
     // Tier three: everything the research turned up and nobody picked. A thin
     // ring, the quietest thing on the map.
     var spots=sp.map(function(q){
-      return mk("spot",'data-idea="'+q.idea+'" role="button" tabindex="0" aria-label="Idea: '+esc(q.n)+'"',
-        q.x,q.y,6*k,
-        '<circle r="'+(13*k).toFixed(1)+'" fill="transparent"/>'+
-        '<circle r="'+(8.5*k).toFixed(1)+'" fill="#FFFFFF" opacity=".5"/>'+
-        '<circle r="'+(6*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" '+
-        'stroke-width="'+(2.4*k).toFixed(1)+'"/>',
+      // An idea nobody has committed to stays the quietest thing here, so its
+      // glyph is smaller and greyed rather than coral. Ideas outnumber
+      // everything else on a busy trip and this is the tier that would make it
+      // overwhelming if it shouted.
+      var g=glyphFor(q.n);
+      return mk("spot"+(g?" icon":""),
+        'data-idea="'+q.idea+'" role="button" tabindex="0" aria-label="Idea: '+esc(q.n)+'"',
+        q.x,q.y,(g?7.4:6)*k,
+        g
+          // Deliberately under the plain plan dot (8k): an idea with a glyph
+          // must still read as quieter than a place already in the plan. The
+          // first pass had it at 8.6k, which inverted the hierarchy — caught
+          // by setup/test-routemap.mjs, not by looking at it.
+          ? '<circle r="'+(13*k).toFixed(1)+'" fill="transparent"/>'+
+            '<circle r="'+(7.4*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" '+
+            'stroke-width="'+(1.8*k).toFixed(1)+'" opacity=".8"/>'+
+            glyphSvg(g,8.8*k,"#4C6157")
+          : '<circle r="'+(13*k).toFixed(1)+'" fill="transparent"/>'+
+            '<circle r="'+(8.5*k).toFixed(1)+'" fill="#FFFFFF" opacity=".5"/>'+
+            '<circle r="'+(6*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" '+
+            'stroke-width="'+(2.4*k).toFixed(1)+'"/>',
         "",0,"");
     }).join("");
 
@@ -392,13 +426,30 @@ const ROUTE_MAP_JS = `
     // Quoc map uses for Duong Dong and Sanato — a coral ring with a coral
     // centre — and its name beside it in grey.
     var plan=pl.map(function(q){
-      return mk("pin plan",'data-goday="'+q.day+'" data-item="'+q.item+'" '+
+      // raffy, 2026-09-06: "using recognizable, custom landmark icons... no
+      // need to label". The glyph IS the label, so a marker that gets one
+      // drops its text and stops competing for label space with its
+      // neighbours. Anything unrecognised keeps the coral dot it always had —
+      // that is what stops the map filling up with vague shapes.
+      var g=glyphFor(q.n);
+      return mk("pin plan"+(g?" icon":""),
+        'data-goday="'+q.day+'" data-item="'+q.item+'" '+
         'role="button" tabindex="0" aria-label="'+esc(q.n)+'"',
-        q.x,q.y,8*k,
-        '<circle r="'+(15*k).toFixed(1)+'" fill="transparent"/>'+
-        '<circle r="'+(8*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" stroke-width="'+(3*k).toFixed(1)+'"/>'+
-        '<circle r="'+(3*k).toFixed(1)+'" fill="#EE7B45"/>',
-        q.n,10.5,"#7C8F85");
+        q.x,q.y,(g?10.5:8)*k,
+        g
+          // The hit circle stays at 15k, the same as the plain dot's. Growing
+          // it to 18k made a plan marker more than half the size of a stay
+          // bubble and broke the prominence order the map is built on —
+          // setup/test-routemap.mjs measures exactly that. Only the VISIBLE
+          // ring grows.
+          ? '<circle r="'+(15*k).toFixed(1)+'" fill="transparent"/>'+
+            '<circle r="'+(10.5*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" '+
+            'stroke-width="'+(2.4*k).toFixed(1)+'"/>'+
+            glyphSvg(g,12*k)
+          : '<circle r="'+(15*k).toFixed(1)+'" fill="transparent"/>'+
+            '<circle r="'+(8*k).toFixed(1)+'" fill="#FFFFFF" stroke="#EE7B45" stroke-width="'+(3*k).toFixed(1)+'"/>'+
+            '<circle r="'+(3*k).toFixed(1)+'" fill="#EE7B45"/>',
+        g?"":q.n,10.5,"#7C8F85");
     }).join("");
 
     // Tier one: the stays.
