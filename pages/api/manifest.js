@@ -43,7 +43,9 @@ async function handler(req, res) {
 
   res.setHeader('content-type', 'application/manifest+json; charset=utf-8');
   res.setHeader('cache-control', 'public, max-age=300');
-  return res.status(200).json({
+  // send(), not json(): res.json() overwrites the content type with
+  // application/json and the whole point of setting it was to be a manifest.
+  return res.status(200).send(JSON.stringify({
     name: title,
     short_name: String(title).slice(0, 12),
     start_url: '/t/' + encodeURIComponent(session),
@@ -52,11 +54,16 @@ async function handler(req, res) {
     orientation: 'portrait',
     background_color: '#EDF2EA',
     theme_color: '#10362A',
+    // An SVG icon has to declare sizes:"any" or Chrome will not count it
+    // toward installability, and without an acceptable icon the browser never
+    // fires beforeinstallprompt — so the Install button would simply never
+    // appear and there would be nothing on screen to say why.
     icons: [
+      { src: ICON(title), sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
       { src: ICON(title), sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
-      { src: ICON(title), sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' },
+      { src: ICON(title), sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
     ],
-  });
+  }));
 }
 
 export default billed(handler);

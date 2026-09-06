@@ -184,7 +184,7 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" />
               </svg>
-              <span><b>Install as an app</b><i>Opens the trip on its own — then Add to Home Screen</i></span>
+              <span><b>Put it on your home screen</b><i>Opens the trip on its own, with an Install button</i></span>
             </a>
           )}
 

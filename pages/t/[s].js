@@ -15,6 +15,7 @@
 // and so the page is a real document for a crawler, a share sheet and print.
 
 import Head from 'next/head';
+import Install from '../../components/Install.js';
 import { getState } from '../../lib/managedAgents.js';
 import { render } from '../../renderer/render.js';
 import { groundQuery, mapPoints, BAKE_W } from '../../lib/mapfit.js';
@@ -51,6 +52,9 @@ export default function Trip({ html, title, session, missing }) {
         <meta name="apple-mobile-web-app-title" content={title} />
         <meta name="robots" content="noindex, nofollow" />
       </Head>
+      {/* One tap on Android, where the browser gives a real install API; the
+          actual steps on iPhone, where Apple gives none. See components/Install.js. */}
+      <Install title={title} />
       {/* The built app is a whole document. It is injected rather than
           reconstructed as React, because it IS the deliverable — the same bytes
           that get downloaded — and rebuilding it here would mean two renderers
