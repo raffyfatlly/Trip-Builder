@@ -2,6 +2,7 @@ import { Credits } from '../components/Ring.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview, downloadName } from '../lib/preview.js';
+import Progress from '../components/Progress.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
 
 // Measuring has to happen before the browser paints, not after. useEffect runs
@@ -1052,12 +1053,21 @@ export default function Home() {
                 })()}
               </div>
             )}
+            {/* The stages go in the CHAT, not only in the trip pane.
+                On a phone the trip pane is a separate view, so a traveller
+                waiting out a four-minute build saw one spinning line and
+                nothing else — which is the blind waiting raffy asked to end
+                (2026-09-06). Caught by screenshotting the build at 390px.
+                A button through to the half-written trip, because by now
+                there is usually something in it worth looking at. */}
             {building && (
-              <div className="working">
-                <span className="spin" />
-                {since > 240
-                  ? 'Still building your itinerary. It is a big one — this can take a few minutes.'
-                  : 'Building your itinerary. This takes a couple of minutes.'}
+              <div className="buildwrap">
+                <Progress itinerary={working} progress={progress} />
+                {preview && (
+                  <button className="peek" onClick={openSheet}>
+                    Look at it so far
+                  </button>
+                )}
               </div>
             )}
 
@@ -1320,7 +1330,20 @@ export default function Home() {
                 </div>
               )}
               {preview
-                ? <iframe title="Itinerary preview" srcDoc={preview} />
+                ? (
+                  <>
+                    {/* raffy, 2026-09-06: "Enable users to click into the app
+                        interface even while it is still being generated."
+                        The preview already drew as soon as there were days —
+                        what was missing was any sign that more was still
+                        coming, so a half-built trip looked like a finished
+                        bad one. */}
+                    {building && (
+                      <Progress itinerary={working} progress={progress} compact />
+                    )}
+                    <iframe title="Itinerary preview" srcDoc={preview} />
+                  </>
+                )
                 : (
                   <div className="empty">
                     <div className="ph" />
@@ -1329,7 +1352,7 @@ export default function Home() {
                         will appear here, even after I ask it to rebuild" was
                         impossible to act on. Each one now says which. */}
                     <p>{building
-                      ? 'Building your itinerary. Carry on — it keeps going without you.'
+                      ? 'Your trip appears here as it is written — the first days show up before the rest is done.'
                       : previewErr
                         ? 'Your trip is safe, but this preview would not draw. Reload the page — that is usually enough. If it says this again, tell me.'
                         : working && !(working.days || []).length
@@ -1338,14 +1361,12 @@ export default function Home() {
                     {previewErr && !building && (
                       <p className="phwhy">{previewErr}</p>
                     )}
-                    {/* A bar that moves when the BUILDER moves, not when time
-                        passes. An animation that fills on a timer is a lie
-                        about progress, and this build genuinely varies. */}
-                    {building && progress && progress.steps > 0 && (
-                      <div className="bbar" role="progressbar"
-                        aria-valuenow={progress.step} aria-valuemin={0} aria-valuemax={progress.steps}>
-                        <i style={{ width: Math.min(97, Math.round((progress.step / progress.steps) * 100)) + '%' }} />
-                      </div>
+                    {/* Named stages, ticked off the half-written itinerary, so
+                        the wait says what has actually landed rather than "7 of
+                        14". The bar is still under them — it moves when the
+                        BUILDER moves, never on a timer. */}
+                    {building && (
+                      <Progress itinerary={working} progress={progress} />
                     )}
                   </div>
                 )}
@@ -1852,8 +1873,11 @@ export default function Home() {
           position:relative;
           flex:1;min-height:0;border-radius:28px;overflow:hidden;background:var(--surface);
           box-shadow:var(--sh-l);
+          /* A column, so the build-progress strip can sit above the trip while
+             it is still being written without pushing the frame off the pane. */
+          display:flex;flex-direction:column;
         }
-        .phone iframe{width:100%;height:100%;border:0;display:block}
+        .phone iframe{width:100%;flex:1 1 auto;min-height:0;border:0;display:block}
         .bbar{
           width:min(220px,60%);height:5px;border-radius:99px;background:var(--sage);
           overflow:hidden;margin-top:4px;
@@ -1862,8 +1886,14 @@ export default function Home() {
           display:block;height:100%;border-radius:99px;background:var(--deep);
           transition:width 600ms var(--e);
         }
+        .buildwrap{display:flex;flex-direction:column;align-items:flex-start;gap:9px;
+          margin:10px 0 4px}
+        .peek{
+          border:0;border-radius:99px;padding:9px 15px;font-size:13px;font-weight:650;
+          background:var(--sage);color:var(--deep);cursor:pointer;font-family:inherit;
+        }
         .empty{
-          height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+          flex:1 1 auto;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
           gap:16px;padding:32px;text-align:center;color:var(--ink-faint);
         }
         /* The photographs are being fetched and folded into the file; on a

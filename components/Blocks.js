@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { triageMessage } from '../lib/triage.js';
 
 // Rendering for the agent's structured content: options to pick between, and
 // researched numbers. Tapping an option sends it back as a message, so the
@@ -304,6 +305,76 @@ function Shut({ onClick }) {
   );
 }
 
+// Yes / maybe / no, as one control.
+//
+// Three buttons rather than a cycling tri-state toggle: a toggle you tap
+// repeatedly to reach "no" hides its own options, and on a set of six that is
+// eleven taps to say four things. Here every answer is one tap, and the state
+// is readable without touching anything.
+function Triage({ name, state, onMark, disabled }) {
+  // Written inline rather than through a little <B/> helper.
+  //
+  // styled-jsx scopes a <style jsx> block to the JSX written inside the
+  // component that holds it. A nested <B/> is its own component, so its
+  // <button> got none of these rules — the buttons rendered at browser
+  // defaults, and two rounds of "fixing" the CSS changed the screenshot not at
+  // all. Same trap one level up: these rules were first written in Block's
+  // style block, where they were equally dead. A styled-jsx rule aimed at
+  // another component's markup fails silently, which is the worst way to fail.
+  const OPTS = [
+    { how: 'yes', label: 'Yes', d: 'm5 12.5 4.5 4.5L19 7' },
+    // A dash, not a question mark: at 11px a "?" reads as help, which is the
+    // opposite of what this button means.
+    { how: 'maybe', label: 'Maybe', d: 'M6 12h12' },
+    { how: 'no', label: 'No', d: 'M6 6l12 12M18 6 6 18' },
+  ];
+  return (
+    <div className="tris" role="group" aria-label={'Your answer on ' + name}>
+      {OPTS.map((o) => (
+        <button
+          key={o.how}
+          className={'tri ' + o.how + (state === o.how ? ' on' : '')}
+          disabled={disabled}
+          aria-pressed={state === o.how}
+          aria-label={o.label + ' ' + name}
+          onClick={() => onMark(name, o.how)}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"
+            strokeLinecap="round" strokeLinejoin="round">
+            <path d={o.d} />
+          </svg>
+          {o.label}
+        </button>
+      ))}
+
+      <style jsx>{`
+        .tris{
+          display:flex;gap:6px;min-width:0;
+          /* Its own line. Sharing the row with "Tell me more" left each button
+             about 45px wide at 390px, so the icon wrapped under the label and
+             Maybe grew taller than its neighbours. Checked at 390px, which is
+             where raffy looks first. */
+          flex:1 0 100%;order:-1;margin-bottom:2px;
+        }
+        .tri{
+          flex:1 1 0;min-width:0;display:inline-flex;align-items:center;justify-content:center;
+          gap:5px;padding:10px 4px;border:1.5px solid var(--line);border-radius:10px;
+          background:#fff;color:var(--ink-soft);font-size:12.5px;font-weight:700;
+          line-height:1;white-space:nowrap;font-family:inherit;
+          cursor:pointer;transition:background 140ms ease,color 140ms ease,border-color 140ms ease;
+          -webkit-tap-highlight-color:transparent;
+        }
+        .tri svg{width:11px;height:11px;flex:none;opacity:.3}
+        .tri:disabled{opacity:.5;cursor:default}
+        .tri.on svg{opacity:1}
+        .tri.yes.on{background:var(--deep);border-color:var(--deep);color:#EAF2EC}
+        .tri.maybe.on{background:#F3E3D4;border-color:#C99A6C;color:#7A4A24}
+        .tri.no.on{background:#E4E8E6;border-color:#9EAAA4;color:#3E524A}
+      `}</style>
+    </div>
+  );
+}
+
 export default function Block({ block, onChoose, disabled, where }) {
   const { kind, title, intro, items, facts, spots, choose, proposal } = block;
 
@@ -317,8 +388,28 @@ export default function Block({ block, onChoose, disabled, where }) {
   // got one, and the agent replied to half a question. When the agent says this
   // set wants more than one, the buttons become toggles and nothing is sent
   // until they say they are done.
-  const multi = choose && block.pick === 'many';
-  const [picked, setPicked] = useState([]);
+  // `choose` is documented for options, and the agent rarely sets it on a set
+  // of spots — but a set of spots IS the activities question, which is the one
+  // that most needs three answers. So for spots, asking for several answers is
+  // enough on its own.
+  const multi = (choose || kind === 'spots') && block.pick === 'many';
+
+  // Yes, no, maybe — not a tick box.
+  //
+  // raffy, 2026-09-06: "Allow users to check yes, no, or maybe across several
+  // options simultaneously rather than forcing them to decide on items one by
+  // one."
+  //
+  // A tick could only ever say yes. Everything else — "not that one", "keep it
+  // in mind" — had to be typed as prose, which meant a set of six options came
+  // back as one tick and a sentence, and the agent asked about the other five
+  // again. Three states in one pass answers the whole card set.
+  //
+  // The plan's `activities` slot has wanted this shape all along: "the things
+  // they have actually said yes, no or maybe to". The UI was the part that
+  // could not express it.
+  const [marks, setMarks] = useState({});   // name -> 'yes' | 'no' | 'maybe'
+  const answered = Object.keys(marks).filter((n) => marks[n]);
 
   // A researched answer arrives as five cards, and five cards is a screen and a
   // half of scrolling before the next thing they said.
@@ -352,18 +443,18 @@ export default function Block({ block, onChoose, disabled, where }) {
   const compacts = !multi && list.length > 1;
   const isOpen = (i) => !compacts || i === 0 || !!shown[i];
   const toggle1 = (i) => setShown((p) => ({ ...p, [i]: !p[i] }));
-  const toggle = (name) =>
-    setPicked((p) => (p.includes(name) ? p.filter((x) => x !== name) : [...p, name]));
+  // Tapping the state it already has clears it, so a mis-tap is one tap back.
+  const mark = (name, how) =>
+    setMarks((p) => (p[name] === how ? { ...p, [name]: null } : { ...p, [name]: how }));
+
   const sendPicked = () => {
-    if (!picked.length) return;
     // Read back in the order they appear on the card, not the order tapped —
     // it matches what they are looking at.
-    const inOrder = (items || []).map((o) => o.name).filter((n) => picked.includes(n));
-    const list = inOrder.length === 1
-      ? inOrder[0]
-      : inOrder.slice(0, -1).join(', ') + ' and ' + inOrder[inOrder.length - 1];
-    onChoose(`Let's go with ${list}.`);
-    setPicked([]);
+    const names = (kind === 'spots' ? (spots || []) : (items || [])).map((o) => o.name);
+    const text = triageMessage(names, marks);
+    if (!text) return;
+    onChoose(text);
+    setMarks({});
   };
 
   return (
@@ -432,10 +523,16 @@ export default function Block({ block, onChoose, disabled, where }) {
           )}
           <Source text={sp.source} />
           <div className="acts">
-            <button className="pick" disabled={disabled}
-              onClick={() => onChoose(`Put ${sp.name} in the trip.`)}>
-              Add this
-            </button>
+            {/* Activities arrive as spots, and activities are the set that most
+                needs three answers rather than one — raffy, 2026-09-06. */}
+            {multi ? (
+              <Triage name={sp.name} state={marks[sp.name]} onMark={mark} disabled={disabled} />
+            ) : (
+              <button className="pick" disabled={disabled}
+                onClick={() => onChoose(`Put ${sp.name} in the trip.`)}>
+                Add this
+              </button>
+            )}
             <button className="more" disabled={disabled}
               onClick={() => onChoose(`Tell me more about ${sp.name}.`)}>
               Tell me more
@@ -526,15 +623,7 @@ export default function Block({ block, onChoose, disabled, where }) {
           <Source text={o.source} />
           <div className="acts">
             {choose && (multi ? (
-              <button className={'pick tick' + (picked.includes(o.name) ? ' on' : '')}
-                disabled={disabled} aria-pressed={picked.includes(o.name)}
-                onClick={() => toggle(o.name)}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m5 12.5 4.5 4.5L19 7" />
-                </svg>
-                {picked.includes(o.name) ? 'Picked' : 'Pick this'}
-              </button>
+              <Triage name={o.name} state={marks[o.name]} onMark={mark} disabled={disabled} />
             ) : (
               <button className="pick" disabled={disabled}
                 onClick={() => onChoose(`Let's go with ${o.name}.`)}>
@@ -555,14 +644,18 @@ export default function Block({ block, onChoose, disabled, where }) {
       {/* Nothing is sent until they say they are done, so a card set that
           needs two answers gets two. */}
       {multi && (
-        <div className={'confirm' + (picked.length ? ' ready' : '')}>
+        <div className={'confirm' + (answered.length ? ' ready' : '')}>
           <span className="count">
-            {picked.length === 0
-              ? 'Tick the ones you want'
-              : picked.length + (picked.length === 1 ? ' picked' : ' picked')}
+            {answered.length === 0
+              ? 'Yes, maybe or no on each'
+              : answered.length + ' of ' + list.length + ' answered'}
           </span>
-          <button className="send" disabled={disabled || !picked.length} onClick={sendPicked}>
-            {picked.length > 1 ? 'Send these' : 'Send'}
+          {/* Everything they answered goes at once — including the nos, which
+              is the point. An unanswered card is simply left out rather than
+              counted as a no; silence is not an answer and guessing at one is
+              how the agent ends up removing something they wanted. */}
+          <button className="send" disabled={disabled || !answered.length} onClick={sendPicked}>
+            {answered.length > 1 ? 'Send these' : 'Send'}
           </button>
         </div>
       )}
@@ -668,7 +761,7 @@ export default function Block({ block, onChoose, disabled, where }) {
         button:disabled{opacity:.4;cursor:default}
         .pick{background:var(--coral);color:#fff}
 
-        /* Multi-select: a tick that fills in, and a bar that does the sending. */
+        /* Kept: the single-pick tick still uses this. */
         .pick.tick{
           background:var(--sage);color:var(--ink-soft);
           display:inline-flex;align-items:center;gap:6px;

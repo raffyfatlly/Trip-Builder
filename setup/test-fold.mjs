@@ -136,7 +136,9 @@ const open = async (block, session) => {
 {
   const { ctx, page } = await open({ ...FIVE, pick: 'many' }, 'sesn_M');
   ok('a multi-pick set stays open', await page.locator('.opt.row').count() === 0);
-  ok('so every one can be ticked', await page.locator('.pick.tick').count() === 5);
+  // Three buttons each since 2026-09-06 — yes, maybe and no, answered in one
+  // pass — where there used to be a single tick that could only say yes.
+  ok('so every one can be answered', await page.locator('button.tri').count() === 15);
   await ctx.close();
 }
 

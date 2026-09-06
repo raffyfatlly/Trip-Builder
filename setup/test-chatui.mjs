@@ -125,7 +125,10 @@ await ctx.close();
   await p2.waitForTimeout(1400);
 
   ok('while building, no ready card', await p2.locator('.done').count() === 0);
-  ok('it says it is working instead', await p2.locator('.working').count() === 1);
+  // Was one spinning line reading ".working". Since 2026-09-06 the build shows
+  // its named stages in the chat itself, because on a phone the trip pane is a
+  // separate view and a four-minute build was otherwise a blank wait.
+  ok('it shows the build stages instead', await p2.locator('.buildwrap .prog').count() === 1);
 
   phase = { ...phase, itinerary: REAL, building: false };
   await p2.waitForTimeout(2600);
