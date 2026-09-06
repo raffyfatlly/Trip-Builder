@@ -3974,47 +3974,6 @@ export function render(T, templateSrc) {
     "h+='<div class=\"ev'+(r.kind==='plan'?' mine':(r.it.major?'':' soft'))+(done?' done':'')+(EDIT?' edit':'')+",
     'mark an item as editable');
 
-  // --- printing, which is how a trip becomes a PDF ---------------------------
-  //
-  // raffy, 2026-09-06: "make it available to download/share as pdf too".
-  //
-  // No library and no server: every phone and every browser can already print
-  // to PDF, and the one thing that made the output useless was that the page is
-  // built as an app — one day on screen at a time, a floating nav over it, and
-  // a map that is a scroll container. So this is a print stylesheet that turns
-  // the app back into a document: every day open, every tab's content stacked,
-  // nothing fixed, nothing clipped.
-  //
-  // It also means the PDF keeps the baked map, because by then the ground is a
-  // data URI in the file rather than a request to a server that is not there.
-  insertBefore('</style>', [
-    '  /* ---- as a document, for print and PDF ---- */',
-    '  @media print{',
-    '    @page{margin:14mm 12mm}',
-    '    html,body{background:#fff !important;height:auto !important;overflow:visible !important}',
-    '    /* Nothing floats, nothing sticks: a fixed element repeats on every',
-    '       page or covers the text under it. */',
-    '    .nav,.tabbar,.fab,.edbtn,.evtool,.evgrip,.evdel,.pillrow,.zoom,#todayjump{display:none !important}',
-    '    [style*="position:fixed"],.sticky{position:static !important}',
-    '    /* Every tab at once. On screen this is one view at a time; on paper',
-    '       there is no such thing as a tab. */',
-    '    .view{display:block !important;page-break-before:always}',
-    '    .view:first-of-type{page-break-before:auto}',
-    '    /* Every day open. A collapsed day prints as its own title and nothing',
-    '       else, which is the single worst thing this could do. */',
-    '    .ev .evp,.ev .evbody,details,details>*{display:block !important;max-height:none !important;overflow:visible !important}',
-    '    details{open:open}',
-    '    .ev{page-break-inside:avoid}',
-    '    .day,.card,.evday{page-break-inside:avoid}',
-    '    /* The map is a scroll box on screen. On paper it is a picture. */',
-    '    #routemap,.rmap{overflow:visible !important;max-height:none !important}',
-    '    #routemap img.ground{max-width:100% !important;height:auto !important}',
-    '    a{text-decoration:none;color:inherit}',
-    '    /* A URL nobody can tap is worth reading, but only for real links. */',
-    "    a[href^='http']::after{content:' (' attr(href) ')';font-size:9px;color:#666;word-break:break-all}",
-    '  }',
-  ].join('\n') + '\n', 'print stylesheet');
-
   insertBefore('</style>', [
     '  /* ---- editing a day ---- */',
     '  .edbtn{',

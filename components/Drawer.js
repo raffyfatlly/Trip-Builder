@@ -13,7 +13,7 @@ import { peopleText } from '../lib/memory.js';
 // header now carries one control and a title; everything else slides in from
 // the left with space to be legible.
 
-export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, onPrint, canDownload,
+export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onEditSlot, onForgetSlot, onForgetAll,
                                 nudge, onNudgeSave, onNudgeLater, signInNow, credits, onOpenAuth }) {
@@ -188,19 +188,6 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
             </a>
           )}
 
-          {/* raffy, 2026-09-06: "make it available to download/share as pdf too".
-              No library and no server — every browser prints to PDF already.
-              What was missing was a print stylesheet that turns the app back
-              into a document: every day open, every tab stacked, nothing fixed.
-              See the print block in renderer/render.js. */}
-          {canDownload && (
-            <button className="act" onClick={onPrint}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z" />
-              </svg>
-              <span><b>Save as PDF</b><i>Or print it — days, map and all</i></span>
-            </button>
-          )}
         </div>
 
         <p className="foot">
