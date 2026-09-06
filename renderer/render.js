@@ -1,5 +1,6 @@
 import { checklist, dueIn, linkFor, isOwn } from '../lib/checklist.js';
 import { iconsJs } from './icons.js';
+import { mapfitJs } from '../lib/mapfit.js';
 
 // The renderer. Turns one itinerary.json into a finished app.
 //
@@ -50,7 +51,7 @@ import { iconsJs } from './icons.js';
 // interpolated: the template literal below may not contain a dollar-brace, and
 // the matcher ships as its own toString() so the app and the tests in
 // setup/test-icons.mjs run the identical function. See renderer/icons.js.
-const ROUTE_MAP_JS = iconsJs() + `
+const ROUTE_MAP_JS = iconsJs() + mapfitJs() + `
   // Web Mercator, so a pin lands where the tiles actually put the place.
   var TILE=256;
   function merc(lat,lon,z){
@@ -208,21 +209,19 @@ const ROUTE_MAP_JS = iconsJs() + `
     var PADX=(BUB+14)*k;
     var PADB=PADX;
     var fit=pts.concat(R.plan).concat(air?[air]:[]);
-    var lats=fit.map(function(p){return p.lat;}), lons=fit.map(function(p){return p.lon;});
-    var cLat=(Math.min.apply(null,lats)+Math.max.apply(null,lats))/2;
-    var cLon=(Math.min.apply(null,lons)+Math.max.apply(null,lons))/2;
 
-    // Widest zoom first, stepping in until everything fits with room for its
-    // marker. A single point has no span to fit, so it gets a city zoom.
-    var z=12;
-    if(fit.length>1){
-      for(z=15; z>1; z--){
-        var m=fit.map(function(p){return merc(p.lat,p.lon,z);});
-        var xs=m.map(function(q){return q.x;}), ys=m.map(function(q){return q.y;});
-        if(Math.max.apply(null,xs)-Math.min.apply(null,xs)<=MW-PADX*2 &&
-           Math.max.apply(null,ys)-Math.min.apply(null,ys)<=MH-PADX-PADB) break;
-      }
-    }
+    // The centre and zoom come from lib/mapfit.js, spliced in above, so the
+    // server can compute exactly the same ones when it bakes the ground image.
+    // Two implementations of this would drift, and a ground that disagrees with
+    // its pins is worse than no ground at all.
+    var _f=fitMap(fit,MW,MH,PADX,PADB);
+    var cLat=_f.cLat, cLon=_f.cLon, z=_f.z;
+
+    // A baked trip has no server to ask, so it carries its own ground and the
+    // centre and zoom that ground was drawn for. Using them keeps the pins on
+    // the map. raffy, 2026-09-06: "the map background will be lost?"
+    var BAKED=(typeof T!=="undefined" && T.ground && T.ground.url) ? T.ground : null;
+    if(BAKED && isFinite(+BAKED.z)){ cLat=+BAKED.cLat; cLon=+BAKED.cLon; z=+BAKED.z; }
 
     var c=merc(cLat,cLon,z), left=c.x-MW/2, top=c.y-MH/2;
     function put(p){ var m=merc(p.lat,p.lon,z); return { x:m.x-left, y:m.y-top }; }
@@ -315,8 +314,13 @@ const ROUTE_MAP_JS = iconsJs() + `
     // the page — a generated itinerary gets downloaded and shared. Static Maps
     // takes a style, so the ground is drawn in the app palette rather than
     // somebody else's default, which is what gets it near the Phu Quoc map.
-    var ground='<img class="ground" alt="" src="/api/map?c='+cLat.toFixed(5)+','+
-      cLon.toFixed(5)+'&z='+z+'&w='+MW+'">';
+    // Baked first when there is one: it is the only thing that works from a
+    // file, offline, or in a PDF. Online and unbaked it is the live endpoint as
+    // before, and an unbaked file falls back to whatever it can rather than
+    // showing a broken image.
+    var groundSrc = BAKED ? BAKED.url
+      : ('/api/map?c='+cLat.toFixed(5)+','+cLon.toFixed(5)+'&z='+z+'&w='+MW);
+    var ground='<img class="ground" alt="" src="'+groundSrc+'">';
 
     // --- the drawn journey, in the layer that scales with the ground ---------
     //
@@ -2919,6 +2923,18 @@ export function render(T, templateSrc) {
     ].join('\n'),
     'trip view order');
 
+  // The other stay row, in "In order" on the Trip tab.
+  //
+  // `side` is optional in the schema — "Geographic grouping, e.g. South coast"
+  // — and this one printed it raw, so a trip whose stays have none read
+  // "Mandarin Oriental / undefined, 20 to 22 Sep". Found by looking at a PDF of
+  // raffy's own Desaru trip on 2026-09-06. The stay row further down already
+  // guards against exactly this; this copy never did.
+  replaceOnce(
+    "margin-top:3px\">'+s.side+', '+s.dates+",
+    "margin-top:3px\">'+[s.side,s.dates].filter(Boolean).join(', ')+",
+    'no undefined in the In order list');
+
   // 2. The stays themselves. Same button, same data-stay hook the map and the
   //    sheet already listen for — a row rather than a tile, so the photo stops
   //    being the whole card and the words get to be readable.
@@ -3957,6 +3973,47 @@ export function render(T, templateSrc) {
     /h\+='<div class="ev'\+\(r\.kind==='plan'\?' mine':\(r\.it\.major\?'':' soft'\)\)\+\(done\?' done':''\)\+/,
     "h+='<div class=\"ev'+(r.kind==='plan'?' mine':(r.it.major?'':' soft'))+(done?' done':'')+(EDIT?' edit':'')+",
     'mark an item as editable');
+
+  // --- printing, which is how a trip becomes a PDF ---------------------------
+  //
+  // raffy, 2026-09-06: "make it available to download/share as pdf too".
+  //
+  // No library and no server: every phone and every browser can already print
+  // to PDF, and the one thing that made the output useless was that the page is
+  // built as an app — one day on screen at a time, a floating nav over it, and
+  // a map that is a scroll container. So this is a print stylesheet that turns
+  // the app back into a document: every day open, every tab's content stacked,
+  // nothing fixed, nothing clipped.
+  //
+  // It also means the PDF keeps the baked map, because by then the ground is a
+  // data URI in the file rather than a request to a server that is not there.
+  insertBefore('</style>', [
+    '  /* ---- as a document, for print and PDF ---- */',
+    '  @media print{',
+    '    @page{margin:14mm 12mm}',
+    '    html,body{background:#fff !important;height:auto !important;overflow:visible !important}',
+    '    /* Nothing floats, nothing sticks: a fixed element repeats on every',
+    '       page or covers the text under it. */',
+    '    .nav,.tabbar,.fab,.edbtn,.evtool,.evgrip,.evdel,.pillrow,.zoom,#todayjump{display:none !important}',
+    '    [style*="position:fixed"],.sticky{position:static !important}',
+    '    /* Every tab at once. On screen this is one view at a time; on paper',
+    '       there is no such thing as a tab. */',
+    '    .view{display:block !important;page-break-before:always}',
+    '    .view:first-of-type{page-break-before:auto}',
+    '    /* Every day open. A collapsed day prints as its own title and nothing',
+    '       else, which is the single worst thing this could do. */',
+    '    .ev .evp,.ev .evbody,details,details>*{display:block !important;max-height:none !important;overflow:visible !important}',
+    '    details{open:open}',
+    '    .ev{page-break-inside:avoid}',
+    '    .day,.card,.evday{page-break-inside:avoid}',
+    '    /* The map is a scroll box on screen. On paper it is a picture. */',
+    '    #routemap,.rmap{overflow:visible !important;max-height:none !important}',
+    '    #routemap img.ground{max-width:100% !important;height:auto !important}',
+    '    a{text-decoration:none;color:inherit}',
+    '    /* A URL nobody can tap is worth reading, but only for real links. */',
+    "    a[href^='http']::after{content:' (' attr(href) ')';font-size:9px;color:#666;word-break:break-all}",
+    '  }',
+  ].join('\n') + '\n', 'print stylesheet');
 
   insertBefore('</style>', [
     '  /* ---- editing a day ---- */',

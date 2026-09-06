@@ -656,6 +656,30 @@ export default function Home() {
   // Best effort, and never a reason not to get the file: if baking fails or
   // takes too long, the download goes ahead with the URLs it already had.
   const [baking, setBaking] = useState(false);
+
+  // Everything the saved file needs to stand on its own: the photographs, and
+  // the map. raffy, 2026-09-06: "the map background will be lost?"
+  //
+  // Both are best effort and neither is a reason not to get the file.
+  const bakeAll = async (it) => {
+    let out = it;
+    try {
+      const r = await fetch('/api/mapbake', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ itinerary: it }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (r.ok) {
+        const { ground } = await r.json();
+        if (ground && ground.url) out = { ...out, ground };
+      }
+    } catch (e) {
+      console.error('baking the map failed, saving without it', e);
+    }
+    return out;
+  };
+
   const download = async () => {
     let html = preview;
     const urls = (working && working.photos) || {};
@@ -674,11 +698,16 @@ export default function Home() {
           // Re-render rather than string-replacing: the URLs appear inside a
           // JSON blob in the document, and a blind replace would also hit any
           // that happen to be a prefix of another.
-          html = await renderPreview(forRender({ ...working, photos: baked }));
+          html = await renderPreview(forRender(await bakeAll({ ...working, photos: baked })));
         }
       } catch (e) {
         console.error('baking photos failed, saving with links instead', e);
       }
+      setBaking(false);
+    } else {
+      // A trip with no photographs still has a map.
+      setBaking(true);
+      html = await renderPreview(forRender(await bakeAll(working)));
       setBaking(false);
     }
     log('download', { baked: Object.keys(urls).length, bytes: html.length });
@@ -691,6 +720,37 @@ export default function Home() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  // Print, which is how a phone makes a PDF.
+  //
+  // raffy, 2026-09-06: "make it available to download/share as pdf too."
+  //
+  // The trip lives in an iframe, so printing the PAGE would print the chat with
+  // a slice of trip in it. Printing the frame's own window prints the document,
+  // and the print stylesheet in renderer/render.js opens every day and stacks
+  // every tab so what comes out is a document rather than a screenshot of an
+  // app. The map is baked in first, or the PDF has a hole where it was.
+  const printTrip = async () => {
+    setSheet(true);
+    const frame = document.querySelector('.phone iframe');
+    if (!frame) return;
+    try {
+      setBaking(true);
+      const html = await renderPreview(forRender(await bakeAll(working)));
+      setBaking(false);
+      // A separate window, so the on-screen preview is not disturbed and the
+      // print job cannot inherit the app's own scroll position.
+      const w = window.open('', '_blank');
+      if (!w) { frame.contentWindow.focus(); frame.contentWindow.print(); return; }
+      w.document.open(); w.document.write(html); w.document.close();
+      // Give the fonts and the ground image a moment, or the first page prints
+      // in Times with a grey rectangle on it.
+      setTimeout(() => { try { w.focus(); w.print(); } catch (e) { /* the tab is theirs now */ } }, 900);
+    } catch (e) {
+      setBaking(false);
+      try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (err) { /* nothing else to try */ }
+    }
   };
 
   // Starting a new trip must never lose the last one. The id stays in the
@@ -1457,6 +1517,7 @@ export default function Home() {
         onDrop={dropTrip}
         onNew={startOver}
         onDownload={() => { setMenu(false); download(); }}
+        onPrint={() => { setMenu(false); printTrip(); }}
         canDownload={ready}
         memory={memory}
         onEditSlot={editSlotByHand}

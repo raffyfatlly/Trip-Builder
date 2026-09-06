@@ -13,7 +13,7 @@ import { peopleText } from '../lib/memory.js';
 // header now carries one control and a title; everything else slides in from
 // the left with space to be legible.
 
-export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
+export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, onPrint, canDownload,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onEditSlot, onForgetSlot, onForgetAll,
                                 nudge, onNudgeSave, onNudgeLater, signInNow, credits, onOpenAuth }) {
@@ -171,7 +171,34 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" />
               </svg>
-              <span><b>Download</b><i>Keep this itinerary offline</i></span>
+              <span><b>Download</b><i>Keep this itinerary offline, map and all</i></span>
+            </button>
+          )}
+
+          {/* raffy, 2026-09-06: "Download as PWS app (like my phu quoc I can
+              download as app.)" A downloaded file can never be installable —
+              file:// cannot register a service worker — so the install lives on
+              a served page. This opens it; Add to Home Screen does the rest. */}
+          {canDownload && session && (
+            <a className="act" href={'/t/' + encodeURIComponent(session)} target="_blank" rel="noopener noreferrer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" />
+              </svg>
+              <span><b>Install as an app</b><i>Opens the trip on its own — then Add to Home Screen</i></span>
+            </a>
+          )}
+
+          {/* raffy, 2026-09-06: "make it available to download/share as pdf too".
+              No library and no server — every browser prints to PDF already.
+              What was missing was a print stylesheet that turns the app back
+              into a document: every day open, every tab stacked, nothing fixed.
+              See the print block in renderer/render.js. */}
+          {canDownload && (
+            <button className="act" onClick={onPrint}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8z" />
+              </svg>
+              <span><b>Save as PDF</b><i>Or print it — days, map and all</i></span>
             </button>
           )}
         </div>
@@ -260,7 +287,7 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
           display:flex;align-items:center;gap:12px;width:100%;margin-bottom:6px;
           border:0;background:var(--surface);cursor:pointer;color:inherit;
           padding:12px 13px;border-radius:14px;box-shadow:var(--sh-s);
-          font-family:inherit;text-align:left;
+          font-family:inherit;text-align:left;text-decoration:none;
           transition:transform 150ms var(--e);
         }
         .act:active{transform:scale(.985)}
