@@ -17,8 +17,9 @@ import { TOOLS } from '../../lib/schema.js';
 import { SYSTEM } from '../../lib/prompt.js';
 import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
-import { PRICE_TOOL, priceProbe, hotelHostProbe } from '../../lib/prices.js';
+import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
+import { loadConfig } from '../../lib/settings.js';
 
 // What is actually switched on in this deployment.
 //
@@ -72,14 +73,17 @@ export default async function handler(req, res) {
     ? await priceProbe(String(req.query.prices), req.query.hotel && String(req.query.hotel))
     : undefined;
 
-  const hotelHosts = req.query && req.query.hotelhosts ? await hotelHostProbe() : undefined;
-
   // `?firecrawl=<url>` fetches one real page. Firecrawl is unreachable from the
   // sandbox, so nothing in the repo could tell us whether the key works — and
   // with every hotel API endpoint now returning 404, reading a page is the only
   // route left to a real rate. Costs one Firecrawl credit, so it is opt-in.
   let firecrawl;
   if (req.query && req.query.firecrawl) {
+    // loadConfig() first: the key lives in the config document, not the
+    // environment, and setting() reads a snapshot that is empty until someone
+    // has awaited the load. Without this the probe reports "not configured"
+    // for a key that is sitting right there.
+    await loadConfig();
     const t0 = Date.now();
     const text = await scrape(String(req.query.firecrawl));
     firecrawl = {
@@ -109,7 +113,6 @@ export default async function handler(req, res) {
     builderModel,
     models,
     prices,
-    hotelHosts,
     firecrawl,
     desk,
     openrouterKey: !!settingOR(),
