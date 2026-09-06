@@ -16,17 +16,25 @@
 import { getState } from '../../lib/managedAgents.js';
 import { billed } from '../../lib/billed.js';
 
-const ICON = (label) => {
-  // Drawn rather than fetched: an icon file would be one more thing to serve,
-  // and the letter of the destination is a better home-screen icon than a
-  // generic pin anyway.
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512">'
-    + '<rect width="512" height="512" rx="112" fill="#10362A"/>'
-    + '<text x="256" y="330" font-family="Outfit, system-ui, sans-serif" font-size="260"'
-    + ' font-weight="800" fill="#EAF2EC" text-anchor="middle">'
-    + String(label || 'T').slice(0, 1).toUpperCase() + '</text></svg>';
-  return 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64');
-};
+// PNG, not SVG, and this is the whole reason the installed app used to carry a
+// little Chrome badge in its corner.
+//
+// Android only mints a REAL installed app (a WebAPK) from a raster icon. Given
+// an SVG it cannot, so it falls back to a plain browser shortcut — and a
+// shortcut is exactly what gets badged. raffy, 2026-09-06: "remove the chrome
+// thingy attached to it."
+//
+// One mark for every trip rather than the destination's initial: a letter drawn
+// into an SVG could never be rasterised here, and the trip's own name already
+// sits under the icon on the home screen. The mark is the app's own motif — the
+// dashed journey curve off the trip map, with a coral waypoint at the end.
+const ICONS = [
+  { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+  { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+  // Cropped to whatever shape the launcher uses, so its mark sits inside the
+  // middle 80%.
+  { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+];
 
 async function handler(req, res) {
   const session = String(req.query.s || '');
@@ -54,15 +62,7 @@ async function handler(req, res) {
     orientation: 'portrait',
     background_color: '#EDF2EA',
     theme_color: '#10362A',
-    // An SVG icon has to declare sizes:"any" or Chrome will not count it
-    // toward installability, and without an acceptable icon the browser never
-    // fires beforeinstallprompt — so the Install button would simply never
-    // appear and there would be nothing on screen to say why.
-    icons: [
-      { src: ICON(title), sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-      { src: ICON(title), sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
-      { src: ICON(title), sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
-    ],
+    icons: ICONS,
   }));
 }
 

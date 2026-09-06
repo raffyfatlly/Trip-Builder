@@ -49,14 +49,22 @@ console.log('\nThe manifest, which is what makes any of it possible');
   ok('it names the trip, not the tool', !!m.name && m.name !== 'Trip Builder', m.name);
   ok('it opens standalone', m.display === 'standalone');
   ok('it starts at this trip', m.start_url.includes(TRIP));
-  // Chrome will not count an SVG icon toward installability unless it declares
-  // sizes:"any" — and with no acceptable icon it never fires the install event,
-  // so the button would silently never appear.
-  ok('an SVG icon declares sizes:any, or Chrome ignores it',
-    (m.icons || []).some((i) => i.sizes === 'any' && /svg/.test(i.type || '')),
-    JSON.stringify((m.icons || []).map((i) => i.sizes)));
-  ok('and one is maskable, so Android does not letterbox it',
+  // PNG, not SVG. Android mints a real installed app only from a raster icon;
+  // given an SVG it falls back to a browser shortcut, and a shortcut is what
+  // carries the little Chrome badge raffy asked to be rid of.
+  ok('every icon is a PNG', (m.icons || []).length > 0
+    && (m.icons || []).every((i) => i.type === 'image/png'),
+    JSON.stringify((m.icons || []).map((i) => i.type)));
+  ok('there is a 192 and a 512, which is what Android asks for',
+    ['192x192', '512x512'].every((sz) => (m.icons || []).some((i) => i.sizes === sz)));
+  ok('and one is maskable, so the launcher can crop it to its own shape',
     (m.icons || []).some((i) => (i.purpose || '').includes('maskable')));
+
+  for (const i of m.icons || []) {
+    const res = await p.goto(B + i.src);
+    ok('  ' + i.src + ' is really there', res.status() === 200 && (res.headers()['content-type'] || '').includes('png'),
+      res.status() + ' ' + res.headers()['content-type']);
+  }
   await ctx.close();
 }
 
@@ -78,6 +86,8 @@ console.log('\nThe page offers a worker to register');
 console.log('\nOn an iPhone, where Apple gives no API');
 {
   const { p, ctx } = await open(IPHONE);
+  ok('iOS gets its own icon, or the home screen shows a screenshot instead',
+    await p.locator('link[rel="apple-touch-icon"]').count() === 1);
   ok('the bar is there', await p.locator('.ins').isVisible());
   ok('and it offers to show how, not to install', (await p.locator('.ins .go').innerText()) === 'How');
   await p.locator('.ins .go').click();

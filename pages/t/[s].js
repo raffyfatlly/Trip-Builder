@@ -48,6 +48,10 @@ export default function Trip({ html, title, session, missing }) {
         <title>{title}</title>
         <link rel="manifest" href={'/api/manifest?s=' + encodeURIComponent(session)} />
         <meta name="theme-color" content="#10362A" />
+        {/* iOS ignores the manifest's icons entirely and uses this one. Without
+            it, Add to Home Screen puts a screenshot of the page on the home
+            screen instead of an icon. */}
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content={title} />
         <meta name="robots" content="noindex, nofollow" />
