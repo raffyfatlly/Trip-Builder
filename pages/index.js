@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } fr
 import { useRouter } from 'next/router';
 import { renderPreview, downloadName } from '../lib/preview.js';
 import Progress from '../components/Progress.js';
+import Auth from '../components/Auth.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
 
 // Measuring has to happen before the browser paints, not after. useEffect runs
@@ -80,6 +81,15 @@ export default function Home() {
   const [sheet, setSheet] = useState(false);       // itinerary open on mobile
   const [error, setError] = useState('');
   const [booting, setBooting] = useState(true);
+  // Whether /api/state has answered even once.
+  //
+  // `booting` clears as soon as the SESSION id is known, which is well before
+  // the transcript arrives — so gating on it alone showed the required sign-in
+  // dialog over a traveller who was already mid-trip, for as long as the first
+  // poll took. It flashed, and on a slow connection it would not have been a
+  // flash. Caught by setup/test-authui.mjs, where the header button became
+  // unclickable because the dialog was sitting on top of it.
+  const [seenState, setSeenState] = useState(false);
   const [edits, setEdits] = useState([]);
   const [pane, setPane] = useState('preview');   // preview | edit
   const [staleNote, setStaleNote] = useState(0);
@@ -98,6 +108,9 @@ export default function Home() {
   const [loaded, setLoaded] = useState(false);
   const [hintOff, setHintOff] = useState(true);
   const [account, setAccount] = useState({ accounts: false, user: null });
+  // Which way the sign-in dialog opens. null means closed.
+  // raffy, 2026-09-06: "proper sign-up and sign-in pop-ups and buttons".
+  const [authMode, setAuthMode] = useState(null);
   const [memory, setMemory] = useState(null);
 
   const router = useRouter();
@@ -208,6 +221,7 @@ export default function Home() {
         setThinking(!!d.thinking);
         setBuilding(!!d.building);
         setProgress(d.progress || null);
+        setSeenState(true);
         setDoing(d.doing || null);
         setAgentErr(d.agentError || null);
         if (d.credits !== undefined) setPurse(d.credits);
@@ -756,6 +770,7 @@ export default function Home() {
   const known = filledCount(memory);
   const nudge = account.accounts && !account.user && nudgeAt !== null && known >= 3 && known > nudgeAt + 1;
 
+
   const nudgeLater = () => {
     setNudgeAt(known);
     try { localStorage.setItem(NUDGE_KEY, String(known)); } catch (e) { /* ignore */ }
@@ -797,6 +812,18 @@ export default function Home() {
   // The builder can land save_itinerary before it has written any days, so an
   // itinerary object alone is not enough to show. Wait for a real day.
   const ready = !!(working && working.days && working.days.length > 0);
+
+  // The email gate. Defined HERE, below `ready`, not up with the other
+  // flags: it reads `ready`, and a const read before its declaration is a
+  // ReferenceError. The && chain short-circuits before reaching it whenever
+  // there is a transcript, so every test with a conversation in it passed
+  // and only a brand-new session — the one case the gate exists for — took
+  // the whole page down with a client-side exception. Only on a deployment that HAS accounts, only while there is
+  // nothing to lose, and never while the page is still finding out who they are
+  // — booting with account.user still null would flash the dialog at somebody
+  // who is already signed in.
+  const mustSignIn = account.accounts && !account.user && !booting && seenState
+    && messages.length === 0 && !ready && !building;
   const title = tripName || null;
 
   // A build runs for minutes, so it almost always lands while they are still
@@ -852,14 +879,29 @@ export default function Home() {
             you did not already know; the destination tells you which trip. */}
         <span className="where">{title || 'Trip builder'}</span>
 
-        {ready ? (
-          <button className="itbtn" onClick={openSheet} aria-label="Itinerary" title="Itinerary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
-            </svg>
-            {unseen && <i className="ping" />}
-          </button>
-        ) : <span className="spacer" />}
+        <div className="hend">
+          {/* Somewhere to sign in that is not folded into the bottom of a menu.
+              Only when this deployment actually has accounts: a button that
+              opens a dialog which then says accounts are not set up is worse
+              than no button. */}
+          {account.accounts && !account.user && (
+            <button className="signin" onClick={() => setAuthMode('signin')}>Sign in</button>
+          )}
+          {account.accounts && account.user && (
+            <button className="av" onClick={() => setMenu(true)}
+              aria-label={'Signed in as ' + account.user.email} title={account.user.email}>
+              {(account.user.email || '?')[0].toUpperCase()}
+            </button>
+          )}
+          {ready ? (
+            <button className="itbtn" onClick={openSheet} aria-label="Itinerary" title="Itinerary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" />
+              </svg>
+              {unseen && <i className="ping" />}
+            </button>
+          ) : <span className="spacer" />}
+        </div>
       </header>
 
       <main className="split">
@@ -1375,6 +1417,21 @@ export default function Home() {
         </section>
       </main>
 
+      {/* raffy, 2026-09-06: "actually just make sure they have email to start
+          using". So on a deployment with accounts, an email is the door — but
+          only BEFORE a trip exists. Someone already mid-conversation, or with
+          an itinerary already built, is never locked out of work they have
+          done and paid for; that would be taking something away, not asking
+          for something. */}
+      <Auth
+        open={!!authMode || mustSignIn}
+        mode={mustSignIn && !authMode ? 'signup' : authMode}
+        required={mustSignIn}
+        trips={trips}
+        onClose={() => setAuthMode(null)}
+        onSignedIn={(d) => { onSignedIn(d); setMenu(false); }}
+      />
+
       <Drawer
         open={menu}
         onClose={() => { setMenu(false); setSignInNow(false); }}
@@ -1397,6 +1454,7 @@ export default function Home() {
         accounts={account.accounts}
         user={account.user}
         onSignedIn={onSignedIn}
+        onOpenAuth={(m) => { setMenu(false); setAuthMode(m); }}
         onSignOut={onSignOut}
       />
 
@@ -1447,6 +1505,25 @@ export default function Home() {
         /* An icon, not a word. It sits opposite the burger and reads as its
            pair, which leaves the whole middle of the bar for the trip's name —
            the one thing there worth reading. */
+        /* The right-hand end of the bar. Both of these are optional, so it is
+           a row rather than a fixed slot — with neither, the spacer keeps the
+           trip name centred exactly as it did before. */
+        .hend{display:flex;align-items:center;gap:8px;flex:none}
+        .signin{
+          flex:none;border:1.5px solid var(--line);border-radius:99px;
+          padding:7px 13px;background:var(--surface);color:var(--deep);
+          font-family:inherit;font-size:12.5px;font-weight:750;cursor:pointer;
+          transition:background 150ms ease,border-color 150ms ease;
+          white-space:nowrap;
+        }
+        .signin:active{background:var(--sage)}
+        .av{
+          flex:none;width:32px;height:32px;border:0;border-radius:50%;
+          background:var(--deep);color:#EAF2EC;cursor:pointer;
+          font-family:inherit;font-size:13px;font-weight:800;line-height:1;
+          display:grid;place-items:center;
+        }
+        .av:active{transform:scale(.94)}
         .itbtn{
           position:relative;flex:none;display:grid;place-items:center;
           width:36px;height:36px;border:0;border-radius:12px;

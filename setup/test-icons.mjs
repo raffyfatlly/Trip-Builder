@@ -90,6 +90,16 @@ t('the shipped source carries the same matcher', () => {
   assert.ok(!src.includes('`'), 'no backticks');
   assert.ok(!src.includes('${'), 'no dollar-brace');
 });
+t('it survives the minifier taking the function name away', () => {
+  // The production build rewrites the export as an ANONYMOUS function
+  // expression, so this is what actually shipped: "function(name,NAMED,CATS)".
+  // Emitted as a bare statement it is a SyntaxError and the whole map script
+  // dies. Reproduced here rather than trusted.
+  const anon = iconsJs().replace('function iconFor(', 'function (');
+  assert.doesNotThrow(() => new Function(anon), 'anonymous form must still parse');
+  const run = new Function(anon + '\nreturn glyphFor;')();
+  assert.equal(run('Eiffel Tower'), GLYPHS.eiffel);
+});
 t('and it actually runs, giving the same answers', () => {
   const run = new Function(iconsJs() + '\nreturn glyphFor;')();
   assert.equal(run('Eiffel Tower'), GLYPHS.eiffel);

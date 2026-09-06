@@ -193,9 +193,21 @@ export const iconNameFor = (name) => iconFor(name, NAMED, CATS);
  * the code that actually runs on a traveller's phone.
  */
 export function iconsJs() {
+  // ASSIGNED, never emitted as a bare function statement.
+  //
+  // The first version wrote iconFor.toString() straight out, which is a valid
+  // statement in Node and a SyntaxError in the browser: the production
+  // minifier rewrites `export function iconFor(){}` as an ANONYMOUS function
+  // expression, so toString() returns "function(name,NAMED,CATS){...}" and the
+  // generated app died on "Function statements require a function name" —
+  // taking the whole map script with it. Every renderer test passed, because
+  // none of them run the minified bundle; setup/test-chatui.mjs, which loads
+  // the real built page, is what caught it.
+  //
+  // An assignment is correct either way round, named or not.
   return 'var GLYPHS=' + JSON.stringify(GLYPHS) + ';\n'
     + 'var NAMED=' + JSON.stringify(NAMED) + ';\n'
     + 'var CATS=' + JSON.stringify(CATS) + ';\n'
-    + iconFor.toString().replace(/^export\s+/, '') + '\n'
+    + 'var iconFor = ' + iconFor.toString().replace(/^export\s+/, '') + ';\n'
     + 'function glyphFor(n){ var g=iconFor(n,NAMED,CATS); return g?GLYPHS[g]:""; }\n';
 }

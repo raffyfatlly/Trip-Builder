@@ -122,20 +122,33 @@ ok('no page errors', errs.length === 0, errs.join(' / '));
   await p2.locator('.proftoggle').click();
   await p2.waitForTimeout(350);
 
-  ok('sign-in is offered when accounts are on', await p2.locator('.acct .cta').count() === 1);
+  // Since 2026-09-06 the drawer holds two buttons rather than the form itself;
+  // the form is one dialog (components/Auth.js) reached from here and from the
+  // header. See setup/test-authui.mjs for the dialog's own behaviour.
+  ok('both ways in are offered when accounts are on',
+     await p2.locator('.acct .cta').count() === 1 && await p2.locator('.acct .alt').count() === 1);
   await p2.locator('.acct .cta').click();
-  await p2.waitForTimeout(250);
-  await p2.locator('input[type=email]').fill('raffy@example.com');
-  await p2.locator('input[type=tel]').fill('+60 12 345 6789');
+  await p2.waitForTimeout(350);
+  ok('and the drawer gets out of the way for the dialog',
+     await p2.locator('.panel[role="dialog"]').isVisible());
+  await p2.locator('#au-email').fill('raffy@example.com');
+  await p2.locator('#au-phone').fill('+60 12 345 6789');
   ok('it says plainly there is no code coming',
-     (await p2.locator('.note').innerText()).includes('no code'));
+     (await p2.locator('.lede').innerText()).includes('no code'));
   await p2.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/signin.png' });
-  await p2.locator('button:has-text("Save my trips")').click();
+  await p2.locator('.panel .go').click();
   await p2.waitForTimeout(700);
 
   ok('the trips this browser had are carried in',
      !!sentTrips && (sentTrips.trips || []).some((t) => t.id === 'sesn_LOCAL'));
   ok('the phone is normalised on the way', !!sentTrips && sentTrips.phone.includes('12'));
+  // Signing in closes the drawer with the dialog, so who you are is checked
+  // where it now lives: the header, and the drawer when it is reopened.
+  ok('the header shows the account', await p2.locator('header .av').isVisible());
+  await p2.locator('header .burger').click();
+  await p2.waitForTimeout(350);
+  await p2.locator('.proftoggle').click();
+  await p2.waitForTimeout(350);
   ok('signing in shows who you are', (await p2.locator('.acct.in').innerText()).includes('raffy@example.com'));
 
   const listed = await p2.locator('.drawer .row .lbl').allInnerTexts();

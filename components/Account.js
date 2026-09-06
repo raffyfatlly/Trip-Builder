@@ -1,40 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
-// Signing in, in the drawer, in one step.
+// Who you are, in the drawer.
 //
-// Kept as short as it can be: an email, and that is the account. No password
-// to invent, no code to wait for, no provider buttons. Phone is asked for
-// once, optionally, and only because raffy wants it on the record — nothing
-// signs in with it.
+// The form that used to live here has moved into components/Auth.js as a
+// proper dialog (raffy, 2026-09-06: "proper sign-up and sign-in pop-ups and
+// buttons"). This is now the account ROW: the signed-in identity, or the two
+// buttons that open that dialog on the right tab. One implementation of the
+// form, reached from the header and from here.
 //
 // Anonymous is a real state here, not a lapsed one. Someone who never signs in
 // loses nothing they had before; they simply cannot reach their trips from a
 // different phone, and the copy says exactly that rather than nagging.
 
-export default function Account({ user, trips, onSignedIn, onSignOut, startOpen }) {
-  const [step, setStep] = useState('idle');   // idle | form | busy
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [err, setErr] = useState('');
-
-  // Arrived here from "Save profile", so skip the button they already pressed.
-  useEffect(() => { if (startOpen && !user) setStep((v) => (v === 'idle' ? 'form' : v)); }, [startOpen, user]);
-
-  const go = async () => {
-    setErr(''); setStep('busy');
-    try {
-      const r = await fetch('/api/auth/signin', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        // The trips this browser is holding come along, so signing in after a
-        // week of anonymous planning does not look like starting over.
-        body: JSON.stringify({ email, phone, trips }),
-      });
-      const d = await r.json();
-      if (!r.ok) { setErr(d.error || 'Could not open your account.'); setStep('form'); return; }
-      onSignedIn(d);
-      setStep('idle'); setPhone('');
-    } catch (e) { setErr('Could not reach the server.'); setStep('form'); }
-  };
+export default function Account({ user, onOpenAuth, onSignOut, startOpen }) {
+  // Arrived here from the "save your trips" nudge, which is a request to sign
+  // in — so open the dialog rather than making them find the button again.
+  useEffect(() => { if (startOpen && !user) onOpenAuth('signup'); }, [startOpen, user, onOpenAuth]);
 
   if (user) {
     return (
@@ -54,43 +35,11 @@ export default function Account({ user, trips, onSignedIn, onSignOut, startOpen 
 
   return (
     <div className="acct">
-      {step === 'idle' && (
-        <button className="cta" onClick={() => setStep('form')}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 21a8 8 0 1 0-16 0" /><circle cx="12" cy="8" r="4" />
-          </svg>
-          <span><b>Save your trips</b><i>So you can open them on another phone</i></span>
-        </button>
-      )}
-
-      {step !== 'idle' && (
-        <div className="form">
-          <label>Email</label>
-          <input
-            type="email" inputMode="email" autoFocus value={email} placeholder="you@example.com"
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && email) go(); }}
-          />
-          <label>Phone <span className="opt">optional</span></label>
-          <input
-            type="tel" inputMode="tel" value={phone} placeholder="+60 12 345 6789"
-            onChange={(e) => setPhone(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && email) go(); }}
-          />
-          <p className="note">
-            No password and no code — your email is the account. Use the same one
-            on another device and your trips are there.
-          </p>
-          {err && <p className="err">{err}</p>}
-          <div className="row">
-            <button className="ghost" onClick={() => { setStep('idle'); setErr(''); }}>Cancel</button>
-            <button className="go" disabled={!email || step === 'busy'} onClick={go}>
-              {step === 'busy' ? 'One moment…' : 'Save my trips'}
-            </button>
-          </div>
-        </div>
-      )}
-
+      <p className="why">Your trips live on this device only. An account lets you open them anywhere.</p>
+      <div className="pair">
+        <button className="cta" onClick={() => onOpenAuth('signup')}>Create an account</button>
+        <button className="alt" onClick={() => onOpenAuth('signin')}>Sign in</button>
+      </div>
       <style jsx>{css}</style>
     </div>
   );
@@ -105,11 +54,19 @@ export default function Account({ user, trips, onSignedIn, onSignOut, startOpen 
 // 2.5px off centre against the send button.
 const css = `
   .acct{margin-top:6px}
+  .acct .why{
+    margin:0 0 10px;font-size:12px;line-height:1.5;color:var(--ink-faint);
+  }
+  .acct .pair{display:flex;gap:8px}
   .acct .cta{
-    display:flex;align-items:center;gap:12px;width:100%;
-    border:0;background:var(--bg);cursor:pointer;color:inherit;
-    padding:11px 12px;border-radius:12px;
-    font-family:inherit;text-align:left;transition:transform 150ms var(--e);
+    flex:1;border:0;border-radius:99px;padding:11px 10px;cursor:pointer;
+    background:var(--deep);color:#EAF2EC;
+    font-family:inherit;font-size:13px;font-weight:750;
+  }
+  .acct .alt{
+    flex:1;border:1.5px solid var(--line);border-radius:99px;padding:11px 10px;cursor:pointer;
+    background:var(--surface);color:var(--deep);
+    font-family:inherit;font-size:13px;font-weight:750;
   }
   .acct .cta:active{transform:scale(.985)}
   .acct .cta svg{width:17px;height:17px;flex:none;color:var(--deep)}

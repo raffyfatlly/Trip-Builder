@@ -16,7 +16,7 @@ import { peopleText } from '../lib/memory.js';
 export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onEditSlot, onForgetSlot, onForgetAll,
-                                nudge, onNudgeSave, onNudgeLater, signInNow, credits }) {
+                                nudge, onNudgeSave, onNudgeLater, signInNow, credits, onOpenAuth }) {
   // Which trip is being removed, if any. Inline rather than a dialog: the row
   // is where the mistake would happen, so that is where the second look
   // belongs — and it keeps the trip's name in front of you while you decide.
@@ -99,7 +99,7 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
                   onClearAll={onForgetAll}
                 />
                 {accounts && (
-                  <Account user={user} trips={trips} onSignedIn={onSignedIn}
+                  <Account user={user} onOpenAuth={onOpenAuth}
                     onSignOut={onSignOut} startOpen={signInNow} />
                 )}
               </div>
