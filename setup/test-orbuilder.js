@@ -329,5 +329,45 @@ check('a tool that does not exist is refused',
   check('and the build finishes', !mid.building || mid.itinerary);
 }
 
+// --- running out of steps -------------------------------------------------
+//
+// raffy, 2026-09-06: "the second time I rebuild takes much longer don't know
+// why". It is this. A build that reaches MAX_STEPS is force-stopped, and until
+// today it was written as done with NO error whenever an itinerary existed —
+// so the slowest possible build looked exactly like a clean one, to the app,
+// to the agent, and to anyone reading the journal.
+{
+  turns = [];
+  const id = await or.startBuild('Build it.', 'sesn_TEST');
+  const raw = () => JSON.parse(JSON.stringify(DOCS.get(id)));
+
+  // Wind it to the ceiling without paying for fourteen fake model calls.
+  const doc = raw();
+  doc.steps = { integerValue: '14' };
+  doc.itinerary = { stringValue: JSON.stringify(ITIN) };
+  DOCS.set(id, doc);
+
+  const before = seen.length;
+  const out = await or.advanceBuild(id);
+  check('the ceiling stops it without another model call', seen.length === before);
+  check('it is not still building', out.building === false);
+  check('it says it was CAPPED, not merely done', out.capped === true);
+  check('and it does not invent an error when a trip exists', !out.error, out.error);
+
+  const peek = await or.peekBuild(id);
+  check('the flag survives a read, which is what the app polls',
+    peek.capped === true && peek.building === false);
+  check('and the half-written trip is still handed over', !!peek.itinerary);
+}
+
+// A build that fails outright is a different thing and must not read as capped.
+{
+  turns = [{ throw: true }];
+  const id = await or.startBuild('Build it.', 'sesn_TEST');
+  await or.advanceBuild(id).catch(() => {});
+  const peek = await or.peekBuild(id);
+  check('a broken build is not marked capped', peek.capped === false);
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

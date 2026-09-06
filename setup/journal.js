@@ -253,6 +253,49 @@ if (!costs.length) {
 // a per-trip price can be right and the business still be wrong.
 const wasted = all.filter((j) => !built(j)).reduce((a, j) => a + totalUsd(j), 0);
 
+// --- how long a build actually takes ---------------------------------------
+//
+// raffy, 2026-09-06: "rebuilding is heavy and the second time I rebuild takes
+// much longer don't know why".
+//
+// Nothing recorded it, so answering that meant reading raw event logs by hand.
+// What it turned out to be is here now: a slow build is one that ran to its
+// step ceiling, not one that happened to be second.
+{
+  const builds = [];
+  for (const j of all) for (const l of j.lines || []) if (l.ev === 'build') builds.push(l);
+  if (builds.length) {
+    const secs = builds.map((b) => Number(b.seconds) || 0).filter(Boolean).sort((a, b) => a - b);
+    const at = (p) => (secs.length ? secs[Math.min(secs.length - 1, Math.floor(secs.length * p))] : 0);
+    const capped = builds.filter((b) => Number(b.capped) === 1);
+    const failed = builds.filter((b) => Number(b.failed) === 1);
+
+    console.log('  BUILDS');
+    console.log('  ' + builds.length + ' build(s) across ' + all.filter(
+      (j) => (j.lines || []).some((l) => l.ev === 'build')).length + ' session(s)');
+    if (secs.length) {
+      console.log('  took         median ' + at(0.5) + 's   p90 ' + at(0.9) + 's   worst '
+        + secs[secs.length - 1] + 's');
+    }
+    const st = builds.map((b) => Number(b.steps) || 0).filter(Boolean);
+    if (st.length) {
+      console.log('  steps        median ' + st.sort((a, b) => a - b)[Math.floor(st.length / 2)]
+        + ' of ' + (builds[0].max || '?'));
+    }
+    if (capped.length) {
+      // The one worth acting on: it ran out of turns rather than finishing, so
+      // the trip may be thin and it used the most time it possibly could.
+      console.log('  CAPPED       ' + capped.length + ' of ' + builds.length
+        + ' hit the step ceiling — these are the slow ones, and they may be thin');
+    }
+    if (failed.length) {
+      console.log('  FAILED       ' + failed.length);
+      for (const b of failed.slice(0, 3)) console.log('               ' + (b.why || 'no reason recorded'));
+    }
+    console.log('');
+  }
+}
+
 // --- the research desk -----------------------------------------------------
 //
 // raffy, 2026-09-05: "ill try soon. and catch it and analyse."

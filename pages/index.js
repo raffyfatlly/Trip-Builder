@@ -94,6 +94,7 @@ export default function Home() {
   const [pane, setPane] = useState('preview');   // preview | edit
   const [staleNote, setStaleNote] = useState(0);
   const [progress, setProgress] = useState(null);
+  const [capped, setCapped] = useState(false);
   // The composer, docked over the trip, so a change never costs you the view.
   const [dock, setDock] = useState(null);
   const [agentEdits, setAgentEdits] = useState([]);
@@ -221,6 +222,7 @@ export default function Home() {
         setThinking(!!d.thinking);
         setBuilding(!!d.building);
         setProgress(d.progress || null);
+        setCapped(!!d.buildCapped);
         setSeenState(true);
         setDoing(d.doing || null);
         setAgentErr(d.agentError || null);
@@ -1266,6 +1268,20 @@ export default function Home() {
               {staleNote === 1 ? 'One of your changes did not' : staleNote + ' of your changes did not'} fit
               the new version of the trip, so it was left out.
               <button onClick={undoEdits}>Undo my changes</button>
+            </div>
+          )}
+
+          {/* A build that ran out of steps used to be indistinguishable from a
+              finished one — done, no error, possibly thin. Now it says so, and
+              asking for the gaps is an EDIT, which is instant and nearly free,
+              rather than another full rebuild. */}
+          {capped && ready && !building && (
+            <div className="stale">
+              This one ran to its limit while it was writing, so a day or two may be
+              thinner than the rest. Have a look, and tell me what to fill in.
+              <button onClick={() => { setSheet(false); send('Some of this looks thin — check it over and fill in whatever is missing.'); }}>
+                Ask it to check
+              </button>
             </div>
           )}
 
