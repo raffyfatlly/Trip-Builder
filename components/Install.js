@@ -39,7 +39,7 @@ const installed = () => {
   } catch (e) { return false; }
 };
 
-export default function Install({ title }) {
+export default function Install({ title, shared }) {
   const [prompt, setPrompt] = useState(null);   // the Android event, once it fires
   const [how, setHow] = useState(false);        // the iPhone instructions
   const [gone, setGone] = useState(false);
@@ -97,7 +97,9 @@ export default function Install({ title }) {
         </span>
         <span className="txt">
           <b>Keep {title || 'this trip'} on your phone</b>
-          <i>{ios ? 'Two taps, and it opens like an app' : 'Opens like an app, works with no signal'}</i>
+          <i>{shared
+            ? 'Someone shared this with you — keep it, it works with no signal'
+            : ios ? 'Two taps, and it opens like an app' : 'Opens like an app, works with no signal'}</i>
         </span>
         <button className="go" onClick={go}>{ios ? 'How' : 'Install'}</button>
         <button className="x" onClick={() => setGone(true)} aria-label="Not now">

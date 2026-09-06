@@ -1039,7 +1039,13 @@ const ROUTE_MAP_JS = iconsJs() + mapfitJs() + `
   renderRouteMap();
 `;
 
-export function render(T, templateSrc) {
+export function render(T, templateSrc, opts) {
+  // A shared trip is read-only. raffy, 2026-09-06, on sharing an itinerary:
+  // whoever opens the link is a guest, and a guest quietly rewriting the trip
+  // is the one thing sharing must not make possible. The tools simply are not
+  // in the document — hiding them with CSS would leave them a tap away in a
+  // developer console.
+  const READONLY = !!(opts && opts.readOnly);
   // The arranging phase, computed here so the app ships with it. Every task
   // carries its own deadline and the link that finishes it.
   const LIST = checklist(T);
@@ -2381,8 +2387,9 @@ export function render(T, templateSrc) {
   // itinerary has no agent to talk to, and correctly shows none of this.
   replaceOnce('      var tools=[];\n', [
     '      var tools=[];',
-    '      tools.push(\'<button class="evtool ask" data-ask="\'+',
-    '        esc((r.it&&r.it.h)||r.h||"this")+\'" data-day="\'+i+\'">Change this</button>\');',
+    (READONLY ? '      // shared: a guest does not get to change the trip' :
+      '      tools.push(\'<button class="evtool ask" data-ask="\'+\n' +
+      '        esc((r.it&&r.it.h)||r.h||"this")+\'" data-day="\'+i+\'">Change this</button>\');'),
     '',
   ].join('\n'), 'ask button on every item');
 
@@ -4047,7 +4054,10 @@ export function render(T, templateSrc) {
     'the paragraph is the field');
 
   // 7. The toggle, on the day's own header, and a way to add a blank one.
-  replaceOnce(
+  //
+  // A shared trip gets neither: no Edit button and no add. The guest is looking
+  // at somebody else's plan.
+  if (!READONLY) replaceOnce(
     "      (today?'<span class=\"pill tiny coral\">Today</span>':'')+",
     "      (today?'<span class=\"pill tiny coral\">Today</span>':'')+\n" +
     "      '<button class=\"edbtn'+(EDIT?' on':'')+'\" id=\"edtoggle\">'+\n" +
@@ -4057,7 +4067,7 @@ export function render(T, templateSrc) {
     "        'stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20h9\"/>'+\n" +
     "        '<path d=\"M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z\"/></svg>Edit')+'</button>'+",
     'the edit toggle');
-  replaceOnce(
+  if (!READONLY) replaceOnce(
     "       '<div class=\"hint\">Times you change and places you add are kept on this phone.",
     "       '<button class=\"ownadd\" id=\"ownadd\">'+\n" +
     "       '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" '+\n" +

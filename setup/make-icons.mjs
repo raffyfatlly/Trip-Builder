@@ -32,10 +32,27 @@ const CREAM = '#EAF2EC';
 // is where the eye lands last and where the app puts coral everywhere else.
 const svg = (px, kind) => {
   const S = 512;
-  const k = kind === 'mask' ? 0.76 : 1;
-  const ground = kind === 'mask'
-    ? `<rect width="${S}" height="${S}" fill="${GREEN}"/>`
-    : `<rect width="${S}" height="${S}" rx="112" fill="${GREEN}"/>`;
+
+  // FULL BLEED, no corner radius of our own.
+  //
+  // Both platforms round the icon themselves — iOS to its squircle, Android to
+  // whatever the launcher uses — so a tile that arrives pre-rounded gets
+  // rounded twice, and the second pass eats into the first. That double edge is
+  // what makes a home screen icon look slightly wrong without being able to say
+  // why. raffy, 2026-09-06: "nothing how background blends with the inner icon
+  // ... do it sharp nice professional."
+  //
+  // How big the mark is drawn, as a share of the tile:
+  //
+  //   full  1.10 — the mark carries the icon and the ground is just ground.
+  //                An app icon that is mostly background reads as smaller than
+  //                its neighbours on the same home screen.
+  //   mask  0.88 — a maskable icon is cropped to a CIRCLE, and this mark is
+  //                tall, so what has to fit is its DIAGONAL (464 units at
+  //                natural size) inside the safe circle (410). Anything larger
+  //                loses the handle and the wheels.
+  const k = kind === 'mask' ? 0.88 : 1.10;
+  const ground = `<rect width="${S}" height="${S}" fill="${GREEN}"/>`;
 
   // The plane, knocked out of the case. Drawn in a 24-box, then scaled and
   // turned so it climbs to the right the way the reference's does.
@@ -59,7 +76,7 @@ const svg = (px, kind) => {
        and the wheels touched the edge; under a circle crop they were cut off
        entirely. This maps that box to the middle of the tile with room around
        it, which is the "adjust the sizing too" part. -->
-  <g transform="translate(${S / 2} ${S / 2}) scale(${k * 0.885}) translate(${-S / 2} -296)">
+  <g transform="translate(${S / 2} ${S / 2}) scale(${k}) translate(${-S / 2} -296)">
     <!-- the pull handle: a bar and two posts, the shape that says luggage -->
     <path d="M196 104h120a18 18 0 0 1 18 18v34h-34v-18h-88v18h-34v-34a18 18 0 0 1 18-18z"
       fill="${CREAM}"/>
@@ -95,7 +112,7 @@ await page.setViewportSize({ width: 620, height: 260 });
 await page.setContent(`<style>body{margin:0;background:#EDF2EA;font-family:system-ui;
   display:flex;gap:26px;align-items:flex-end;padding:34px}
   figure{margin:0;text-align:center}figcaption{font-size:10px;color:#4C6157;margin-top:7px;font-weight:600}
-  img{display:block;border-radius:22%}</style>
+  img{display:block;border-radius:23%}</style>
   <figure><img src="data:image/svg+xml;base64,${Buffer.from(svg(48,'full')).toString('base64')}" width="48"><figcaption>48px</figcaption></figure>
   <figure><img src="data:image/svg+xml;base64,${Buffer.from(svg(72,'full')).toString('base64')}" width="72"><figcaption>72px</figcaption></figure>
   <figure><img src="data:image/svg+xml;base64,${Buffer.from(svg(112,'full')).toString('base64')}" width="112"><figcaption>112px home screen</figcaption></figure>

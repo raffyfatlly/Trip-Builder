@@ -13,7 +13,7 @@ import { peopleText } from '../lib/memory.js';
 // header now carries one control and a title; everything else slides in from
 // the left with space to be legible.
 
-export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, canDownload,
+export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, onShare, shareNote, sharing, canDownload,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onEditSlot, onForgetSlot, onForgetAll,
                                 nudge, onNudgeSave, onNudgeLater, signInNow, credits, onOpenAuth }) {
@@ -165,6 +165,23 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
             </svg>
             <span><b>New trip</b><i>Plan somewhere else</i></span>
           </button>
+
+          {/* raffy, 2026-09-06: "i want to explore the idea of sharing their
+              itenary to people." The phone's own share sheet, so it lands in
+              WhatsApp in one tap. What goes out is a revocable token, never the
+              session id — that is the key to the whole conversation. */}
+          {canDownload && (
+            <button className="act" onClick={onShare} disabled={sharing}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <path d="M8.6 13.5 15.4 17.5M15.4 6.5 8.6 10.5" />
+              </svg>
+              <span>
+                <b>{sharing ? 'Making a link…' : 'Share this trip'}</b>
+                <i>{shareNote || 'Anyone with the link can see it — they cannot change it'}</i>
+              </span>
+            </button>
+          )}
 
           {canDownload && (
             <button className="act" onClick={onDownload}>

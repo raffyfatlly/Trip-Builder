@@ -20,8 +20,9 @@ import { getState } from '../../lib/managedAgents.js';
 import { render } from '../../renderer/render.js';
 import { groundQuery, mapPoints, BAKE_W } from '../../lib/mapfit.js';
 import { fetchWith } from '../../lib/net.js';
+import { shareSession, looksLikeToken } from '../../lib/share.js';
 
-export default function Trip({ html, title, session, missing }) {
+export default function Trip({ html, title, session, missing, gone, shared }) {
   if (missing) {
     return (
       <>
@@ -32,9 +33,13 @@ export default function Trip({ html, title, session, missing }) {
           fontFamily: 'system-ui, sans-serif',
         }}>
           <div>
-            <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>No trip here yet</h1>
+            <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>
+              {gone ? 'This link has been turned off' : 'No trip here yet'}
+            </h1>
             <p style={{ fontSize: 14, color: '#4C6157', margin: 0, lineHeight: 1.5 }}>
-              This link is for a trip that has been built. Open the chat and build it first.
+              {gone
+                ? 'Whoever shared this trip has stopped sharing it. Ask them for a new link.'
+                : 'This link is for a trip that has been built. Open the chat and build it first.'}
             </p>
           </div>
         </main>
@@ -58,7 +63,9 @@ export default function Trip({ html, title, session, missing }) {
       </Head>
       {/* One tap on Android, where the browser gives a real install API; the
           actual steps on iPhone, where Apple gives none. See components/Install.js. */}
-      <Install title={title} />
+      {/* A guest can still keep it on their phone — they are going on the trip
+          too. What they cannot do is edit it. */}
+      <Install title={title} shared={shared} />
       {/* The built app is a whole document. It is injected rather than
           reconstructed as React, because it IS the deliverable — the same bytes
           that get downloaded — and rebuilding it here would mean two renderers
@@ -142,7 +149,16 @@ async function template(host, proto) {
 }
 
 export async function getServerSideProps(ctx) {
-  const session = String(ctx.params.s || '');
+  const asked = String(ctx.params.s || '');
+
+  // The same URL takes either. Their own session opens the trip they can edit;
+  // a share token opens a read-only copy for whoever they sent it to. A token
+  // that has been revoked resolves to nothing and the page says so.
+  const shared = looksLikeToken(asked);
+  const session = shared ? await shareSession(asked) : asked;
+  if (shared && !session) {
+    return { props: { missing: true, gone: true, html: '', title: 'Trip', session: '' } };
+  }
   const host = ctx.req.headers['x-forwarded-host'] || ctx.req.headers.host || '';
   const proto = /^localhost|^127\./.test(host) ? 'http' : 'https';
 
@@ -164,7 +180,7 @@ export async function getServerSideProps(ctx) {
 
   let html;
   try {
-    ({ html } = render(it, tpl));
+    ({ html } = render(it, tpl, { readOnly: shared }));
   } catch (err) {
     // A splice that cannot find its anchor throws, and a 500 tells the
     // traveller nothing. The page says the trip is not ready instead.
@@ -182,6 +198,7 @@ export async function getServerSideProps(ctx) {
       session,
       title: (it.trip && it.trip.title) || 'Trip',
       html: styles + body,
+      shared,
     },
   };
 }

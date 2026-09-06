@@ -723,6 +723,45 @@ export default function Home() {
   };
 
 
+  // Sharing the trip, as a link.
+  //
+  // raffy, 2026-09-06: "i want to explore the idea of sharing their itenary to
+  // people." A link rather than a file: a PDF is wrong the moment a hotel
+  // changes, and a link is the only shape that can become group planning later.
+  //
+  // The share sheet is the phone's own, so it lands in WhatsApp in one tap,
+  // which is where a Malaysian trip actually gets discussed. Desktop has no
+  // share sheet, so there it copies.
+  const [shareNote, setShareNote] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const shareTrip = async () => {
+    if (sharing) return;
+    setSharing(true); setShareNote('');
+    try {
+      const r = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ session }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.path) { setShareNote(d.error || 'Could not make a link.'); setSharing(false); return; }
+      const url = window.location.origin + d.path;
+      const text = (title ? title + ' — ' : '') + 'here is the trip';
+      if (navigator.share) {
+        // A cancelled share sheet rejects, and that is not an error worth
+        // showing: they changed their mind, they did not hit a problem.
+        try { await navigator.share({ title: title || 'Trip', text, url }); }
+        catch (e) { /* dismissed */ }
+      } else {
+        try { await navigator.clipboard.writeText(url); setShareNote('Link copied'); }
+        catch (e) { setShareNote(url); }
+      }
+    } catch (e) {
+      setShareNote('Could not reach the server.');
+    }
+    setSharing(false);
+  };
+
   // Starting a new trip must never lose the last one. The id stays in the
   // trip list; only the pointer to the current one is cleared.
   const startOver = () => {
@@ -1487,6 +1526,9 @@ export default function Home() {
         onDrop={dropTrip}
         onNew={startOver}
         onDownload={() => { setMenu(false); download(); }}
+        onShare={shareTrip}
+        shareNote={shareNote}
+        sharing={sharing}
         canDownload={ready}
         memory={memory}
         onEditSlot={editSlotByHand}
