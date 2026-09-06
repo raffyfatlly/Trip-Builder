@@ -17,7 +17,7 @@ import { TOOLS } from '../../lib/schema.js';
 import { SYSTEM } from '../../lib/prompt.js';
 import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
-import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
+import { PRICE_TOOL, priceProbe, hotelHostProbe } from '../../lib/prices.js';
 
 // What is actually switched on in this deployment.
 //
@@ -71,6 +71,8 @@ export default async function handler(req, res) {
     ? await priceProbe(String(req.query.prices), req.query.hotel && String(req.query.hotel))
     : undefined;
 
+  const hotelHosts = req.query && req.query.hotelhosts ? await hotelHostProbe() : undefined;
+
   let desk;
   if (req.query && req.query.research) {
     const t0 = Date.now();
@@ -90,6 +92,7 @@ export default async function handler(req, res) {
     builderModel,
     models,
     prices,
+    hotelHosts,
     desk,
     openrouterKey: !!settingOR(),
     anthropicKey: !!process.env.ANTHROPIC_API_KEY,
