@@ -9,7 +9,7 @@ import { research, WORKER } from '../../lib/research.js';
 const settingOR = () => setting('OPENROUTER_API_KEY', 'openrouterKey');
 import { placesKey } from '../../lib/photos.js';
 import { checkSources } from '../../lib/facts.js';
-import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId, listBuckets, resolveBucket } from '../../lib/storage.js';
+import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId, listBuckets, resolveBucket, createBucket } from '../../lib/storage.js';
 import { agentDrift } from '../../lib/managedAgents.js';
 import { CHAT_AGENT_ID, BUILDER_AGENT_ID } from '../../lib/config.js';
 import { BUILDER_SYSTEM } from '../../lib/builderPrompt.js';
@@ -114,6 +114,12 @@ export default async function handler(req, res) {
   const agentSync = req.query && req.query.syncagent
     ? await syncAgents({ force: true }) : undefined;
 
+  // `?makebucket=1` creates the project's default storage bucket, once. The
+  // lookup established the project has none at all — Firebase Storage was never
+  // switched on — so booking confirmations had nowhere to go. It can only ever
+  // create the one Firebase default name and refuses if any bucket exists.
+  const madeBucket = req.query && req.query.makebucket ? await createBucket() : undefined;
+
   let desk;
   if (req.query && req.query.research) {
     const t0 = Date.now();
@@ -134,6 +140,7 @@ export default async function handler(req, res) {
     models,
     prices,
     agentSync,
+    madeBucket,
     firecrawl,
     desk,
     openrouterKey: !!settingOR(),
