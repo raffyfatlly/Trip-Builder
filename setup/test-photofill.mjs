@@ -221,5 +221,29 @@ ok('the whole Hanoi day costs fewer lookups than it has headings', (() => {
   return photoGaps({ days: [{ items: raw.map((h) => ({ h })) }] }).length < raw.length;
 })());
 
+// A hotel is a place because it is a hotel.
+//
+// raffy, 2026-09-07, on Syahirah's Singapore trip: "image not reflected in app
+// (hotel image)". The gate that keeps us from paying Google to look up "Slow
+// start" demands a capital letter after a space, and a one-word hotel name has
+// none — so Sofitel, Yotel, Ibis and Oasia were skipped silently. No photo, and
+// no coordinates either, so no pin on the map.
+{
+  const oneWord = photoGaps({ stays: [{ n: 'Sofitel' }, { n: 'Yotel' }, { n: 'Ibis' }] })
+    .map((g) => g.name);
+  ok('a one-word hotel name is still looked up', oneWord.length === 3, oneWord.join(', '));
+
+  // The stay exemption must not leak to day items, or every "Slow start" and
+  // "Head back to the hotel" becomes a billed lookup again.
+  const desc2 = photoGaps({ days: [{ items: [{ h: 'Slow start' }, { h: 'Check out' }] }] });
+  ok('and a day item is still filtered as before', desc2.length === 0,
+    desc2.map((g) => g.name).join(', '));
+
+  // A stay that already has both a photo and coordinates is still skipped —
+  // the exemption is about the name test, not about paying twice.
+  const done = photoGaps({ stays: [{ n: 'Yotel', photo: 'p1', lat: 1.3, lon: 103.8 }] });
+  ok('a stay that is already complete is not looked up again', done.length === 0);
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
