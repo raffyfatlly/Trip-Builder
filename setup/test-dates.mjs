@@ -143,4 +143,92 @@ console.log('\nThrough the agent tool, the way it actually arrives');
   });
 }
 
+console.log('\nA longer or shorter trip is an edit too');
+{
+  // raffy, 2026-09-07: "whatever kind of edits the user wants to do, can it
+  // just not rebuild again?" Adding a day was a rebuild — not because the day
+  // is hard, but because every date after it moves. That is arithmetic.
+  t('a day inserted in the middle pushes everything after it', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{
+      op: 'add_day', at: 2, newDay: { title: 'Extra', sub: 'A spare day', stay: 0 },
+    }], 1, it));
+    assert.equal(out.days.length, 7);
+    assert.equal(out.days[2].title, 'Extra');
+    assert.deepEqual(out.days.map((d) => d.dow + d.dom),
+      ['THU12', 'FRI13', 'SAT14', 'SUN15', 'MON16', 'TUE17', 'WED18']);
+    assert.equal(out.trip.end, '2026-11-18', 'the trip has to end a day later');
+  });
+  t('the stay it lands in covers the extra night', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{
+      op: 'add_day', at: 2, newDay: { title: 'Extra', stay: 0 },
+    }], 1, it));
+    assert.equal(out.stays[0].dates, '12 to 15 Nov');
+    assert.equal(out.stays[0].nights, '4 nights');
+    assert.equal(out.stays[1].dates, '16 to 18 Nov');
+  });
+  t('a day appended at the end', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{
+      op: 'add_day', at: 6, newDay: { title: 'One more', stay: 1 },
+    }], 1, it));
+    assert.equal(out.days.length, 7);
+    assert.equal(out.days[6].title, 'One more');
+    assert.equal(out.days[6].dom, 18);
+  });
+  t('items on a new day get ids, or nothing can edit them later', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{
+      op: 'add_day', at: 1, newDay: { title: 'Extra', stay: 0, items: [{ t: '10:00', h: 'Zoo' }] },
+    }], 1, it));
+    assert.ok(out.days[1].items[0]._id, 'no id means a later edit silently misses');
+  });
+  t('a day removed pulls everything back', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{ op: 'remove_day', at: 1 }], 1, it));
+    assert.equal(out.days.length, 5);
+    assert.equal(out.days[1].title, 'Sentosa');
+    assert.deepEqual(out.days.map((d) => d.dom), [12, 13, 14, 15, 16]);
+    assert.equal(out.trip.end, '2026-11-16');
+  });
+  t('the last day standing cannot be removed', () => {
+    const one = { trip: { start: '2026-11-12', end: '2026-11-12' }, stays: [],
+      days: [{ dow: 'THU', dom: 12, stay: 0, title: 'Only', items: [] }] };
+    assert.equal(applyEdits(one, toEdits([{ op: 'remove_day', at: 0 }], 1, one)).days.length, 1);
+  });
+  t('an out-of-range day is ignored rather than corrupting the trip', () => {
+    const it = TRIP();
+    assert.equal(applyEdits(it, toEdits([{ op: 'remove_day', at: 99 }], 1, it)).days.length, 6);
+  });
+  t('adding a day does not disturb what is already on the other days', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{
+      op: 'add_day', at: 0, newDay: { title: 'New first', stay: 0 },
+    }], 1, it));
+    assert.equal(out.days[1].title, 'Arrive');
+    assert.equal(out.days[1].items[0].h, 'Flight SQ123');
+  });
+}
+
+console.log('\nThe trip header');
+{
+  t('update_trip renames without touching anything else', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{
+      op: 'update_trip', tripPatch: { title: 'Singapore & Johor', titleSub: 'six nights' },
+    }], 1, it));
+    assert.equal(out.trip.title, 'Singapore & Johor');
+    assert.equal(out.trip.start, '2026-11-12', 'the dates are not its business');
+  });
+  t('it cannot move the dates behind the days backs', () => {
+    const it = TRIP();
+    const out = applyEdits(it, toEdits([{
+      op: 'update_trip', tripPatch: { start: '2027-01-01', end: '2027-01-06' },
+    }], 1, it));
+    assert.equal(out.trip.start, '2026-11-12');
+    assert.equal(out.trip.end, '2026-11-17');
+  });
+}
+
 console.log('\n' + n + ' passed');
