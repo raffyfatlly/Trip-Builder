@@ -1039,7 +1039,29 @@ const ROUTE_MAP_JS = iconsJs() + mapfitJs() + `
   renderRouteMap();
 `;
 
-export function render(T, templateSrc, opts) {
+export function render(itinerary, templateSrc, opts) {
+  // FILL IN THE COLLECTIONS BEFORE ANYTHING READS THEM.
+  //
+  // The app's script does `var AREAS=T.areas` and then `AREAS.forEach(...)` on
+  // the next line. An itinerary missing that one optional key therefore did not
+  // lose its idea grid — it threw at the top level of the only script in the
+  // document and took the entire app down with it, which is what raffy saw as
+  // "a client-side exception has occurred" on his Jakarta trip while every
+  // other trip was fine.
+  //
+  // The template now falls back on its own (see the data swaps below), which is
+  // what repairs already-installed apps. This does it a second time, here, so
+  // that checklist() and every build-time read below get the same complete
+  // shape rather than each having to guard for itself.
+  const T = {
+    ...itinerary,
+    trip: (itinerary && itinerary.trip) || {},
+    stays: (itinerary && itinerary.stays) || [],
+    days: (itinerary && itinerary.days) || [],
+    ideas: (itinerary && itinerary.ideas) || [],
+    areas: (itinerary && itinerary.areas) || [],
+    photos: (itinerary && itinerary.photos) || {},
+  };
   // A shared trip is read-only. raffy, 2026-09-06, on sharing an itinerary:
   // whoever opens the link is a guest, and a guest quietly rewriting the trip
   // is the one thing sharing must not make possible. The tools simply are not
@@ -1152,10 +1174,56 @@ export function render(T, templateSrc, opts) {
   // range beneath them.
 
   // data: swap the inlined arrays for references into T
-  replaceRange(873, 947, 'var DAYS=[', '  var DAYS=T.days;', 'DAYS array');
-  replaceRange(864, 868, 'var AREAS', '  var AREAS=T.areas;', 'AREAS array');
-  replaceRange(804, 862, 'var IDEAS', '  var IDEAS=T.ideas;', 'IDEAS array');
-  replaceRange(753, 782, 'var STAYS=[', '  var STAYS=T.stays;', 'STAYS array');
+  //
+  // EVERY ONE OF THESE FALLS BACK, and the fallback is not decoration.
+  //
+  // raffy, 2026-09-07: "check my recent Jakarta trip ... suddenly it give this"
+  // — a white page reading "a client-side exception has occurred", and no photo
+  // cards at all. The trip itself was fine. What was missing was one key: that
+  // itinerary had no `areas`, so `var AREAS=T.areas` was undefined and the very
+  // next line, `AREAS.forEach(...)`, threw. That throw is at the top level of
+  // the app's only script, so it did not just lose the idea grid — it killed
+  // the day strip, the map, the packing list, everything below it. One absent
+  // optional field took down the whole app.
+  //
+  // It only ever showed on SOME trips ("the error only on Jakarta page. other
+  // page is okay") because a trip whose ideas happened to be grouped has areas
+  // and a trip whose ideas are one flat list does not. That is exactly the
+  // shape of bug that survives testing: the trips you try are the ones that
+  // work.
+  //
+  // save_itinerary normalises areas to [] (lib/itinerary.js), so a trip built
+  // today is safe. Trips built before that, or by any path that did not go
+  // through it, are not — and they are stored, not regenerated. Guarding here
+  // repairs them all at once, because the preview and the installed app are
+  // both rendered from the template at read time.
+  replaceRange(873, 947, 'var DAYS=[', '  var DAYS=T.days||[];', 'DAYS array');
+  replaceRange(864, 868, 'var AREAS', '  var AREAS=T.areas||[];', 'AREAS array');
+  replaceRange(804, 862, 'var IDEAS', '  var IDEAS=T.ideas||[];', 'IDEAS array');
+  replaceRange(753, 782, 'var STAYS=[', '  var STAYS=T.stays||[];', 'STAYS array');
+
+  // A DAY THAT IS NOT THERE, AND A STAY THAT IS NOT THERE.
+  //
+  // Same family as the missing `areas` above: renderDay reaches straight into
+  // DAYS[i] and then STAYS[d.stay], and both of those are top-level enough that
+  // an undefined one takes the page down rather than leaving a gap. It happens
+  // on a trip with no days yet (a build that was interrupted, a share link
+  // opened early) and on a day whose `stay` index points past the end of a
+  // stays list that was later shortened.
+  //
+  // Returning early is right for the first: there is no day to draw. Falling
+  // back to an empty object is right for the second: the day is real, only its
+  // hotel is missing, and esc() already prints nothing for a missing value.
+  replaceOnce(
+    'cur=i; var d=DAYS[i], s=STAYS[d.stay], st=store();',
+    'cur=i; var d=DAYS[i]; if(!d) return; var s=STAYS[d.stay]||{}, st=store();',
+    'renderDay guard',
+  );
+  replaceOnce(
+    "'<div class=\"lk\">'+d.dow+' '+d.dom+' Aug &middot; '+STAYS[d.stay].short+'</div>'+",
+    "'<div class=\"lk\">'+d.dow+' '+d.dom+' Aug &middot; '+((STAYS[d.stay]||{}).short||'')+'</div>'+",
+    'search result stay name guard',
+  );
 
   // esc(undefined) printed the WORD "undefined" into the page — visible under
   // both ends of every leg on his Desaru trip, because a drive has no departure
@@ -1180,7 +1248,7 @@ export function render(T, templateSrc, opts) {
     "    if(s.draft && (i===0||DAYS[i-1].stay!==d.stay))",
     "    if(s && s.draft && (i===0||DAYS[i-1].stay!==d.stay))",
     'unbooked-stay note survives a trip with no stays');
-  replaceRange(746, 750, 'var P = {', '  var P=T.photos;', 'photo map');
+  replaceRange(746, 750, 'var P = {', '  var P=T.photos||{};', 'photo map');
 
   // The illustrated map is Phu Quoc's and does not generalise: an OSM polygon
   // simplified to 168 points, a computed centreline so the route follows land,

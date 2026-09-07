@@ -109,9 +109,20 @@ ok('and charging twice takes nothing the second time', again === null);
 J.spendAdd(S, 'builder', 'deepseek/deepseek-chat-v3-0324', { in: 1, out: 1, usd: 0.30 });
 await new Promise((r) => setTimeout(r, 30));
 const third = await C.settle(S);
+// The difference is taken on the ROUNDED RUNNING TOTAL, not by rounding the
+// increment. That distinction is the whole of the overcharge fix (raffy's wife
+// was billed 58 credits for a 41-credit session), and this assertion still
+// encoded the old behaviour: creditsFor(0.30) rounds the increment up on its
+// own, which is exactly the per-request rounding that was removed.
+//
+//   creditsFor(2.22) = 32, creditsFor(2.52) = 36  ->  4 owed
+//   creditsFor(0.30) = 5                          <- the old, inflated answer
 ok('a later cost is charged as a difference, not a total',
-   third && third.credits === C.creditsFor(0.30),
+   third && third.credits === C.creditsFor(2.52) - C.creditsFor(2.22),
    third ? third.credits + ' credits' : 'nothing');
+ok('and that is less than rounding the increment on its own would have taken',
+   third && third.credits < C.creditsFor(0.30),
+   third ? third.credits + ' vs ' + C.creditsFor(0.30) : 'nothing');
 
 console.log('\nthe gate');
 

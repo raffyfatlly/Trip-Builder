@@ -24,7 +24,7 @@ import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
 import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
-import { syncAgents, chatModel } from '../../lib/agentSync.js';
+import { syncAgents, chatModel, toolCheck } from '../../lib/agentSync.js';
 import { createSession, sendUserMessage, advanceState, getState } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
 
@@ -120,6 +120,14 @@ export default async function handler(req, res) {
   const agentSync = req.query && req.query.syncagent
     ? await syncAgents({ force: true }) : undefined;
 
+  // `?tools=1` reads the live chat agent and reports its model and the tools it
+  // is actually holding, plus anything this repo defines that it is missing.
+  //
+  // raffy, 2026-09-07: "make it haiku but make it get all the same tools!" —
+  // and the only way to answer that is to ask the agent, not the code that
+  // sends to it. Read-only and free.
+  const agentTools = req.query && req.query.tools ? await toolCheck() : undefined;
+
   // `?makebucket=1` creates the project's default storage bucket, once. The
   // lookup established the project has none at all — Firebase Storage was never
   // switched on — so booking confirmations had nowhere to go. It can only ever
@@ -190,6 +198,7 @@ export default async function handler(req, res) {
     models,
     prices,
     agentSync,
+    agentTools,
     chat,
     madeBucket,
     firecrawl,

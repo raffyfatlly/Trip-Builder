@@ -80,10 +80,22 @@ t('the booking link is always there', () => {
 
 console.log('\nHotels');
 
+// It points at Booking.com now, not hotellook. raffy, 2026-09-07: "we are using
+// shitty sites." Hotellook is the service Travelpayouts shut down; sending the
+// To do list's "book a hotel" row there was sending people nowhere useful. It
+// now opens the same page the rate is read off, so the number and the link agree.
 t('the link takes city, which is what the schema sends', () => {
   const l = hotelSearchLink({ city: 'Chiang Mai', checkIn: '2026-11-12', checkOut: '2026-11-16' });
-  assert.ok(l.includes('destination=Chiang+Mai'), l);
-  assert.ok(l.includes('checkIn=2026-11-12'));
+  assert.ok(l.startsWith('https://www.booking.com/'), l);
+  assert.ok(l.includes('ss=Chiang+Mai'), l);
+  assert.ok(l.includes('checkin=2026-11-12'), l);
+  assert.ok(l.includes('checkout=2026-11-16'), l);
+});
+
+t('a named hotel narrows the same search rather than replacing the town', () => {
+  const l = hotelSearchLink({ city: 'Chiang Mai', hotel: 'Tamarind Village', checkIn: '2026-11-12', checkOut: '2026-11-16' });
+  assert.ok(l.includes('Tamarind+Village'), l);
+  assert.ok(l.includes('Chiang+Mai'), l);
 });
 
 t('a hotel name alone still builds nothing — a link to the wrong town is worse', () => {
