@@ -11,13 +11,13 @@ import { note } from '../../lib/journal.js';
 import { billed } from '../../lib/billed.js';
 import { allowed, leftOf } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
-import { shouldReply, heldFor } from '../../lib/listen.js';
+import { shouldReply, heldFor, withoutAsk } from '../../lib/listen.js';
 import { readOwner, readHeld, appendHeld, clearHeld, firestoreConfigured } from '../../lib/firestore.js';
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
-  const { session, text, files, client, memory } = req.body || {};
+  const { session, text, files, client, memory, asked } = req.body || {};
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ error: 'session required' });
   }
@@ -87,7 +87,9 @@ async function handler(req, res) {
     let held = [];
     if (shared) {
       try { held = await readHeld(session); } catch (e) { held = []; }
-      const verdict = await shouldReply({ text: text || '', recent: held, shared });
+      // Synchronous, free, and predictable: @ or the composer's button, and
+      // nothing else. See lib/listen.js for why the guessing went.
+      const verdict = shouldReply({ text: text || '', shared, asked: !!asked });
       if (!verdict.reply) {
         // Said to the other person, not to the agent. It is kept where both of
         // them can see it and where the agent will read it the next time it
@@ -132,7 +134,10 @@ async function handler(req, res) {
     }
     if (text && text.trim()) {
       const from = shared && who ? who.split('@')[0] + ': ' : '';
-      content.push({ type: 'text', text: from + text.trim() });
+      // The @ is how they summoned it, not part of what they asked. Left in, a
+      // reply tends to open by acknowledging being addressed.
+      const said = shared ? withoutAsk(text) : text.trim();
+      content.push({ type: 'text', text: from + said });
     }
 
     // Where and when they are, attached to every message so "now" is never

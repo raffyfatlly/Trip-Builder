@@ -597,6 +597,10 @@ export default function Home() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           session, text, files, memory,
+          // Said outright rather than inferred from the text: the button and
+          // the typed @ are the same intent, and the server should not have to
+          // reverse-engineer which one happened.
+          asked: /@/.test(text),
           // The browser knows its own timezone exactly; the IP lookup only
           // approximates it. No permission prompt for either.
           client: {
@@ -1238,11 +1242,31 @@ export default function Home() {
                   <path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5" />
                 </svg>
               </label>
+              {/* raffy, 2026-09-07: "maybe we can @ something to ask agent to
+                  reply or something? but make it easy for user to invoke."
+                  Typing @ works, and this types it for them — the convention
+                  should be discoverable, not something you have to be told.
+                  Only in a shared trip: alone, every message is answered and a
+                  button to ask would be asking for what you already have. */}
+              {party && party.shared && (
+                <button
+                  type="button"
+                  className={'askbtn' + (draft.trim().startsWith('@') ? ' on' : '')}
+                  title="Ask the assistant"
+                  aria-label="Ask the assistant"
+                  onClick={() => {
+                    setDraft((d) => (d.trim().startsWith('@') ? d.replace(/^\s*@\s*/, '') : '@ ' + d.trimStart()));
+                    if (inputRef.current) inputRef.current.focus();
+                  }}
+                >@</button>
+              )}
               <textarea
                 ref={inputRef}
                 rows={1}
                 value={draft}
-                placeholder={messages.length ? "Reply, or attach a booking" : "Tell me about your trip"}
+                placeholder={party && party.shared
+                  ? 'Message them \u2014 @ to ask the assistant'
+                  : (messages.length ? 'Reply, or attach a booking' : 'Tell me about your trip')}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter' || e.shiftKey) return;
@@ -1648,6 +1672,18 @@ export default function Home() {
           outline:0;resize:none;line-height:1.45;
         }
         .drow textarea:focus{box-shadow:0 0 0 2px var(--coral)}
+
+        /* The @ button. Sits where the paperclip does, reads as a chip rather
+           than a control, and lights up once the @ is actually in the draft so
+           there is no doubt whether the next message goes to the assistant. */
+        .askbtn{
+          flex:none;width:38px;height:38px;border:0;border-radius:50%;
+          background:var(--sage);color:var(--ink-soft);cursor:pointer;
+          font-family:inherit;font-size:17px;font-weight:750;line-height:1;
+          transition:background 140ms ease,color 140ms ease;
+        }
+        .askbtn.on{background:var(--deep);color:#EAF2EC}
+        .askbtn:active{transform:scale(.94)}
         .drow button{
           flex:none;width:38px;height:38px;border:0;border-radius:50%;cursor:pointer;
           background:var(--deep);color:#EAF2EC;display:grid;place-items:center;
