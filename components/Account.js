@@ -74,7 +74,7 @@ const css = `
   .acct .cta b{font-size:13px;font-weight:650}
   .acct .cta i{font-style:normal;font-size:11.5px;color:var(--ink-soft)}
 
-  .acct .form{background:var(--bg);border-radius:12px;padding:12px}
+  .acct .form{background:var(--well);border-radius:12px;padding:12px}
   .acct label{
     display:block;font-size:11px;font-weight:750;letter-spacing:.06em;
     text-transform:uppercase;color:var(--ink-faint);margin:0 0 5px;
@@ -97,7 +97,7 @@ const css = `
   .acct .go{flex:1;background:var(--deep);color:#EAF2EC}
   .acct .go:disabled{opacity:.45;cursor:default}
 
-  .acct.in{display:flex;align-items:center;gap:10px;background:var(--bg);
+  .acct.in{display:flex;align-items:center;gap:10px;background:var(--well);
       border-radius:12px;padding:10px 12px}
   .acct .who{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
   .acct .av{

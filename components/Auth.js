@@ -189,10 +189,10 @@ export default function Auth({ open, mode, trips, required, onClose, onSignedIn 
         .x{
           position:absolute;top:12px;right:12px;width:32px;height:32px;padding:0;
           display:flex;align-items:center;justify-content:center;
-          border:0;border-radius:50%;background:var(--bg);color:var(--ink-soft);cursor:pointer;
+          border:0;border-radius:50%;background:var(--well);color:var(--ink-soft);cursor:pointer;
         }
         .x svg{width:15px;height:15px}
-        .tabs{display:flex;gap:4px;background:var(--bg);border-radius:12px;padding:4px;margin:2px 34px 16px 0}
+        .tabs{display:flex;gap:4px;background:var(--well);border-radius:12px;padding:4px;margin:2px 34px 16px 0}
         .tabs button{
           flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;
           font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink-faint);cursor:pointer;

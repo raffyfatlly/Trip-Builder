@@ -159,7 +159,7 @@ export default function PhotoPick({ current, onSet, onClear }) {
         .pprem:hover{background:var(--sage)}
 
         .ppbody{
-          margin-top:9px;background:var(--bg);border-radius:13px;padding:11px;
+          margin-top:9px;background:var(--well);border-radius:13px;padding:11px;
         }
         .up{
           width:100%;border:0;border-radius:11px;padding:11px;font-size:13px;font-weight:650;

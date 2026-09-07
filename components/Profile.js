@@ -104,7 +104,7 @@ export default function Profile({ memory, onEdit, onForget, onClearAll }) {
         .pval i{font-style:normal;color:var(--ink-faint)}
         .prow.blank .pval{color:var(--ink-faint)}
         input{
-          width:100%;border:0;background:var(--bg);border-radius:9px;
+          width:100%;border:0;background:var(--well);border-radius:9px;
           padding:7px 9px;font-size:13px;font-family:inherit;color:var(--ink);outline:none;
         }
         input:focus{box-shadow:0 0 0 2px var(--deep)}

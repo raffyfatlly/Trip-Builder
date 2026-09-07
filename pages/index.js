@@ -1548,10 +1548,19 @@ export default function Home() {
 
       <style jsx global>{`
         :root{
-          --bg:#EDF2EA; --surface:#FFFFFF; --sage:#E2EBDE; --deep:#10362A;
+          /* raffy, 2026-09-07: "can you make the background of the chat
+             lighter? instead of the green color."
+
+             --bg was #EDF2EA, a distinctly green page. It is now nearly
+             neutral and much lighter. The catch was that --bg did two jobs:
+             the page behind everything, AND the recessed panels INSIDE white
+             cards — the sign-in tabs, the profile fields, the account row.
+             Lightening one role to near-white erases the other, so they are
+             separate variables now. --well is what --bg used to be. */
+          --bg:#F5F7F4; --well:#EAEFE8; --surface:#FFFFFF; --sage:#E4EBE1; --deep:#10362A;
           --ink:#0C241B; --ink-soft:#4C6157; --ink-faint:#5A6C63;
           --coral:#EE7B45; --line:rgba(12,36,27,.10);
-          --sh-s:0 2px 10px rgba(12,36,27,.06);
+          --sh-s:0 1px 2px rgba(12,36,27,.05),0 3px 12px rgba(12,36,27,.07);
           --sh-m:0 8px 26px -10px rgba(12,36,27,.20);
           --sh-l:0 18px 44px -16px rgba(12,36,27,.30);
           --e:cubic-bezier(.23,1,.32,1);
