@@ -34,16 +34,37 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (event.type !== 'checkout.session.completed') {
+    // TWO EVENTS GRANT CREDITS, NOT ONE — and the second is the one that matters
+    // in Malaysia.
+    //
+    // A card pays instantly: checkout.session.completed arrives with
+    // payment_status 'paid' and we are done. FPX — online banking, which is how
+    // a great many Malaysians actually pay — does not. Its session completes
+    // with payment_status 'unpaid' while the bank is still thinking, and the
+    // money confirms minutes later as checkout.session.async_payment_succeeded.
+    //
+    // Listening only for `completed` would therefore take FPX money and never
+    // grant the credits. The customer pays and gets nothing, and nothing in the
+    // logs looks broken.
+    const GRANTS = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'];
+    if (!GRANTS.includes(event.type)) {
       // Everything else is acknowledged and ignored. A 200 stops Stripe
       // retrying an event we were never going to act on.
+      //
+      // A failed async payment is worth a line in the log even though there is
+      // nothing to undo: it is the only trace that somebody tried to pay and
+      // their bank said no.
+      if (event.type === 'checkout.session.async_payment_failed') {
+        console.log('stripe: async payment failed for', (event.data.object || {}).id);
+      }
       return res.status(200).json({ ok: true, ignored: event.type });
     }
 
     const s = event.data.object;
-    // `paid` rather than `complete`: a session can complete with an async
-    // payment (FPX, bank debit) still pending, and crediting on that is
-    // crediting money that has not arrived.
+    // `paid` rather than `complete`. On the card path this is already true; on
+    // the FPX path it is false on `completed` and true on the async event, so
+    // this single guard is what makes listening to both safe — the first
+    // delivery defers, the second grants, and neither double-counts.
     if (s.payment_status !== 'paid') {
       return res.status(200).json({ ok: true, pending: s.payment_status });
     }

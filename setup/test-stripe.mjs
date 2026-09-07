@@ -87,4 +87,22 @@ console.log('\nwhat a build actually costs, against what a pack buys');
   t('and the free grant covers none of it', () => assert.ok(C.explain().grant < trip));
 }
 
+console.log('\nwhich events grant credits');
+
+// The webhook's own list, asserted here so a future edit that drops the async
+// event is caught. FPX (Malaysian online banking) completes UNPAID and confirms
+// minutes later; listening only for checkout.session.completed would take the
+// money and never grant the credits.
+{
+  const src = await import('node:fs').then((fs) => fs.readFileSync('pages/api/stripe-webhook.js', 'utf8'));
+  t('a completed checkout grants', () => assert.ok(src.includes("'checkout.session.completed'")));
+  t('and so does a confirmed async payment — FPX pays this way', () =>
+    assert.ok(src.includes("'checkout.session.async_payment_succeeded'")));
+  t('but only when payment_status is actually paid', () =>
+    assert.ok(/payment_status !== 'paid'/.test(src)));
+  t('a failed async payment is logged, not silently dropped', () =>
+    assert.ok(src.includes('async_payment_failed')));
+  t('everything else is acknowledged and ignored', () => assert.ok(/ignored: event\.type/.test(src)));
+}
+
 console.log('\n' + n + ' passed');
