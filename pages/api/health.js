@@ -159,6 +159,7 @@ export default async function handler(req, res) {
       adults: Number(req.query.adults) || 2,
       currency: String(req.query.currency || 'MYR'),
     });
+    if (!req.query.raw && locktrip) delete locktrip.raw;
   }
 
   // `?syncagent=1` pushes this repo's prompt and tools to both persisted agents
