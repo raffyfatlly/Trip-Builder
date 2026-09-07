@@ -102,7 +102,7 @@ export default async function handler(req, res) {
     // for a key that is sitting right there.
     await loadConfig();
     const t0 = Date.now();
-    const text = await scrape(String(req.query.firecrawl));
+    const text = await scrape(String(req.query.firecrawl), 20000, Number(req.query.head) || undefined);
     // `&head=N` and `&find=a,b` — because a byte count is not a reading.
     //
     // raffy, 2026-09-07: "booking.com on the dates at del Rio give results. its
