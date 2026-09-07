@@ -16,6 +16,7 @@ import { FACT_TOOLS } from '../lib/facts.js';
 import { PRICE_TOOL } from '../lib/prices.js';
 import { RESEARCH_TOOL } from '../lib/research.js';
 import { CHAT_AGENT_ID } from '../lib/config.js';
+import { CHAT_TOOLS } from '../lib/agentSync.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) throw new Error('ANTHROPIC_API_KEY not set');
@@ -27,16 +28,10 @@ const H = {
   'content-type': 'application/json',
 };
 
-const tools = [
-  // Every container tool off, and no web search: the chat agent researches
-  // through RESEARCH_TOOL now, on our own server. See lib/research.js for why.
-  { type: 'agent_toolset_20260401', default_config: { enabled: false } },
-  RESEARCH_TOOL,
-  BUILD_TOOL, READ_TOOL, EDIT_TOOL, PRESENT_TOOL, PROPOSE_TOOL, NOTE_TOOL,
-  REMEMBER_TOOL, FORGET_TOOL,
-  ...FACT_TOOLS,
-  PRICE_TOOL,
-];
+// One list, in lib/agentSync.js, shared with the deployment that now pushes
+// this automatically. Two copies of it would drift, and a tool list that
+// disagrees with itself is the exact failure this script exists to fix.
+const tools = CHAT_TOOLS();
 
 const before = await (await fetch('https://api.anthropic.com/v1/agents/' + CHAT_AGENT_ID, { headers: H })).json();
 console.log('now      v' + before.version + '  ' + (before.model || {}).id
