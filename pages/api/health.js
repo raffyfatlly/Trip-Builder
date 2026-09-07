@@ -9,7 +9,7 @@ import { research, WORKER } from '../../lib/research.js';
 const settingOR = () => setting('OPENROUTER_API_KEY', 'openrouterKey');
 import { placesKey } from '../../lib/photos.js';
 import { checkSources } from '../../lib/facts.js';
-import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId } from '../../lib/storage.js';
+import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId, listBuckets, resolveBucket } from '../../lib/storage.js';
 import { agentDrift } from '../../lib/managedAgents.js';
 import { CHAT_AGENT_ID, BUILDER_AGENT_ID } from '../../lib/config.js';
 import { BUILDER_SYSTEM } from '../../lib/builderPrompt.js';
@@ -41,6 +41,16 @@ import { loadConfig } from '../../lib/settings.js';
 async function checkDocStore() {
   if (!storageConfigured()) return 'no bucket configured';
   try {
+    // Settle on a bucket that exists before writing to one that might not.
+    // This check used to report "The specified bucket does not exist" because
+    // the name was a guess at Firebase's 2024 rename; now it asks.
+    const named = await resolveBucket();
+    if (!named) {
+      const all = await listBuckets();
+      return all.length
+        ? 'no Firebase default bucket; project has: ' + all.join(', ')
+        : 'the project has no storage bucket at all — create one in the Firebase console';
+    }
     const id = newDocId();
     await putDoc('health', { id, name: 'health', type: 'text/plain', bytes: Buffer.from('ok') });
     const back = await getDoc('health', id);
