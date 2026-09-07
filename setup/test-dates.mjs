@@ -9,7 +9,7 @@
 // date change had no cheap path, and nothing but a prompt stood between the
 // agent and spending her balance.
 import assert from 'node:assert';
-import { shiftDates, dateChangeKind, stayDates, parseISO, toISO } from '../lib/dates.js';
+import { shiftDates, dateChangeKind, changeShape, stayDates, parseISO, toISO } from '../lib/dates.js';
 import { applyEdits } from '../lib/edits.js';
 import { toEdits } from '../lib/editTools.js';
 
@@ -228,6 +228,37 @@ console.log('\nThe trip header');
     }], 1, it));
     assert.equal(out.trip.start, '2026-11-12');
     assert.equal(out.trip.end, '2026-11-17');
+  });
+}
+
+console.log('\nWhat the rebuild gate decides, which is what guards their balance');
+{
+  const it = TRIP();
+  t('same place, same length, moved dates: a shift', () => {
+    assert.equal(changeShape(it, { destination: 'Singapore', start: '2026-11-19', end: '2026-11-24' }),
+      'date-shift');
+  });
+  t('same place, different length: still edits, not a rebuild', () => {
+    assert.equal(changeShape(it, { destination: 'Singapore', start: '2026-11-19', end: '2026-11-26' }),
+      'date-length');
+  });
+  // The bug this catches: a call that swapped the HOTEL and left the dates
+  // alone was told "this is just a date change" — wrong, and about a part of
+  // the trip it had not touched.
+  t('dates unchanged is NOT a date change, whatever else moved', () => {
+    assert.equal(changeShape(it, { destination: 'Singapore', start: '2026-11-12', end: '2026-11-17' }),
+      'other');
+    assert.equal(changeShape(it, { destination: 'Singapore' }), 'other');
+  });
+  t('a genuinely different destination is the one thing that rebuilds', () => {
+    assert.equal(changeShape(it, { destination: 'Bali', start: '2026-11-19' }), 'other');
+  });
+  t('the city matches either way round', () => {
+    assert.equal(changeShape(it, { destination: 'Singapore, Singapore', start: '2026-11-19' }), 'date-shift');
+  });
+  t('when it cannot tell, it asks rather than assuming', () => {
+    assert.equal(changeShape(it, { start: '2026-11-19' }), 'other');
+    assert.equal(changeShape({ trip: {}, days: [] }, { destination: 'Singapore', start: '2026-11-19' }), 'other');
   });
 }
 
