@@ -25,7 +25,7 @@ import { BUILD_TOOL } from '../../lib/brief.js';
 import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
 import { locktripProbe, rawTool } from '../../lib/locktrip.js';
-import { syncAgents, chatModel, toolCheck } from '../../lib/agentSync.js';
+import { syncAgents, chatModel, toolCheck, pushPrompt } from '../../lib/agentSync.js';
 import { createSession, sendUserMessage, advanceState, getState } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
 
@@ -171,6 +171,11 @@ export default async function handler(req, res) {
     lt = await rawTool(String(req.query.lt), body);
   }
 
+  // `?syncprompt=1` pushes the prompt ALONE, echoing the live tools and model
+  // back unchanged. The one safe way to reword the agent while somebody is
+  // managing its tools by hand in the Console.
+  const promptPush = req.query && req.query.syncprompt ? await pushPrompt() : undefined;
+
   // `?syncagent=1` pushes this repo's prompt and tools to both persisted agents
   // now, rather than waiting for the next session to do it. The deployment does
   // this on its own before every chat session; this is here so a deploy can be
@@ -259,6 +264,7 @@ export default async function handler(req, res) {
     prices,
     locktrip,
     lt,
+    promptPush,
     agentSync,
     agentTools,
     chat,
