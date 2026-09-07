@@ -53,8 +53,19 @@ await withSession(S, async () => {
   assert.equal(+t['places.photo'].usd.toFixed(4), 0.014);
 
   assert.equal(t.routes.calls, 1);
-  assert.equal(t.weather.usd, 0, 'free is still free');
-  assert.equal(t.weather.calls, 1, 'free is still counted');
+
+  // FREE SERVICES ARE NO LONGER COUNTED. raffy, 2026-09-07: "just removed if
+  // it's not helping and always showing error (journal). just track the most
+  // solid one."
+  //
+  // Counting them was not only noise. Metering Firestore into a journal that IS
+  // a Firestore document is a feedback loop: every read metered a call, which
+  // queued a journal write, which was another call. One session logged 949
+  // firestore calls and 230 failures, and the 15-second timeouts flooding the
+  // error log were that loop failing to drain.
+  assert.ok(!t.weather, 'a free service is still being journalled');
+  assert.ok(!t.firestore, 'the meter is still feeding itself');
+  assert.ok(!t.auth && !t.fx && !t.holidays, 'free services still counted');
 
   // A host nobody priced shows up under its own name, flagged, at zero. This
   // is how the next unbilled service gets noticed instead of vanishing.
