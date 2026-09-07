@@ -103,11 +103,41 @@ export default async function handler(req, res) {
     await loadConfig();
     const t0 = Date.now();
     const text = await scrape(String(req.query.firecrawl));
+    // `&head=N` and `&find=a,b` — because a byte count is not a reading.
+    //
+    // raffy, 2026-09-07: "booking.com on the dates at del Rio give results. its
+    // says booking.com says its unavailable."
+    //
+    // He was right and this probe is why I did not catch it. It reported
+    // "12,019 chars" and I called the scrape working. Those 12,019 characters
+    // were Booking's bot interstitial and its search chrome — the head shows
+    // `chal_t=` and `force_referer=https://www.google.com/`, which is a
+    // challenge page, and not one hotel name in it. A page that loads is not a
+    // page that answers.
+    //
+    // 12,000 is also exactly scrape()'s truncation cap, so on a results page
+    // the listings can be past the cut even when the fetch is clean. `find`
+    // answers both questions at once: is the thing I need actually in here, and
+    // where.
+    const want = String((req.query && req.query.find) || '').split(',')
+      .map((x) => x.trim()).filter(Boolean).slice(0, 6);
     firecrawl = {
       configured: firecrawlReady(),
       seconds: +((Date.now() - t0) / 1000).toFixed(1),
       chars: text.length,
-      head: text.slice(0, 400),
+      // Capped at what scrape() itself keeps, so this can never return more of
+      // somebody's page than the app already handles.
+      head: text.slice(0, Math.max(0, Math.min(12000, Number(req.query.head) || 400))),
+      ...(want.length ? {
+        found: Object.fromEntries(want.map((w) => {
+          const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          const hits = text.match(re) || [];
+          const at = text.search(re);
+          return [w, hits.length
+            ? { count: hits.length, at, context: text.slice(Math.max(0, at - 80), at + 160) }
+            : { count: 0 }];
+        })),
+      } : {}),
     };
   }
 
