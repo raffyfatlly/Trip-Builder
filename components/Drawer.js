@@ -13,7 +13,7 @@ import { peopleText } from '../lib/memory.js';
 // header now carries one control and a title; everything else slides in from
 // the left with space to be legible.
 
-export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onDownload, onShare, shareNote, sharing, canDownload,
+export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDrop, onNew, onShare, shareNote, sharing, hasTrip,
                                 accounts, user, onSignedIn, onSignOut,
                                 memory, onEditSlot, onForgetSlot, onForgetAll,
                                 nudge, onNudgeSave, onNudgeLater, signInNow, credits, onOpenAuth }) {
@@ -170,7 +170,7 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
               itenary to people." The phone's own share sheet, so it lands in
               WhatsApp in one tap. What goes out is a revocable token, never the
               session id — that is the key to the whole conversation. */}
-          {canDownload && (
+          {hasTrip && (
             <button className="act" onClick={onShare} disabled={sharing}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
@@ -183,25 +183,22 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
             </button>
           )}
 
-          {canDownload && (
-            <button className="act" onClick={onDownload}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 4v11m0 0 4-4m-4 4-4-4M5 19h14" />
-              </svg>
-              <span><b>Download</b><i>Keep this itinerary offline, map and all</i></span>
-            </button>
-          )}
+          {/* raffy, 2026-09-07: "remove the download function and replace the
+              button with the install app function."
 
-          {/* raffy, 2026-09-06: "Download as PWS app (like my phu quoc I can
-              download as app.)" A downloaded file can never be installable —
-              file:// cannot register a service worker — so the install lives on
-              a served page. This opens it; Add to Home Screen does the rest. */}
-          {canDownload && session && (
+              There used to be a Download above this, saving a one-off HTML
+              file with every photo and the map baked into it so it would still
+              work from disk. This replaces it rather than sitting beside it:
+              same job, done better. A saved file could never be installable —
+              file:// cannot register a service worker — and it froze the trip
+              at the moment it was saved. This one stays live, so a change made
+              in the chat is there the next time they open it. */}
+          {hasTrip && session && (
             <a className="act" href={'/t/' + encodeURIComponent(session)} target="_blank" rel="noopener noreferrer">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" />
               </svg>
-              <span><b>Put it on your home screen</b><i>Opens the trip on its own, with an Install button</i></span>
+              <span><b>Put it on your home screen</b><i>Opens like an app, and stays up to date with your plan</i></span>
             </a>
           )}
 

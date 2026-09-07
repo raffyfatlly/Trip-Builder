@@ -20,52 +20,42 @@
 // agent invent headings and tables and slowly turn the chat into a document,
 // which is the same discipline the itinerary schema enforces everywhere else.
 
-import { parse } from '../lib/richtext.js';
+import { parse, tokens } from '../lib/richtext.js';
 
-const PRICE = /((?:RM|USD?|S\$|A\$|€|£|¥|₫|IDR|SGD|THB|VND|PHP|MYR)\s?[\d][\d,.]*(?:\s?(?:k|m|million))?(?:\s?[-–]\s?[\d][\d,.]*)?|\b\d[\d,.]*\s?(?:VND|IDR|THB|PHP|MYR|SGD|USD)\b)/gi;
-
-// Inline: **bold**, links, and prices. Order matters — links are pulled out
-// first so a price inside a URL is not mangled.
-function inline(text, keyBase) {
-  const out = [];
-  let i = 0;
-
-  const push = (node) => out.push(node);
-  const plain = (str, k) => {
-    // Prices last, on whatever text is left.
-    let last = 0;
-    let m;
-    PRICE.lastIndex = 0;
-    while ((m = PRICE.exec(str))) {
-      if (m.index > last) push(str.slice(last, m.index));
-      push(<b className="cost" key={k + '-p' + m.index}>{m[0]}</b>);
-      last = m.index + m[0].length;
-    }
-    if (last < str.length) push(str.slice(last));
-  };
-
-  const TOKEN = /\*\*(.+?)\*\*|(https?:\/\/[^\s<>"')]+)/g;
-  let last = 0;
-  let m;
-  while ((m = TOKEN.exec(text))) {
-    if (m.index > last) plain(text.slice(last, m.index), keyBase + '-' + i);
-    if (m[1]) {
-      push(<strong key={keyBase + '-b' + i}>{m[1]}</strong>);
-    } else {
-      const url = m[2];
-      push(
-        <a key={keyBase + '-a' + i} href={url} target="_blank" rel="noopener noreferrer">
-          {url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 42)}
-        </a>,
-      );
-    }
-    last = m.index + m[0].length;
-    i++;
-  }
-  if (last < text.length) plain(text.slice(last), keyBase + '-' + i);
-  return out;
+// A link is a CHIP, not underlined text in the middle of a sentence.
+//
+// raffy, 2026-09-07, with a screenshot: "improve how the chat display links and
+// any other info, not long strain of text in paragraph. make it look
+// beautiful." In that screenshot a hotel URL had been linkified in place and
+// wrapped across two lines mid-word, so the paragraph was cut in half by a
+// grey ladder of address. Two problems in one: it read as damage, and it gave
+// no clue what it would open.
+//
+// A chip fixes both. It cannot break across lines, it names its destination
+// rather than reciting a path, and it is a tap target rather than a word that
+// happens to be underlined. The little arrow says it leaves the app.
+function Chip({ href, children }) {
+  return (
+    <a className="chip" href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M7 17 17 7M9 7h8v8" />
+      </svg>
+    </a>
+  );
 }
 
+function inline(text, keyBase) {
+  return tokens(text).map((t, i) => {
+    const k = keyBase + '-' + i;
+    if (t.t === 'link') return <Chip key={k} href={t.href}>{t.v}</Chip>;
+    if (t.t === 'bold') return <strong key={k}>{t.v}</strong>;
+    if (t.t === 'em') return <em key={k}>{t.v}</em>;
+    if (t.t === 'price') return <b className="cost" key={k}>{t.v}</b>;
+    return t.v;
+  });
+}
 
 export default function Rich({ text }) {
   const blocks = parse(text);
@@ -88,6 +78,32 @@ export default function Rich({ text }) {
         li{line-height:1.5}
         li::marker{color:var(--ink-faint)}
         ol li::marker{font-variant-numeric:tabular-nums;font-weight:600}
+
+        /* :global — Chip is its own component, and a styled-jsx block only
+           scopes JSX written in the same one. Without this the rules are
+           silently dead, which has caught me three times in this codebase. */
+        :global(.chip){
+          display:inline-flex;align-items:center;gap:4px;
+          /* Never split across lines. The whole point. */
+          white-space:nowrap;max-width:100%;
+          vertical-align:baseline;margin:0 1px;
+          padding:2px 8px 2px 9px;border-radius:8px;
+          background:var(--sage);color:var(--deep);
+          font-size:.92em;font-weight:650;line-height:1.5;
+          text-decoration:none;
+          transition:background 140ms ease;
+        }
+        /* A long label truncates rather than forcing the chip off the edge. */
+        :global(.chip){overflow:hidden;text-overflow:ellipsis}
+        :global(.chip:hover),:global(.chip:active){background:#D7E2D2}
+        :global(.chip) svg{
+          width:11px;height:11px;flex:none;opacity:.55;margin-top:-1px;
+        }
+        /* On the traveller's own dark bubble the sage chip would vanish. */
+        :global(.msg.user) :global(.chip){
+          background:rgba(255,255,255,.16);color:#EAF2EC;
+        }
+        :global(.msg.user) :global(.chip:hover){background:rgba(255,255,255,.26)}
       `}</style>
     </>
   );

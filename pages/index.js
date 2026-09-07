@@ -1,7 +1,7 @@
 import { Credits } from '../components/Ring.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
-import { renderPreview, downloadName } from '../lib/preview.js';
+import { renderPreview } from '../lib/preview.js';
 import Progress from '../components/Progress.js';
 import Auth from '../components/Auth.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
@@ -645,82 +645,20 @@ export default function Home() {
     }
   };
 
-  // Saving the trip bakes the photographs into it.
+  // The download is gone.
   //
-  // raffy, 2026-09-03: "make sure the photos stay in app too." They did not:
-  // the file kept the pictures as URLs, and /api/photo is a relative path, so
-  // opened from disk it resolved to file:///api/photo and every Google Places
-  // photo was a broken image. Anything on somebody else's host was one outage
-  // from the same. See pages/api/bake.js for why the fetching happens there.
+  // raffy, 2026-09-07: "remove the download function and replace the button
+  // with the install app function."
   //
-  // Best effort, and never a reason not to get the file: if baking fails or
-  // takes too long, the download goes ahead with the URLs it already had.
-  const [baking, setBaking] = useState(false);
-
-  // Everything the saved file needs to stand on its own: the photographs, and
-  // the map. raffy, 2026-09-06: "the map background will be lost?"
+  // It had become the wrong answer to its own question. Saving a one-off HTML
+  // file meant baking every photograph and the map into it so the copy would
+  // still work from disk — a lot of machinery, a long wait, and a trip frozen
+  // at the moment it was saved. Installing does the same job better: the same
+  // trip on the home screen, opening like an app, and still the live one, so an
+  // edit made in the chat is there next time it opens.
   //
-  // Both are best effort and neither is a reason not to get the file.
-  const bakeAll = async (it) => {
-    let out = it;
-    try {
-      const r = await fetch('/api/mapbake', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ itinerary: it }),
-        signal: AbortSignal.timeout(20000),
-      });
-      if (r.ok) {
-        const { ground } = await r.json();
-        if (ground && ground.url) out = { ...out, ground };
-      }
-    } catch (e) {
-      console.error('baking the map failed, saving without it', e);
-    }
-    return out;
-  };
-
-  const download = async () => {
-    let html = preview;
-    const urls = (working && working.photos) || {};
-    if (Object.keys(urls).length) {
-      setBaking(true);
-      try {
-        const r = await fetch('/api/bake', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ urls }),
-          signal: AbortSignal.timeout(60000),
-        });
-        if (r.ok) {
-          const { photos } = await r.json();
-          const baked = { ...urls, ...photos };
-          // Re-render rather than string-replacing: the URLs appear inside a
-          // JSON blob in the document, and a blind replace would also hit any
-          // that happen to be a prefix of another.
-          html = await renderPreview(forRender(await bakeAll({ ...working, photos: baked })));
-        }
-      } catch (e) {
-        console.error('baking photos failed, saving with links instead', e);
-      }
-      setBaking(false);
-    } else {
-      // A trip with no photographs still has a map.
-      setBaking(true);
-      html = await renderPreview(forRender(await bakeAll(working)));
-      setBaking(false);
-    }
-    log('download', { baked: Object.keys(urls).length, bytes: html.length });
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = downloadName(working);
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
+  // Gone with it: bakeAll(), /api/bake and /api/mapbake, which existed only to
+  // make a file survive being detached from the server.
 
 
   // Sharing the trip, as a link.
@@ -1305,16 +1243,19 @@ export default function Home() {
               </svg>
             </button>
             <span>{title || 'Your itinerary'}</span>
-            {ready && (
-              <button className={'dl' + (baking ? ' busy' : '')} onClick={download}
-                disabled={baking}
-                aria-label={baking ? 'Saving, and keeping the photos' : 'Save this trip to your phone'}
-                title={baking ? 'Saving, and keeping the photos' : 'Save this trip to your phone'}>
+            {/* Was the download. A phone, because what it does now is put the
+                trip ON one — the served page carries the manifest and the
+                worker, which a saved file never could. */}
+            {ready && session && (
+              <a className="dl" href={'/t/' + encodeURIComponent(session)}
+                target="_blank" rel="noopener noreferrer"
+                aria-label="Put this trip on your home screen"
+                title="Put this trip on your home screen">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                   strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3v12M7.5 10.5 12 15l4.5-4.5" /><path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" />
+                  <rect x="6" y="2" width="12" height="20" rx="3" /><path d="M11 18h2" />
                 </svg>
-              </button>
+              </a>
             )}
           </div>
 
@@ -1525,11 +1466,10 @@ export default function Home() {
         onOpenTrip={openTrip}
         onDrop={dropTrip}
         onNew={startOver}
-        onDownload={() => { setMenu(false); download(); }}
         onShare={shareTrip}
         shareNote={shareNote}
         sharing={sharing}
-        canDownload={ready}
+        hasTrip={ready}
         memory={memory}
         onEditSlot={editSlotByHand}
         onForgetSlot={forgetSlot}
