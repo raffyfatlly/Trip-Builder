@@ -24,7 +24,7 @@ import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
 import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
-import { locktripProbe } from '../../lib/locktrip.js';
+import { locktripProbe, rawTool } from '../../lib/locktrip.js';
 import { syncAgents, chatModel, toolCheck } from '../../lib/agentSync.js';
 import { createSession, sendUserMessage, advanceState, getState } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
@@ -162,6 +162,15 @@ export default async function handler(req, res) {
     if (!req.query.raw && locktrip) delete locktrip.raw;
   }
 
+  // `?lt=<public tool>&body=<json>` calls one LockTrip public tool directly.
+  // Restricted to their six keyless read tools — it is a window, not a proxy.
+  let lt;
+  if (req.query && req.query.lt) {
+    let body = {};
+    try { body = JSON.parse(String(req.query.body || '{}')); } catch (e) { body = { bad: 'body' }; }
+    lt = await rawTool(String(req.query.lt), body);
+  }
+
   // `?syncagent=1` pushes this repo's prompt and tools to both persisted agents
   // now, rather than waiting for the next session to do it. The deployment does
   // this on its own before every chat session; this is here so a deploy can be
@@ -249,6 +258,7 @@ export default async function handler(req, res) {
     models,
     prices,
     locktrip,
+    lt,
     agentSync,
     agentTools,
     chat,
