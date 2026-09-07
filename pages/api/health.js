@@ -26,7 +26,7 @@ import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
 import { locktripProbe, rawTool } from '../../lib/locktrip.js';
 import { syncAgents, chatModel, toolCheck, pushPrompt } from '../../lib/agentSync.js';
-import { createSession, sendUserMessage, advanceState, getState } from '../../lib/managedAgents.js';
+import { createSession, sendUserMessage, advanceState, getState, tripCost } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
 
 // What is actually switched on in this deployment.
@@ -171,6 +171,13 @@ export default async function handler(req, res) {
     lt = await rawTool(String(req.query.lt), body);
   }
 
+  // `?cost=<session>` asks ANTHROPIC what a trip cost, rather than trusting our
+  // own journal. It reports the chat session and every builder session it
+  // started, with token counts and list_cost. Free — it reads session objects.
+  const cost = req.query && req.query.cost
+    ? await tripCost(String(req.query.cost)).catch((e) => ({ error: String(e.message || e) }))
+    : undefined;
+
   // `?syncprompt=1` pushes the prompt ALONE, echoing the live tools and model
   // back unchanged. The one safe way to reword the agent while somebody is
   // managing its tools by hand in the Console.
@@ -264,6 +271,7 @@ export default async function handler(req, res) {
     prices,
     locktrip,
     lt,
+    cost,
     promptPush,
     agentSync,
     agentTools,
