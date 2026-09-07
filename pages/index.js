@@ -11,7 +11,7 @@ import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/
 // height — the textarea scrolls itself to fit and the end of the line appears
 // to vanish. useLayoutEffect does not exist on the server, so fall back there.
 const useMeasure = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
-import { loadTrips, rememberTrip, forgetTrip, loadMemory, saveMemory } from '../lib/trips.js';
+import { loadTrips, rememberTrip, forgetTrip, loadMemory, saveMemory, adoptAccount, releaseAccount } from '../lib/trips.js';
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
 import Onboard from '../components/Onboard.js';
@@ -819,6 +819,15 @@ export default function Home() {
 
   const onSignedIn = (d) => {
     setAccount({ accounts: true, user: d.user || null });
+    // A different account on the same device takes its own list, not the last
+    // person's. adoptAccount() clears the local one when the signer changed;
+    // see lib/trips.js. The open session goes too — it belonged to them.
+    const email = (d.user || {}).email || '';
+    if (adoptAccount(email) === 'drop') {
+      try { localStorage.removeItem(KEY); } catch (e) { /* private mode */ }
+      setMessages([]);
+      setSession(null);
+    }
     if (Array.isArray(d.trips)) mergeTrips(d.trips);
   };
 
@@ -838,9 +847,11 @@ export default function Home() {
     // they sign in. What is cleared is only this browser's copy.
     try {
       localStorage.removeItem(KEY);
-      localStorage.removeItem('itin.trips.v1');
       localStorage.removeItem('itin.memory.v1');
     } catch (e) { /* a browser that refuses storage has nothing to clear */ }
+    // The list and the note of who it belongs to go together. Clearing one
+    // without the other is how the next signer inherits an orphaned list.
+    releaseAccount();
     setAccount((a) => ({ ...a, user: null }));
     // Land on the landing page rather than on a thinner copy of the app.
     // Someone who has just left an account is not mid-task, and the page they
@@ -1255,15 +1266,27 @@ export default function Home() {
                 assistant". Only in a shared trip; alone there is only one
                 possible destination and a row saying so is noise. */}
             {party && party.shared && (
-              <div className={'to' + (ask ? ' asking' : '')}>
-                <span className="who">
-                  {ask ? 'Asking the assistant' : 'To ' + ((party.guests || []).concat(party.owner)
+              <div className={'to' + (ask ? ' asking' : '')} role="radiogroup"
+                aria-label="Who this message goes to">
+                {/* A TOGGLE, not a label with a button beside it.
+                    raffy, 2026-09-07: "i think asking a friend and assistant
+                    should be a toggle." He is right — the two destinations are
+                    peers, and a label plus an action button made one of them
+                    look like the state and the other like a command. Both are
+                    on screen at all times now, so the choice is visible before
+                    you make it and the current one is obvious after. */}
+                <span className="pill" aria-hidden="true" />
+                <button type="button" role="radio" aria-checked={!ask}
+                  className={ask ? '' : 'on'}
+                  onClick={() => { setAsk(false); if (inputRef.current) inputRef.current.focus(); }}>
+                  {(party.guests || []).concat(party.owner)
                     .filter((e) => e && e !== party.me)
-                    .map((e) => e.split('@')[0]).join(', ') || 'the others')}
-                </span>
-                <button type="button" className="swap"
-                  onClick={() => { setAsk((v) => !v); if (inputRef.current) inputRef.current.focus(); }}>
-                  {ask ? 'Cancel' : '@ Ask'}
+                    .map((e) => e.split('@')[0])[0] || 'Them'}
+                </button>
+                <button type="button" role="radio" aria-checked={ask}
+                  className={ask ? 'on' : ''}
+                  onClick={() => { setAsk(true); if (inputRef.current) inputRef.current.focus(); }}>
+                  Assistant
                 </button>
               </div>
             )}
@@ -1690,27 +1713,35 @@ export default function Home() {
         /* The destination line. Reads as a label, not a toolbar: the point is
            that you can SEE where the next message goes without decoding an
            icon. */
+        /* A two-up segmented control. The moving pill is one element sliding
+           between the halves rather than two backgrounds cross-fading — a
+           crossfade shows both states at once mid-transition, which reads as a
+           flicker at this size. */
         .to{
-          display:flex;align-items:center;gap:8px;
-          padding:1px 4px 7px;font-size:12px;line-height:1.3;
+          position:relative;display:grid;grid-template-columns:1fr 1fr;
+          gap:2px;padding:2px;margin:0 0 8px;
+          background:var(--well);border-radius:99px;
         }
-        .to .who{
-          flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-          color:var(--ink-faint);font-weight:650;
-          /* Only the colour moves. Switching modes happens often enough that
-             anything more would be in the way, and a colour change is the one
-             thing reduced-motion keeps. */
-          transition:color 140ms ease;
+        .to .pill{
+          position:absolute;top:2px;left:2px;
+          width:calc(50% - 3px);height:calc(100% - 4px);
+          border-radius:99px;background:var(--surface);
+          box-shadow:0 1px 2px rgba(12,36,27,.10);
+          transition:transform 180ms cubic-bezier(.23,1,.32,1);
         }
-        .to.asking .who{color:var(--deep)}
-        .to .swap{
-          flex:none;border:0;background:var(--sage);color:var(--deep);
-          padding:4px 10px;border-radius:99px;cursor:pointer;
-          font-family:inherit;font-size:11.5px;font-weight:700;line-height:1.3;
-          transition:transform 140ms cubic-bezier(.23,1,.32,1),background 140ms ease;
+        .to.asking .pill{transform:translateX(calc(100% + 2px))}
+        .to button{
+          position:relative;z-index:1;border:0;background:none;cursor:pointer;
+          padding:6px 4px;border-radius:99px;
+          font-family:inherit;font-size:12px;font-weight:700;line-height:1.3;
+          color:var(--ink-faint);
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+          transition:color 180ms ease;
         }
-        .to.asking .swap{background:var(--well);color:var(--ink-soft)}
-        .to .swap:active{transform:scale(.96)}
+        .to button.on{color:var(--deep)}
+        @media (prefers-reduced-motion: reduce){
+          .to .pill{transition:none}
+        }
 
         /* Asking: the input itself changes, so the mode is visible at the exact
            spot the eye is already on while typing. */

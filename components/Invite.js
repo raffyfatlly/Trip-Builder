@@ -52,7 +52,26 @@ export default function Invite({ session, canShare }) {
       });
       const d = await r.json();
       if (!r.ok) setNote(d.error || 'Could not do that.');
-      else { setState(d); setEmail(''); setNote(invited ? 'Invited.' : 'Removed.'); }
+      else {
+        setState(d);
+        setEmail('');
+        // WHAT HAPPENS IF THEY HAVE NOT SIGNED UP YET.
+        //
+        // raffy, 2026-09-07: "what happened if asking a friend who don't sign
+        // up yet?"
+        //
+        // Nothing breaks, and nothing is pending: the invite is stored against
+        // the ADDRESS, not against an account, so it is waiting whether or not
+        // that person exists yet. Signing up here is one step — an email, no
+        // code, no confirmation — so they enter that address and the trip is
+        // simply there.
+        //
+        // The one thing missing is that they have no way to know. The app
+        // cannot email them (there is no mailer, which is why sign-in has no
+        // code either), so the owner has to tell them — and the useful thing
+        // to hand somebody is a link, not instructions.
+        setNote(invited ? 'Invited — send them the link below' : 'Removed.');
+      }
     } catch (e) {
       setNote('Could not reach the server.');
     }
@@ -93,15 +112,34 @@ export default function Invite({ session, canShare }) {
       {note && <p className="note">{note}</p>}
 
       {(state.guests || []).length > 0 && (
-        <ul>
-          {state.guests.map((g) => (
-            <li key={g}>
-              <span>{g}</span>
-              <button type="button" onClick={() => send(g, false)} disabled={busy}
-                aria-label={'Remove ' + g}>Remove</button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul>
+            {state.guests.map((g) => (
+              <li key={g}>
+                <span>{g}</span>
+                <button type="button" onClick={() => send(g, false)} disabled={busy}
+                  aria-label={'Remove ' + g}>Remove</button>
+              </li>
+            ))}
+          </ul>
+          {/* The link the owner sends them. It is just the trip's own address:
+              opening it signs them in (or asks them to), and because the invite
+              is stored against their email the trip is waiting. Nothing here is
+              a secret — without an account on the invited address it opens
+              nothing. */}
+          <button type="button" className="copy" disabled={busy}
+            onClick={async () => {
+              const url = window.location.origin + '/?s=' + encodeURIComponent(session);
+              try {
+                if (navigator.share) await navigator.share({ title: 'Plan this trip with me', url });
+                else { await navigator.clipboard.writeText(url); setNote('Link copied'); }
+              } catch (e) { setNote(url); }
+            }}>
+            Send them the link
+          </button>
+          <i className="fine">They sign in with the address you invited and the trip
+            is there. No account needed first — signing up is just an email.</i>
+        </>
       )}
 
       <style jsx>{`
@@ -129,6 +167,14 @@ export default function Invite({ session, canShare }) {
           font-size:11.5px;font-weight:650;color:var(--ink-faint);font-family:inherit;
         }
         li button:hover{color:var(--ink)}
+        .copy{
+          margin-top:4px;border:0;border-radius:10px;padding:9px 12px;cursor:pointer;
+          background:var(--sage);color:var(--deep);
+          font-family:inherit;font-size:12.5px;font-weight:700;
+          transition:transform 140ms cubic-bezier(.23,1,.32,1);
+        }
+        .copy:active{transform:scale(.97)}
+        .fine{font-style:normal;font-size:11px;line-height:1.45;color:var(--ink-faint)}
       `}</style>
     </div>
   );
