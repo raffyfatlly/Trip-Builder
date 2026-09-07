@@ -28,7 +28,9 @@ import { locktripProbe, rawTool } from '../../lib/locktrip.js';
 import { syncAgents, chatModel, toolCheck, pushPrompt } from '../../lib/agentSync.js';
 import { createSession, sendUserMessage, advanceState, getState, tripCost } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
-import { stripeProbe } from '../../lib/stripe.js';
+import { stripeProbe, webhookSecret } from '../../lib/stripe.js';
+import crypto from 'crypto';
+import { readLedger } from '../../lib/firestore.js';
 
 // What is actually switched on in this deployment.
 //
@@ -177,6 +179,57 @@ export default async function handler(req, res) {
   let stripe;
   if (req.query && req.query.stripe) { await loadConfig(); stripe = await stripeProbe(); }
 
+  // `?webhooktest=1` posts a REAL, properly signed webhook to our own endpoint.
+  //
+  // The only part of the payment path that cannot be tested from a terminal is
+  // Stripe pressing the button. Everything on our side can: this builds a
+  // checkout.session.completed exactly as Stripe shapes one, signs it with the
+  // configured secret, and sends it to the live route. If the credits land, the
+  // secret is right, the signature check works, the raw-body handling works and
+  // the ledger write works.
+  //
+  // It sends the SAME event twice on purpose. The second must be refused as a
+  // duplicate — one payment granting twice is the expensive failure here.
+  //
+  // Grants to a reserved .invalid address so it can never touch a real ledger.
+  let webhookTest;
+  if (req.query && req.query.webhooktest) {
+    await loadConfig();
+    const key = webhookSecret();
+    if (!key) webhookTest = { error: 'no webhook secret configured' };
+    else {
+      const who = 'webhook-test@trip-builder.invalid';
+      const id = 'evt_selftest_' + Date.now();
+      const body = JSON.stringify({
+        id, type: 'checkout.session.completed',
+        data: { object: {
+          id: 'cs_selftest_' + Date.now(), payment_status: 'paid', amount_total: 2800,
+          client_reference_id: who, metadata: { who, pack: 'starter', credits: 100 },
+        } },
+      });
+      const at = Math.floor(Date.now() / 1000);
+      const sig = 't=' + at + ',v1=' + crypto.createHmac('sha256', key).update(at + '.' + body).digest('hex');
+      const url = 'https://' + (req.headers['x-forwarded-host'] || req.headers.host) + '/api/stripe-webhook';
+      const send = (h) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', 'stripe-signature': h }, body })
+        .then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }));
+
+      const before = (await readLedger('u:' + who).catch(() => null)) || { granted: 0 };
+      const first = await send(sig);
+      const again = await send(sig);                       // must be refused
+      const forged = await send('t=' + at + ',v1=' + '0'.repeat(64));   // must be refused
+      const after = (await readLedger('u:' + who).catch(() => null)) || { granted: 0 };
+
+      webhookTest = {
+        signedEventAccepted: first.status === 200 && !!(first.body || {}).granted,
+        duplicateRefused: again.status === 200 && !!(again.body || {}).duplicate,
+        forgedRefused: forged.status === 400,
+        creditsBefore: before.granted, creditsAfter: after.granted,
+        grantedExactlyOnce: after.granted - before.granted === 100,
+        detail: { first: first.body, again: again.body, forged: forged.status },
+      };
+    }
+  }
+
   // `?cost=<session>` asks ANTHROPIC what a trip cost, rather than trusting our
   // own journal. It reports the chat session and every builder session it
   // started, with token counts and list_cost. Free — it reads session objects.
@@ -278,6 +331,7 @@ export default async function handler(req, res) {
     locktrip,
     lt,
     stripe,
+    webhookTest,
     cost,
     promptPush,
     agentSync,
