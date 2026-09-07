@@ -1272,36 +1272,34 @@ export default function Home() {
                 assistant". Only in a shared trip; alone there is only one
                 possible destination and a row saying so is noise. */}
             {party && party.shared && (
-              <div className={'to' + (ask ? ' asking' : '')} role="radiogroup"
-                aria-label="Who this message goes to">
-                {/* A TOGGLE, not a label with a button beside it.
-                    raffy, 2026-09-07: "i think asking a friend and assistant
-                    should be a toggle." He is right — the two destinations are
-                    peers, and a label plus an action button made one of them
-                    look like the state and the other like a command. Both are
-                    on screen at all times now, so the choice is visible before
-                    you make it and the current one is obvious after. */}
-                <span className="pill" aria-hidden="true" />
-                {/* ONE side for the people, however many there are.
-                    raffy, 2026-09-07: "u have to think if there's more people
-                    not just one person. but we don't need to make one for
-                    everyone. its either the people (normal chat or @
-                    assistant)."
-                    A name is only shown when a name is unambiguous — with one
-                    other person it is warmer and says exactly who reads this.
-                    Past that it becomes a list that does not fit and implies a
-                    choice that is not on offer, so it is Everyone. */}
-                <button type="button" role="radio" aria-checked={!ask}
-                  className={ask ? '' : 'on'}
-                  onClick={() => { setAsk(false); if (inputRef.current) inputRef.current.focus(); }}>
-                  {others.length === 1 ? others[0].split('@')[0] : 'Everyone'}
-                </button>
-                <button type="button" role="radio" aria-checked={ask}
-                  className={ask ? 'on' : ''}
-                  onClick={() => { setAsk(true); if (inputRef.current) inputRef.current.focus(); }}>
-                  Assistant
-                </button>
-              </div>
+              {/* ONE control you tap, not two tabs.
+                  raffy, 2026-09-07: "I don't like the current two tab design
+                  for choosing. i want click toggle style."
+                  Two tabs took the full width and gave a permanent seat to the
+                  option you are not using. This says the current destination
+                  and flips on tap — smaller, and it reads as a state rather
+                  than a pair of choices. The label and icon swap instantly:
+                  this gets tapped constantly, and a crossfade on a control used
+                  that often is in the way. Only the colour moves. */}
+              <button type="button"
+                className={'dest' + (ask ? ' asking' : '')}
+                aria-pressed={ask}
+                aria-label={ask ? 'Asking the assistant. Tap to message '
+                  + (others.length === 1 ? others[0].split('@')[0] : 'everyone')
+                  : 'Messaging ' + (others.length === 1 ? others[0].split('@')[0] : 'everyone')
+                    + '. Tap to ask the assistant'}
+                onClick={() => { setAsk((v) => !v); if (inputRef.current) inputRef.current.focus(); }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {ask
+                    ? <path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z" />
+                    : <><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0" />
+                      <path d="M16 6.5a3 3 0 0 1 0 5.4M17.5 20a6 6 0 0 0-2.2-4.6" /></>}
+                </svg>
+                <span>{ask ? 'Assistant'
+                  : (others.length === 1 ? others[0].split('@')[0] : 'Everyone')}</span>
+                <i aria-hidden="true">tap to switch</i>
+              </button>
             )}
             <div className={'row' + (tall ? ' tall' : '') + (ask ? ' asking' : '')}>
               <label className="attach" title="Attach a photo or booking">
@@ -1727,35 +1725,30 @@ export default function Home() {
         /* The destination line. Reads as a label, not a toolbar: the point is
            that you can SEE where the next message goes without decoding an
            icon. */
-        /* A two-up segmented control. The moving pill is one element sliding
-           between the halves rather than two backgrounds cross-fading — a
-           crossfade shows both states at once mid-transition, which reads as a
-           flicker at this size. */
-        .to{
-          position:relative;display:grid;grid-template-columns:1fr 1fr;
-          gap:2px;padding:2px;margin:0 0 8px;
-          background:var(--well);border-radius:99px;
-        }
-        .to .pill{
-          position:absolute;top:2px;left:2px;
-          width:calc(50% - 3px);height:calc(100% - 4px);
-          border-radius:99px;background:var(--surface);
-          box-shadow:0 1px 2px rgba(12,36,27,.10);
-          transition:transform 180ms cubic-bezier(.23,1,.32,1);
-        }
-        .to.asking .pill{transform:translateX(calc(100% + 2px))}
-        .to button{
-          position:relative;z-index:1;border:0;background:none;cursor:pointer;
-          padding:6px 4px;border-radius:99px;
+        /* The destination pill. Auto width, so it takes only the room its
+           label needs — the two-tab version reserved half the composer for the
+           option you were not using. */
+        .dest{
+          display:inline-flex;align-items:center;gap:6px;
+          margin:0 0 8px;padding:5px 11px 5px 9px;
+          border:0;border-radius:99px;cursor:pointer;
+          background:var(--well);color:var(--ink-soft);
           font-family:inherit;font-size:12px;font-weight:700;line-height:1.3;
-          color:var(--ink-faint);
-          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-          transition:color 180ms ease;
+          /* Colour and press only. This is tapped constantly and anything more
+             would be in the way; colour is also what reduced-motion keeps. */
+          transition:background 160ms ease,color 160ms ease,transform 140ms cubic-bezier(.23,1,.32,1);
         }
-        .to button.on{color:var(--deep)}
-        @media (prefers-reduced-motion: reduce){
-          .to .pill{transition:none}
+        .dest svg{width:14px;height:14px;flex:none;opacity:.75}
+        .dest i{
+          font-style:normal;font-weight:600;font-size:10.5px;
+          color:var(--ink-faint);opacity:.8;margin-left:2px;
         }
+        .dest.asking{background:var(--deep);color:#EAF2EC}
+        .dest.asking svg{opacity:.9}
+        .dest.asking i{color:#9FB8AC}
+        .dest:active{transform:scale(.97)}
+        /* The hint is for discovering it, not for living with it. */
+        @media (max-width: 360px){ .dest i{display:none} }
 
         /* Asking: the input itself changes, so the mode is visible at the exact
            spot the eye is already on while typing. */
