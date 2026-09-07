@@ -136,7 +136,7 @@ async function handler(req, res) {
     // of them decided; without the second it replies to a message whose whole
     // meaning is in the three before it.
     if (shared && held.length) {
-      content.push({ type: 'text', text: heldFor(held, who) });
+      content.push({ type: 'text', text: heldFor(held) });
     }
     if (text && text.trim()) {
       const from = shared && who ? who.split('@')[0] + ': ' : '';

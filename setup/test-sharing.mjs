@@ -97,4 +97,42 @@ console.log('\nWho pays');
   });
 }
 
+console.log('\nA trip can hold more than two people');
+{
+  // raffy, 2026-09-07: "u have to think if there's more people not just one
+  // person. but we don't need to make one for everyone. its either the people
+  // (normal chat) or @ assistant."
+  //
+  // So the composer is binary however many are in the trip. The label is the
+  // only thing that varies, and only because one name is warmer and unambiguous
+  // while a list of four is neither.
+  const label = (others) => (others.length === 1 ? others[0].split('@')[0] : 'Everyone');
+
+  t('one other person is named', () => assert.equal(label(['syahirah@x.com']), 'syahirah'));
+  t('two or more is Everyone', () => {
+    assert.equal(label(['a@x.com', 'b@x.com']), 'Everyone');
+    assert.equal(label(['a@x.com', 'b@x.com', 'c@x.com', 'd@x.com']), 'Everyone');
+  });
+  t('nobody yet is Everyone, not a crash', () => assert.equal(label([]), 'Everyone'));
+
+  // Everyone in the trip except the reader — the same list drives the label,
+  // the placeholder and the header, so they cannot disagree.
+  const others = (party) => [party.owner, ...(party.guests || [])]
+    .filter((e) => e && e !== party.me);
+
+  t('the owner is one of the people, seen from a guest', () => {
+    assert.deepEqual(others({ owner: 'her@x.com', guests: ['him@x.com'], me: 'him@x.com' }),
+      ['her@x.com']);
+  });
+  t('and the guests are, seen from the owner', () => {
+    assert.deepEqual(others({ owner: 'her@x.com', guests: ['a@x.com', 'b@x.com'], me: 'her@x.com' }),
+      ['a@x.com', 'b@x.com']);
+  });
+  t('nobody sees themselves in the list', () => {
+    const p = { owner: 'her@x.com', guests: ['a@x.com', 'b@x.com'], me: 'a@x.com' };
+    assert.ok(!others(p).includes('a@x.com'));
+    assert.equal(others(p).length, 2);
+  });
+}
+
 console.log('\n' + n + ' passed');

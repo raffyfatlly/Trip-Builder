@@ -75,22 +75,33 @@ console.log('\nWhat it is handed when it is asked');
   // Where "that's a bit weird" came from: it got "hi / hi" as the context for
   // a question about hotels.
   t('greetings and reactions are dropped', () => {
-    assert.equal(heldFor([{ who: 'a@x', text: 'hi' }, { who: 'b@x', text: 'hi' },
-      { who: 'a@x', text: 'ok' }, { who: 'b@x', text: '👍' }], 'a@x'), '');
+    assert.equal(heldFor([{ who: 'sarah@x', text: 'hi' }, { who: 'adam@x', text: 'hi' },
+      { who: 'sarah@x', text: 'ok' }, { who: 'adam@x', text: '👍' }]), '');
   });
   t('substance is kept, attributed', () => {
-    const b = heldFor([{ who: 'a@x', text: 'hi' },
-      { who: 'b@x', text: 'i want a lie-in on the saturday' }], 'a@x');
+    const b = heldFor([{ who: 'sarah@x', text: 'hi' },
+      { who: 'adam@x', text: 'i want a lie-in on the saturday' }]);
     assert.ok(b.includes('lie-in'));
-    assert.ok(b.includes('b'), b);
-    assert.ok(!b.includes('hi\n'), b);
+    assert.ok(b.includes('adam'), b);
+    assert.ok(!/\bhi\b/.test(b), b);
+  });
+  // With three people the agent has to be able to say who wants what. Rendering
+  // one of them as "They" made that impossible.
+  t('everyone is named, including whoever is asking', () => {
+    const b = heldFor([
+      { who: 'sarah@x', text: 'i want a lie-in on the saturday' },
+      { who: 'adam@x', text: 'i booked the sunrise hike' },
+      { who: 'mei@x', text: 'i can do either' },
+    ]);
+    for (const who of ['sarah', 'adam', 'mei']) assert.ok(b.includes(who), who + ' missing: ' + b);
+    assert.ok(!b.includes('They:'), b);
   });
   t('and told to answer only the newest message', () => {
-    const b = heldFor([{ who: 'b@x', text: 'the museum looked good' }], 'a@x');
+    const b = heldFor([{ who: 'adam@x', text: 'the museum looked good' }]);
     assert.match(b, /Only the newest message is addressed to you/);
     assert.match(b, /Do not reply to the lines above/);
   });
-  t('nothing held means nothing added', () => assert.equal(heldFor([], 'a@x'), ''));
+  t('nothing held means nothing added', () => assert.equal(heldFor([]), ''));
 }
 
 console.log('\nIt cannot cost anything or be slow');

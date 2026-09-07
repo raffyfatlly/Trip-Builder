@@ -48,6 +48,12 @@ export default function Home() {
   // it, and inferring the answer from text you are still editing is exactly
   // that uncertainty with extra steps.
   const [ask, setAsk] = useState(false);
+  // Everyone in the trip except whoever is reading. The composer, the
+  // placeholder and the header all need it, and computing it inline three
+  // times is how two of them end up disagreeing.
+  const others = useMemo(() => (party
+    ? [party.owner, ...(party.guests || [])].filter((e) => e && e !== party.me)
+    : []), [party]);
   // What the agent is doing, in its own words, and how long it has been at it.
   const [doing, setDoing] = useState(null);
   // A turn that died on the model's side. Silence is the worst thing the chat
@@ -1276,12 +1282,19 @@ export default function Home() {
                     on screen at all times now, so the choice is visible before
                     you make it and the current one is obvious after. */}
                 <span className="pill" aria-hidden="true" />
+                {/* ONE side for the people, however many there are.
+                    raffy, 2026-09-07: "u have to think if there's more people
+                    not just one person. but we don't need to make one for
+                    everyone. its either the people (normal chat or @
+                    assistant)."
+                    A name is only shown when a name is unambiguous — with one
+                    other person it is warmer and says exactly who reads this.
+                    Past that it becomes a list that does not fit and implies a
+                    choice that is not on offer, so it is Everyone. */}
                 <button type="button" role="radio" aria-checked={!ask}
                   className={ask ? '' : 'on'}
                   onClick={() => { setAsk(false); if (inputRef.current) inputRef.current.focus(); }}>
-                  {(party.guests || []).concat(party.owner)
-                    .filter((e) => e && e !== party.me)
-                    .map((e) => e.split('@')[0])[0] || 'Them'}
+                  {others.length === 1 ? others[0].split('@')[0] : 'Everyone'}
                 </button>
                 <button type="button" role="radio" aria-checked={ask}
                   className={ask ? 'on' : ''}
@@ -1302,7 +1315,8 @@ export default function Home() {
                 rows={1}
                 value={draft}
                 placeholder={party && party.shared
-                  ? (ask ? 'Ask about the trip\u2026' : 'Message them\u2026')
+                  ? (ask ? 'Ask about the trip\u2026'
+                    : 'Message ' + (others.length === 1 ? others[0].split('@')[0] : 'everyone') + '\u2026')
                   : (messages.length ? 'Reply, or attach a booking' : 'Tell me about your trip')}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
