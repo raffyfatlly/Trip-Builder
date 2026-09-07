@@ -6,7 +6,7 @@
 
 import { userFrom, normalisePhone } from '../../lib/auth.js';
 import { storeConfigured, getAccount, saveTrips, saveMemory, mergeTripLists, findOrCreate } from '../../lib/db.js';
-import { claimOwner, firestoreConfigured } from '../../lib/firestore.js';
+import { claimOwner, readOwner, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
 
 export default async function handler(req, res) {
   if (!storeConfigured()) return res.status(200).json({ user: null, accounts: false });
@@ -36,7 +36,10 @@ export default async function handler(req, res) {
       // ordinary success and only refuse a claim on somebody ELSE's trip.
       if (body.claim && typeof body.claim.id === 'string') {
         const owner = firestoreConfigured() ? await claimOwner(body.claim.id, email) : null;
-        if (owner && owner.who && owner.who !== email) {
+        // A guest the owner invited may hold the trip too — that is what
+        // sharing IS. mayOpen() is the single answer to "is this yours", so
+        // the invite path and the theft path cannot drift apart.
+        if (owner && owner.who && !mayOpen(owner, email)) {
           // Not an error the person needs to see — their browser simply still
           // had the previous account's session in it. Say so and change
           // nothing, rather than half-adding a trip they cannot open.

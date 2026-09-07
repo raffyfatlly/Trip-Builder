@@ -1,4 +1,5 @@
 import { Credits } from './Ring.js';
+import Invite from './Invite.js';
 import { useState, useEffect } from 'react';
 import { shortDate } from '../lib/trips.js';
 import Account from './Account.js';
@@ -182,6 +183,11 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
               </span>
             </button>
           )}
+
+          {/* The other half of sharing: a named person who can actually plan
+              in it, rather than a link that shows a copy. See components/
+              Invite.js — it draws nothing unless this trip has an owner. */}
+          {hasTrip && session && user && <Invite session={session} canShare={!!user} />}
 
           {/* raffy, 2026-09-07: "remove the download function and replace the
               button with the install app function."
