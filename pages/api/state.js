@@ -19,6 +19,7 @@ import { billed } from '../../lib/billed.js';
 import { allowed, rebuildCredits } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
 import { readOwner, readHeld, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
+import { joinHeld } from '../../lib/listen.js';
 
 async function handler(req, res) {
   const session = req.query.session;
@@ -38,9 +39,8 @@ async function handler(req, res) {
     //
     // These are not in the agent's event log — that is the whole point, a
     // message sent there costs a turn — so the transcript has to be joined here
-    // or the app looks like it swallowed what somebody typed. They sit at the
-    // end because that is when they were said: everything before them has
-    // already been through the agent.
+    // or the app looks like it swallowed what somebody typed. Each one goes back
+    // where it was said rather than onto the end of the list; see joinHeld.
     let owner = null;
     let held = [];
     if (firestoreConfigured()) {
@@ -63,17 +63,7 @@ async function handler(req, res) {
         if (owner && (owner.guests || []).length) held = await readHeld(session);
       } catch (e) { /* a trip whose sharing cannot be read is shown unshared */ }
     }
-    const transcript = held.length
-      ? [...(state.transcript || []), ...held.map((m, i) => ({
-        role: 'user',
-        text: String(m.text || ''),
-        who: m.who || '',
-        // Marked so the browser can show it as said-to-each-other rather than
-        // as a message the agent has answered.
-        aside: true,
-        id: 'held:' + (m.at || i),
-      }))]
-      : state.transcript;
+    const transcript = held.length ? joinHeld(state.transcript, held) : state.transcript;
 
     res.status(200).json({
       ...state,

@@ -29,28 +29,49 @@ const Icon = ({ name }) => (
   </svg>
 );
 
-export default function Actions({ actions }) {
+// What the turn cost rides in this row too.
+//
+// raffy, 2026-09-07: "credit spent should appear under agent respond beside
+// tool used etc. structured same way same thickness font." It was its own line
+// underneath, in coral at 14.5px — not a decision anyone made, but the class
+// was called `cost`, and `.cost` is what Rich puts on a PRICE. So a credit
+// figure inherited the styling of "RM 420" and shouted. It belongs next to "1
+// search", at the same size and weight, because it is the same kind of thing:
+// a quiet note about what just happened.
+export default function Actions({ actions, cost }) {
   const [open, setOpen] = useState(false);
-  if (!actions || !actions.length) return null;
+  const list = actions || [];
+  const credits = Number(cost) > 0 ? Number(cost) : 0;
+  if (!list.length && !credits) return null;
 
-  const searches = actions.filter((a) => a.icon === 'search').length;
+  const searches = list.filter((a) => a.icon === 'search').length;
   const summary = searches
     ? searches + (searches > 1 ? ' searches' : ' search')
-      + (actions.length > searches ? ' and more' : '')
-    : actions.length + (actions.length > 1 ? ' steps' : ' step');
+      + (list.length > searches ? ' and more' : '')
+    : list.length + (list.length > 1 ? ' steps' : ' step');
 
   return (
     <div className={'acts' + (open ? ' open' : '')}>
-      <button onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <Icon name={actions[0].icon} />
-        <span>{summary}</span>
-        <svg className="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2.4" strokeLinecap="round"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
+      <div className="row">
+        {list.length > 0 && (
+          <button onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+            <Icon name={list[0].icon} />
+            <span>{summary}</span>
+            <svg className="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.4" strokeLinecap="round"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+        )}
+        {credits > 0 && (
+          <span className="cred">
+            {list.length > 0 && <i aria-hidden="true">·</i>}
+            {credits}{credits === 1 ? ' credit' : ' credits'}
+          </span>
+        )}
+      </div>
 
-      {open && (
+      {open && list.length > 0 && (
         <ul>
-          {actions.map((a, i) => (
+          {list.map((a, i) => (
             <li key={i}>
               <Icon name={a.icon} />
               <span>
@@ -68,6 +89,14 @@ export default function Actions({ actions }) {
 
       <style jsx>{`
         .acts{margin:7px 0 0}
+        .row{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+        /* Same size, same weight, same colour as the actions button beside it.
+           A credit figure is a footnote, not a headline. */
+        .cred{
+          font-size:11.5px;font-weight:600;color:var(--ink-faint);
+          font-variant-numeric:tabular-nums;
+        }
+        .cred i{font-style:normal;margin-right:7px}
         button{
           display:inline-flex;align-items:center;gap:6px;border:0;background:none;
           padding:3px 0;font-family:inherit;font-size:11.5px;font-weight:600;

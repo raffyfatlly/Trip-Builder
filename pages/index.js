@@ -254,9 +254,33 @@ export default function Home() {
             const waiting = prev.filter((m) => String(m.id || '').startsWith('tmp'));
             if (!waiting.length) { pendingSend.current = false; return d.transcript; }
             const flat = (t) => String(t || '').replace(/\s+/g, ' ').trim();
-            const landed = new Set(
-              d.transcript.filter((m) => m.role === 'user').map((m) => flat(m.text)));
-            const keep = waiting.filter((m) => !landed.has(flat(m.text)));
+            // MATCHED LOOSELY, BECAUSE THE SERVER DOES NOT ECHO WHAT WAS TYPED.
+            //
+            // raffy, 2026-09-07: "I still have the original text accumulating
+            // at the bottom." An optimistic bubble is only taken back out when
+            // the server's transcript has the same words — and on a shared trip
+            // it never did. The name went on the front ("raffy.fatlly: hi"), the
+            // @ came off the front, and an attachment put a 📎 line above it. So
+            // every message he sent stayed on screen next to the server's copy
+            // of it, and the pile grew all session.
+            //
+            // The name is fixed at the source now. This end compares what was
+            // actually SENT rather than what was drawn, ignores a leading @, and
+            // still accepts an old "name: " prefix so conversations that already
+            // have those rows settle down too.
+            const landed = d.transcript
+              .filter((m) => m.role === 'user').map((m) => flat(m.text));
+            const bare = (t) => flat(t).replace(/^@\S*\s*/, '');
+            const here = (m) => {
+              const a = flat(m.sent != null ? m.sent : m.text);
+              const b = bare(m.sent != null ? m.sent : m.text);
+              return landed.some((l) => l === a || l === b
+                || (a && l.endsWith(': ' + a)) || (b && l.endsWith(': ' + b)));
+            };
+            // A last resort for anything the comparison still misses: only the
+            // newest unanswered bubble is ever held. One can lag a poll or two;
+            // a stack of them is always a bug, and never worth showing him.
+            const keep = waiting.filter((m) => !here(m)).slice(-1);
             pendingSend.current = keep.length > 0;
             return keep.length ? [...d.transcript, ...keep] : d.transcript;
           });
@@ -689,7 +713,10 @@ export default function Home() {
     const stamp = Date.now();
     const label = [pending.map((f) => '📎 ' + f.name).join('\n'), text]
       .filter(Boolean).join('\n');
-    setMessages((m) => [...m, { role: 'user', text: label, id: 'tmp' + stamp }]);
+    // `sent` is what actually went to the server; `text` is what is drawn,
+    // which may carry an attachment line the transcript will never have. The
+    // poll compares against `sent`.
+    setMessages((m) => [...m, { role: 'user', text: label, sent: text, id: 'tmp' + stamp }]);
     // The previous turn's trail goes now, not when the server catches up.
     pendingSend.current = true;
     setSteps([]);
@@ -1201,19 +1228,13 @@ export default function Home() {
                   {m.role === 'assistant' ? (
                     <>
                       <Rich text={m.text} />
-                      <Actions actions={m.actions} />
-                      {/* What this turn cost, under the reply it paid for.
-                          Quiet on purpose: it is reassurance that the meter is
-                          honest, not a headline. Hidden when it rounds to
-                          nothing — "0 credits" invites the question of what a
+                      {/* What this turn cost, in the actions row rather than on
+                          a line of its own — raffy, 2026-09-07: "structured
+                          same way same thickness font". Hidden when it rounds
+                          to nothing: "0 credits" invites the question of what a
                           fraction of a credit is, and the answer is not
                           interesting. */}
-                      {turnCost.current.get(m.id) > 0 && (
-                        <span className="cost">
-                          {turnCost.current.get(m.id)}
-                          {turnCost.current.get(m.id) === 1 ? ' credit' : ' credits'}
-                        </span>
-                      )}
+                      <Actions actions={m.actions} cost={turnCost.current.get(m.id)} />
                     </>
                   ) : (
                     <>
@@ -2120,10 +2141,6 @@ export default function Home() {
         /* The low-balance variant is an offer, not a stop. Lighter ground and
            no shadow, so it sits beside the conversation rather than replacing
            it the way the spent-out wall does. */
-        .cost{
-          display:block;margin-top:6px;font-size:10.5px;letter-spacing:.02em;
-          color:var(--ink-faint);font-variant-numeric:tabular-nums;
-        }
         .wall.low{background:var(--surface);border:1px solid rgba(20,50,40,.10);box-shadow:none}
         .wall b{
           display:block;font-size:15.5px;font-weight:700;color:var(--deep);

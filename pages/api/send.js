@@ -6,14 +6,14 @@
 
 import { sendUserMessage, listEvents } from '../../lib/managedAgents.js';
 import { MAX_TURNS_PER_SESSION } from '../../lib/config.js';
-import { geoFrom, contextBlock } from '../../lib/context.js';
+import { geoFrom, contextBlock, fromBlock } from '../../lib/context.js';
 import { note } from '../../lib/journal.js';
 import { billed } from '../../lib/billed.js';
 import { allowed, leftOf } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
 import { shouldReply, heldFor, withoutAsk } from '../../lib/listen.js';
 import { CTX_MARKER } from '../../lib/context.js';
-import { readOwner, readHeld, appendHeld, clearHeld, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
+import { readOwner, readHeld, appendHeld, markHeldSent, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -102,7 +102,14 @@ async function handler(req, res) {
         // them can see it and where the agent will read it the next time it
         // does speak — but nothing is woken and nothing is charged.
         try {
-          await appendHeld(session, { who, text: String(text || '').trim(), at: Date.now() });
+          // Anchored to the last thing said, so the browser can put it back in
+          // the conversation where it happened rather than on the end of it.
+          const spoken = [...events].reverse()
+            .find((e) => e.type === 'user.message' || e.type === 'agent.message');
+          await appendHeld(session, {
+            who, text: String(text || '').trim(), at: Date.now(),
+            after: spoken ? spoken.id : '',
+          });
         } catch (e) {
           console.error('could not hold message:', e && e.message);
         }
@@ -136,7 +143,12 @@ async function handler(req, res) {
     // Without the first it answers "we decided Tuesday" without knowing which
     // of them decided; without the second it replies to a message whose whole
     // meaning is in the three before it.
-    if (shared && held.length) {
+    // Only what it has not already been given. Held messages are kept now
+    // rather than deleted (they are what the two of them said to each other,
+    // and the app has to go on showing them), so "what it missed" is the ones
+    // not yet marked as handed over.
+    const fresh = held.filter((m) => !m.sent);
+    if (shared && fresh.length) {
       // MARKED, SO IT NEVER APPEARS ON SCREEN.
       //
       // raffy, 2026-09-07, with a screenshot of it rendered as a chat bubble:
@@ -148,14 +160,15 @@ async function handler(req, res) {
       // followed by instructions to itself. CTX_MARKER is what the display layer
       // strips (see display() in lib/managedAgents.js); every other piece of
       // background context already carries it and this one was simply missed.
-      content.push({ type: 'text', text: CTX_MARKER + heldFor(held) });
+      content.push({ type: 'text', text: CTX_MARKER + heldFor(fresh) });
     }
+    // Who is speaking, in a block of its own. Glued to the front of the message
+    // it broke the browser's optimistic bubble — see fromBlock in lib/context.js.
+    if (shared && who) content.push({ type: 'text', text: fromBlock(who) });
     if (text && text.trim()) {
-      const from = shared && who ? who.split('@')[0] + ': ' : '';
       // The @ is how they summoned it, not part of what they asked. Left in, a
       // reply tends to open by acknowledging being addressed.
-      const said = shared ? withoutAsk(text) : text.trim();
-      content.push({ type: 'text', text: from + said });
+      content.push({ type: 'text', text: shared ? withoutAsk(text) : text.trim() });
     }
 
     // Where and when they are, attached to every message so "now" is never
@@ -163,11 +176,12 @@ async function handler(req, res) {
     content.push({ type: 'text', text: contextBlock(geoFrom(req), client, memory) });
 
     await sendUserMessage(session, content);
-    // Handed over, so it must not be handed over twice. Cleared AFTER the send
-    // rather than before: a send that fails leaves the messages held, which is
-    // recoverable, where clearing first would lose them.
-    if (shared && held.length) {
-      try { await clearHeld(session); } catch (e) { /* next send clears it */ }
+    // Handed over, so it must not be handed over twice. Marked AFTER the send
+    // rather than before: a send that fails leaves them unmarked, which is
+    // recoverable, where marking first would lose them to the agent forever.
+    if (shared && fresh.length) {
+      const upTo = fresh.reduce((n, m) => Math.max(n, Number(m.at) || 0), 0);
+      try { await markHeldSent(session, upTo); } catch (e) { /* next send marks it */ }
     }
     res.status(200).json({ ok: true, spoke: true });
   } catch (err) {
