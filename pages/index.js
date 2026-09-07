@@ -49,12 +49,37 @@ export default function Home() {
   // it, and inferring the answer from text you are still editing is exactly
   // that uncertainty with extra steps.
   const [ask, setAsk] = useState(false);
+  // And it survives a reload. The toggle staying put between messages but
+  // resetting when the phone reloads the tab is the same surprise with a longer
+  // fuse — on a phone that reload happens whenever the browser feels like it.
+  useEffect(() => {
+    if (!session) return;
+    try { setAsk(localStorage.getItem('itin.ask.' + session) === 'on'); } catch (e) { /* private mode */ }
+  }, [session]);
+  // Saved where the choice is made rather than in an effect on `ask`: an effect
+  // also fires on the render that RESTORES the value, and would write the
+  // default back over it before the restore had landed.
+  const chooseAsk = useCallback((on) => {
+    setAsk(on);
+    if (!session) return;
+    try { localStorage.setItem('itin.ask.' + session, on ? 'on' : 'off'); } catch (e) { /* ignore */ }
+  }, [session]);
   // Everyone in the trip except whoever is reading. The composer, the
   // placeholder and the header all need it, and computing it inline three
   // times is how two of them end up disagreeing.
   const others = useMemo(() => (party
     ? [party.owner, ...(party.guests || [])].filter((e) => e && e !== party.me)
     : []), [party]);
+  // Who an aside was addressed to: everyone in the trip except whoever said it.
+  // Worked out per message rather than from `others`, because an aside from the
+  // other person was addressed to ME, and labelling it with my own name for
+  // them is the wrong way round.
+  const audience = useCallback((m) => {
+    if (!party) return 'everyone';
+    const from = (m && m.who) || party.me;
+    const rest = [party.owner, ...(party.guests || [])].filter((e) => e && e !== from);
+    return rest.length === 1 ? rest[0].split('@')[0] : 'everyone';
+  }, [party]);
   // What the agent is doing, in its own words, and how long it has been at it.
   const [doing, setDoing] = useState(null);
   // A turn that died on the model's side. Silence is the worst thing the chat
@@ -522,8 +547,36 @@ export default function Home() {
   //
   // A ref rather than state: writing it must not itself cause a render, and the
   // value is read during render of a message that has already been decided.
+  //
+  // AND IT IS WRITTEN DOWN. raffy, 2026-09-07, looking at a real conversation:
+  // "i don't see the credits spent. do i need to start new chat?"
+  //
+  // He did not. The figures were being worked out in memory and thrown away
+  // with the page — so every message already on screen when the app opened had
+  // no cost against it, and there is no way to recover one: the ledger holds a
+  // running total, not a per-turn history, and a reload loses the reading the
+  // difference was measured from. On a phone that reload happens constantly.
+  //
+  // So both halves are kept in localStorage, per session: what each reply cost,
+  // and the balance the next reading is measured against. A tab that reloads
+  // mid-conversation now picks up exactly where it left off, and the whole
+  // conversation keeps its figures instead of the newest one.
+  const COSTS = session ? 'itin.cost.' + session : '';
   const turnCost = useRef(new Map());
   const lastUsed = useRef(null);
+  useEffect(() => {
+    turnCost.current = new Map();
+    lastUsed.current = null;
+    if (!COSTS) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(COSTS) || '{}');
+      if (saved && typeof saved === 'object') {
+        for (const [id, n] of Object.entries(saved.turns || {})) turnCost.current.set(id, n);
+        if (typeof saved.used === 'number') lastUsed.current = saved.used;
+      }
+    } catch (e) { /* private mode, or something else wrote there */ }
+  }, [COSTS]);
+
   useEffect(() => {
     if (!purse || typeof purse.used !== 'number') return;
     const said = messages.filter((m) => m.role === 'assistant' && m.text);
@@ -532,13 +585,21 @@ export default function Home() {
     if (turnCost.current.has(newest.id)) return;
     // The first reply of a session has nothing to measure against, so it is
     // stamped but not priced — better a blank than a number that is really the
-    // whole session's spend so far.
+    // whole session's spend so far. After a reload there IS something to
+    // measure against, which is the point of saving it.
     const before = lastUsed.current;
     lastUsed.current = purse.used;
-    if (before == null) { turnCost.current.set(newest.id, null); return; }
-    const spentHere = Math.max(0, purse.used - before);
-    turnCost.current.set(newest.id, spentHere);
-  }, [purse, messages]);
+    turnCost.current.set(newest.id, before == null ? null : Math.max(0, purse.used - before));
+    if (!COSTS) return;
+    try {
+      localStorage.setItem(COSTS, JSON.stringify({
+        used: purse.used,
+        // Bounded: a session is capped at 40 turns, so this cannot grow, but a
+        // slice costs nothing and means a bug here can never fill their storage.
+        turns: Object.fromEntries([...turnCost.current.entries()].slice(-80)),
+      }));
+    } catch (e) { /* ignore */ }
+  }, [purse, messages, COSTS]);
 
   // What the agent last said, trimmed to something that fits a dock — but only
   // if it said it after they asked.
@@ -724,10 +785,15 @@ export default function Home() {
     const files = pending;
     setPending([]);
     setThinking(true);
-    // Back to talking to each other. Asking is a per-message act, not a room
-    // you stay in — leaving it latched is how somebody's next aside gets sent
-    // to the assistant by accident.
-    setAsk(false);
+    // IT STAYS WHERE HE PUT IT. raffy, 2026-09-07: "the toggle should stay the
+    // last one it choose not back to person."
+    //
+    // It used to snap back to the other person after every send, on the theory
+    // that asking is a per-message act rather than a room you stay in. In use
+    // that is wrong: a conversation with the assistant is several messages
+    // long, and having to re-arm the toggle before each one is the kind of
+    // friction you notice every single time. Latched, the worst case is one
+    // message going the wrong way; unlatched, the cost was paid on every turn.
 
     try {
       const r = await fetch('/api/send', {
@@ -1244,7 +1310,25 @@ export default function Home() {
                       {m.who && party && party.shared && m.who !== party.me && (
                         <span className="from">{m.who.split('@')[0]}</span>
                       )}
-                      {m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                      {/* WHO IT WAS SAID TO. raffy, 2026-09-07: "in chat where
+                          there are other people, let it auto put @user or
+                          @agent in the chat itself so its clear. but don't put
+                          it in the chat input."
+                          With three of us in a thread, a bare message does not
+                          say whether the assistant heard it — and that is the
+                          one thing you need to know before waiting for a reply.
+                          Drawn here rather than typed into the composer: it is
+                          a fact about where the message went, not part of what
+                          they wrote, and the toggle already says where the next
+                          one is going. */}
+                      {m.text.split('\n').map((line, i) => (
+                        <p key={i}>
+                          {i === 0 && party && party.shared && (
+                            <span className="at">{'@' + (m.aside ? audience(m) : 'agent')} </span>
+                          )}
+                          {line}
+                        </p>
+                      ))}
                     </>
                   )}
                 </div>
@@ -1478,7 +1562,7 @@ export default function Home() {
                   + (others.length === 1 ? others[0].split('@')[0] : 'everyone')
                   : 'Messaging ' + (others.length === 1 ? others[0].split('@')[0] : 'everyone')
                     + '. Tap to ask the assistant'}
-                onClick={() => { setAsk((v) => !v); if (inputRef.current) inputRef.current.focus(); }}>
+                onClick={() => { chooseAsk(!ask); if (inputRef.current) inputRef.current.focus(); }}>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   {ask
@@ -2061,6 +2145,15 @@ export default function Home() {
            it is beside the conversation rather than in it. */
         .msg.user.aside{opacity:.9}
         .msg.user.aside .from{color:var(--ink-faint)}
+
+        /* The @ that says where a message went. A mention, so it reads as part
+           of the sentence — same size, dimmer than the words around it. Two
+           colours because the two bubbles are two different grounds. */
+        .at{font-weight:700;opacity:.75}
+        .msg.user .at{color:#BFE0CC}
+        /* The pale bubble needs more of it: the same opacity that reads as
+           "quieter" on the dark ground reads as "unreadable" on this one. */
+        .msg.user.theirs .at{color:var(--ink-soft);opacity:.95}
 
         .msg.user{
           max-width:min(80%,44ch);width:fit-content;margin-left:auto;

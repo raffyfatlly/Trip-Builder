@@ -6,7 +6,7 @@
 
 import { sendUserMessage, listEvents } from '../../lib/managedAgents.js';
 import { MAX_TURNS_PER_SESSION } from '../../lib/config.js';
-import { geoFrom, contextBlock, fromBlock } from '../../lib/context.js';
+import { geoFrom, contextBlock, fromBlock, CARDS_RULE } from '../../lib/context.js';
 import { note } from '../../lib/journal.js';
 import { billed } from '../../lib/billed.js';
 import { allowed, leftOf } from '../../lib/credits.js';
@@ -170,6 +170,11 @@ async function handler(req, res) {
       // reply tends to open by acknowledging being addressed.
       content.push({ type: 'text', text: shared ? withoutAsk(text) : text.trim() });
     }
+
+    // How to answer, attached to every message. A session pins the agent version
+    // it was born on, so a prompt fix reaches new chats only; this reaches the
+    // one he is in the middle of. See CARDS_RULE.
+    content.push({ type: 'text', text: CTX_MARKER + ' ' + CARDS_RULE });
 
     // Where and when they are, attached to every message so "now" is never
     // stale. Stripped before display — see CTX_MARKER.

@@ -5,7 +5,7 @@
 // never see each other's chat. No accounts, no links, no admin.
 
 import { createSession } from '../../lib/managedAgents.js';
-import { syncChatAgent } from '../../lib/agentSync.js';
+import { syncChatAgent, pushPromptOnce } from '../../lib/agentSync.js';
 import { claimOwner, firestoreConfigured } from '../../lib/firestore.js';
 import { userFrom } from '../../lib/auth.js';
 import { CHAT_AGENT_ID, ENV_ID } from '../../lib/config.js';
@@ -13,12 +13,32 @@ import { CHAT_AGENT_ID, ENV_ID } from '../../lib/config.js';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
-    // Make sure the agent this session pins to is running the tools and prompt
-    // in this deploy. A session takes the agent version it starts on, so this
-    // has to happen BEFORE the create — after it, the new session is already
-    // pinned to the old one. Costs a single GET on a cold start and nothing
-    // afterwards; never throws, so a sync problem cannot stop a conversation.
-    await syncChatAgent();
+    // Make sure the agent this session pins to is running the prompt in this
+    // deploy. A session takes the agent version it starts on, so this has to
+    // happen BEFORE the create — after it, the new session is already pinned to
+    // the old one. Costs a single GET on a cold start and nothing afterwards;
+    // never throws, so a sync problem cannot stop a conversation.
+    //
+    // THE PROMPT SHIPS NOW, THE TOOLS STILL DO NOT.
+    //
+    // raffy, 2026-09-07: "how to make the agent always give me structured list
+    // view with photos instead of just text. cause I find I need to say
+    // explicitly give option to choose from then only it give me the structure
+    // list with photo. or else just text."
+    //
+    // The rule he is asking for has been in lib/prompt.js since that morning —
+    // "THE FIRST TIME YOU SHOW PLACES, SHOW THEM AS CARDS" — and had reached
+    // nobody. Agent sync is off on purpose (he set the tools in the Console and
+    // a full push would revert them), so syncChatAgent only REPORTED the drift.
+    // Every prompt change written in this repo since has been inert: the exact
+    // failure this file exists to prevent, wearing a different hat.
+    //
+    // pushPrompt sends the live agent's own tools and model straight back and
+    // changes one field, so it cannot touch anything he set. The consequence
+    // worth knowing: the repo now owns the WORDING. A prompt edited in the
+    // Console gets overwritten on the next new chat; lib/prompt.js is where to
+    // change it.
+    await Promise.all([syncChatAgent(), pushPromptOnce()]);
     const session = await createSession(CHAT_AGENT_ID, ENV_ID);
 
     // Owned from birth, when we know who is asking.
