@@ -24,6 +24,7 @@ import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
 import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
+import { locktripProbe } from '../../lib/locktrip.js';
 import { syncAgents, chatModel, toolCheck } from '../../lib/agentSync.js';
 import { createSession, sendUserMessage, advanceState, getState } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
@@ -141,6 +142,25 @@ export default async function handler(req, res) {
     };
   }
 
+  // `?locktrip=<city>` runs one REAL rate lookup against LockTrip's API.
+  //
+  // raffy, 2026-09-07: "can you try this method. https://locktrip.com/agents"
+  //
+  // Free and keyless, so unlike every other price probe here this one costs
+  // nothing but a rate-limit slot (5 searches a minute per IP, anonymous).
+  // `&hotel=`, `&in=`, `&out=`, `&adults=`, `&currency=` narrow it.
+  let locktrip;
+  if (req.query && req.query.locktrip) {
+    locktrip = await locktripProbe({
+      city: String(req.query.locktrip),
+      hotel: req.query.hotel ? String(req.query.hotel) : '',
+      checkIn: String(req.query.in || ''),
+      checkOut: String(req.query.out || ''),
+      adults: Number(req.query.adults) || 2,
+      currency: String(req.query.currency || 'MYR'),
+    });
+  }
+
   // `?syncagent=1` pushes this repo's prompt and tools to both persisted agents
   // now, rather than waiting for the next session to do it. The deployment does
   // this on its own before every chat session; this is here so a deploy can be
@@ -227,6 +247,7 @@ export default async function handler(req, res) {
     builderModel,
     models,
     prices,
+    locktrip,
     agentSync,
     agentTools,
     chat,
