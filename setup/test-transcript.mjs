@@ -65,5 +65,55 @@ const roles = (t) => t.map((r) => r.role).join(' ');
   ok('a conversation with no build has no card', !t.some((r) => r.role === 'ready'), roles(t));
 }
 
-console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
+
+// --- the tools that used to work invisibly ------------------------------------
+//
+// raffy, 2026-09-07: "ya it just give me text response. no structured response
+// like before." I blamed the model. A live probe then spent 32 seconds, came
+// back having read three booking sites, and still reported no actions — because
+// actionOf() had no case for check_prices, place_details, travel_time or
+// trip_facts. The turn went quiet for half a minute and produced prose with
+// nothing on screen saying it had gone and looked.
+
+console.log('\nevery tool the agent has says what it did');
+{
+  const t = eventsToTranscript([
+    msg('user.message', 'u1', 'what does the Sheraton cost'),
+    { type: 'agent.custom_tool_use', id: 'c1', name: 'check_prices',
+      input: { hotels: [{ hotel: 'Sheraton', city: 'Kuching', checkIn: '2026-10-14', checkOut: '2026-10-17' }] } },
+    msg('agent.message', 'a1', 'Booking showed nothing; Agoda had it at RM320.'),
+  ]);
+  const a = (t.find((r) => r.role === 'assistant') || {}).actions || [];
+  ok('a price lookup is visible work', a.length === 1, JSON.stringify(a));
+  ok('and it says what was looked up', /Checked live prices/.test(a[0] && a[0].text), (a[0] || {}).text);
+  ok('naming the hotel in the detail', /Sheraton, Kuching/.test((a[0] || {}).detail || ''), (a[0] || {}).detail);
+}
+
+{
+  const t = eventsToTranscript([
+    msg('user.message', 'u1', 'is it open on a Tuesday'),
+    { type: 'agent.custom_tool_use', id: 'c1', name: 'place_details',
+      input: { places: [{ name: 'Madame Lan' }, { name: 'Han Market' }] } },
+    { type: 'agent.custom_tool_use', id: 'c2', name: 'travel_time', input: {} },
+    { type: 'agent.custom_tool_use', id: 'c3', name: 'trip_facts', input: {} },
+    msg('agent.message', 'a1', 'Shut on Tuesdays.'),
+  ]);
+  const a = (t.find((r) => r.role === 'assistant') || {}).actions || [];
+  ok('three more that were silent are visible', a.length === 3, JSON.stringify(a.map((x) => x.text)));
+  ok('and the place lookup counts them', /Looked up 2 places/.test(a[0].text), a[0].text);
+}
+
+{
+  // Cards stay excluded — they appear as themselves, and a pill underneath the
+  // options saying "showed you options" is noise.
+  const t = eventsToTranscript([
+    msg('user.message', 'u1', 'suggest hotels'),
+    { type: 'agent.custom_tool_use', id: 'c1', name: 'check_prices', input: { hotels: [{ city: 'Jakarta' }] } },
+    msg('agent.message', 'a1', 'Here are three.'),
+  ]);
+  const a = (t.find((r) => r.role === 'assistant') || {}).actions || [];
+  ok('a hotel-only lookup still reads right', /1 hotel\b/.test(a[0].text), a[0].text);
+}
+
+console.log(fail ? '\n' + fail + ' failed' : '\nall passed');
 process.exit(fail ? 1 : 0);
