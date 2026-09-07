@@ -6,7 +6,7 @@
 // the URL carries the dates, and every path that cannot produce a number says
 // so instead of letting the agent invent one.
 import assert from 'node:assert';
-import { bookingPageFor, PRICE_TOOL } from '../lib/prices.js';
+import { bookingPageFor, ratePagesFor, PRICE_TOOL } from '../lib/prices.js';
 import { SYSTEM } from '../lib/prompt.js';
 
 let n = 0;
@@ -97,6 +97,24 @@ console.log('\nThe prompt no longer forbids the thing he asked for');
     assert.ok(/Never take a rate off a blog/.test(SYSTEM), 'blog rule missing'));
   t('the old blanket ban is gone', () =>
     assert.ok(!/Do not go and find a rate by web search instead/.test(SYSTEM), 'old ban still there'));
+}
+
+console.log('\nThe pages it is told to fetch carry the dates');
+{
+  const p = ratePagesFor({
+    hotel: 'DoubleTree by Hilton Melaka', city: 'Melaka',
+    checkIn: '2026-09-28', checkOut: '2026-09-29', adults: 2,
+  });
+  t('Google Hotels first — one page, every platform', () =>
+    assert.equal(p[0].site, 'Google Hotels'));
+  t('every page carries both dates', () => p.forEach((x) => {
+    assert.ok(x.url.includes('2026-09-28'), x.site + ': ' + x.url);
+  }));
+  t('and asks for ringgit', () => assert.ok(/curr=MYR/.test(p[0].url), p[0].url));
+  t('the hotel name is in all of them', () =>
+    p.forEach((x) => assert.ok(/DoubleTree/i.test(decodeURIComponent(x.url)), x.site)));
+  t('no dates, no pages — a link without them is not an answer', () =>
+    assert.deepEqual(ratePagesFor({ hotel: 'X', city: 'Y' }), []));
 }
 
 console.log('\n' + n + ' passed');
