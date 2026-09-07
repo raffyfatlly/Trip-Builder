@@ -24,7 +24,7 @@ const SAYS = {
   plus: 'A few trips, or one you keep coming back to.',
 };
 
-export default function Packs({ onError, compact }) {
+export default function Packs({ onError, compact, paid }) {
   const [packs, setPacks] = useState(null);
   const [busy, setBusy] = useState('');
 
@@ -57,9 +57,19 @@ export default function Packs({ onError, compact }) {
 
   if (!packs || !packs.length) return null;
 
+  // TOP-UP IS FOR PEOPLE WHO HAVE ALREADY BOUGHT. raffy, 2026-09-07: "topup only
+  // offer to those who have selected either one of the two packs. or else only 2
+  // pax default."
+  //
+  // Right, and not only for tidiness: RM10 next to RM28 makes RM10 the obvious
+  // first move, and RM10 does not buy a trip. Somebody's first purchase should
+  // be the one that actually gets them what they came for; the small one is for
+  // topping up a trip already under way.
+  const shown = paid ? packs : packs.filter((p) => p.id !== 'topup');
+
   return (
     <div className={'packs' + (compact ? ' compact' : '')}>
-      {packs.map((p) => (
+      {shown.map((p) => (
         <button key={p.id} className={'pack' + (p.id === 'starter' ? ' lead' : '')}
           disabled={!!busy} onClick={() => buy(p.id)}>
           <span className="pname">{p.name}</span>

@@ -12,6 +12,7 @@ import { billed } from '../../lib/billed.js';
 import { allowed, leftOf } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
 import { shouldReply, heldFor, withoutAsk } from '../../lib/listen.js';
+import { CTX_MARKER } from '../../lib/context.js';
 import { readOwner, readHeld, appendHeld, clearHeld, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
 
 async function handler(req, res) {
@@ -136,7 +137,18 @@ async function handler(req, res) {
     // of them decided; without the second it replies to a message whose whole
     // meaning is in the three before it.
     if (shared && held.length) {
-      content.push({ type: 'text', text: heldFor(held) });
+      // MARKED, SO IT NEVER APPEARS ON SCREEN.
+      //
+      // raffy, 2026-09-07, with a screenshot of it rendered as a chat bubble:
+      // "this message shouldn't be displayed at all if possible ... this should
+      // only happen background."
+      //
+      // He is right and this was a plain text block, so it drew as part of his
+      // own message — the app showing him a transcript of what he had just said,
+      // followed by instructions to itself. CTX_MARKER is what the display layer
+      // strips (see display() in lib/managedAgents.js); every other piece of
+      // background context already carries it and this one was simply missed.
+      content.push({ type: 'text', text: CTX_MARKER + heldFor(held) });
     }
     if (text && text.trim()) {
       const from = shared && who ? who.split('@')[0] + ': ' : '';

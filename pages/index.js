@@ -386,8 +386,19 @@ export default function Home() {
   // Building is the paid part. "new account with no paid credit cannot build at
   // all" — so this is true for anyone who has never bought, and for anyone who
   // has but is now short. Same rule the server enforces, said early.
+  // Shown when they cannot afford a build — and ONLY then.
+  //
+  // raffy, 2026-09-07, in a trip shared with his wife: "after I got the credit
+  // after paying, the building your trip is paid part still there and doesn't go
+  // away." It keyed on a `paid` flag as well as the balance, and he had bought
+  // credits before that flag existed — so the app had him buy what he had
+  // already bought. The balance is the honest test and the only one needed:
+  // the free grant is 4 and a build is 25.
+  //
+  // (Balances are per person, keyed on email, so a guest running out never
+  // affects the owner. He asked; it does not.)
   const mustBuy = !!(purse && !spent && purse.signedIn
-    && (!purse.paid || (purse.buildCost && purse.left < purse.buildCost)));
+    && purse.buildCost && purse.left < purse.buildCost);
 
   const tripName =
     (working && working.trip && working.trip.title)
@@ -475,6 +486,35 @@ export default function Home() {
   // How many things the agent has said. The dock uses it to tell an answer to
   // THIS ask from the one before it.
   const saidCount = messages.filter((m) => m.role === 'assistant' && m.text).length;
+
+  // WHAT EACH TURN COST. raffy, 2026-09-07: "I want after each turn it shows how
+  // many credit the turn consume. so its clear."
+  //
+  // There is no per-turn figure on the server — the ledger holds a running total
+  // — but the DIFFERENCE in that total between one reply and the next is exactly
+  // what the turn in between consumed. So each assistant message is stamped with
+  // the total as it stood when it arrived, and the cost is the gap to the one
+  // before it.
+  //
+  // A ref rather than state: writing it must not itself cause a render, and the
+  // value is read during render of a message that has already been decided.
+  const turnCost = useRef(new Map());
+  const lastUsed = useRef(null);
+  useEffect(() => {
+    if (!purse || typeof purse.used !== 'number') return;
+    const said = messages.filter((m) => m.role === 'assistant' && m.text);
+    const newest = said[said.length - 1];
+    if (!newest || !newest.id) return;
+    if (turnCost.current.has(newest.id)) return;
+    // The first reply of a session has nothing to measure against, so it is
+    // stamped but not priced — better a blank than a number that is really the
+    // whole session's spend so far.
+    const before = lastUsed.current;
+    lastUsed.current = purse.used;
+    if (before == null) { turnCost.current.set(newest.id, null); return; }
+    const spentHere = Math.max(0, purse.used - before);
+    turnCost.current.set(newest.id, spentHere);
+  }, [purse, messages]);
 
   // What the agent last said, trimmed to something that fits a dock — but only
   // if it said it after they asked.
@@ -1162,6 +1202,18 @@ export default function Home() {
                     <>
                       <Rich text={m.text} />
                       <Actions actions={m.actions} />
+                      {/* What this turn cost, under the reply it paid for.
+                          Quiet on purpose: it is reassurance that the meter is
+                          honest, not a headline. Hidden when it rounds to
+                          nothing — "0 credits" invites the question of what a
+                          fraction of a credit is, and the answer is not
+                          interesting. */}
+                      {turnCost.current.get(m.id) > 0 && (
+                        <span className="cost">
+                          {turnCost.current.get(m.id)}
+                          {turnCost.current.get(m.id) === 1 ? ' credit' : ' credits'}
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
@@ -1325,15 +1377,15 @@ export default function Home() {
                 worse moment than being told at the start. */}
             {mustBuy && !paid && (
               <div className="wall low">
-                <b>{purse.paid ? 'Not quite enough to build it' : 'Building your trip is the paid part'}</b>
+                <b>{purse.used > 0 ? 'Not quite enough to build it' : 'Building your trip is the paid part'}</b>
                 <p>
-                  {purse.paid
+                  {purse.used > 0
                     ? 'You have ' + purse.left.toLocaleString('en') + ' credits and building takes about '
                       + purse.buildCost + '. Carry on chatting — everything you decide is saved.'
                     : 'Keep planning as long as you like — the chat, the research, the recommendations are'
                       + ' yours. Turning it into an app you can carry is what a pack buys.'}
                 </p>
-                <Packs onError={(m) => setPaid('error:' + m)} />
+                <Packs paid={!!(purse && purse.paid)} onError={(m) => setPaid('error:' + m)} />
               </div>
             )}
             {spent ? (
@@ -1359,7 +1411,7 @@ export default function Home() {
                   /* The packs, right here rather than behind another tap. They
                      have already hit the wall; making them navigate to a
                      pricing page to get past it is one step too many. */
-                  <Packs onError={(m) => setPaid('error:' + m)} />
+                  <Packs paid={!!(purse && purse.paid)} onError={(m) => setPaid('error:' + m)} />
                 )}
                 <div className="wring"><Credits credits={purse} size={104} /></div>
               </div>
@@ -2068,6 +2120,10 @@ export default function Home() {
         /* The low-balance variant is an offer, not a stop. Lighter ground and
            no shadow, so it sits beside the conversation rather than replacing
            it the way the spent-out wall does. */
+        .cost{
+          display:block;margin-top:6px;font-size:10.5px;letter-spacing:.02em;
+          color:var(--ink-faint);font-variant-numeric:tabular-nums;
+        }
         .wall.low{background:var(--surface);border:1px solid rgba(20,50,40,.10);box-shadow:none}
         .wall b{
           display:block;font-size:15.5px;font-weight:700;color:var(--deep);

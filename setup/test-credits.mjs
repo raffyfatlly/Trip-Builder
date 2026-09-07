@@ -77,8 +77,18 @@ ok('so RM28 is one big trip with room, usually two',
 // "we give 7 turns without building if they don't pay." A turn is $0.010.
 ok('the free grant is about seven turns', cfg.grant >= 3 && cfg.grant <= 6, cfg.grant + ' credits');
 ok('and costs him under RM0.50 a signup', cfg.grantCostsMyr <= 0.5, 'RM' + cfg.grantCostsMyr);
-ok('a free account CANNOT afford a build — that is the paywall',
-   cfg.grant < C.creditsFor(0.36), cfg.grant + ' credits vs a build at ' + C.creditsFor(0.36));
+// THE INVARIANT THE BUILD GATE NOW RESTS ON.
+//
+// The gate was two conditions — "never paid" and "cannot afford it" — and the
+// first one misfired on raffy, who had bought credits before that flag existed
+// and was told to buy what he already had. So the gate is the balance alone,
+// and this is what keeps the free tier out: the grant MUST stay below the cost
+// of a build. Change either number without the other and the paywall opens.
+ok('a free account CANNOT afford a build — the whole paywall rests on this',
+   cfg.grant < C.rebuildCredits(),
+   cfg.grant + ' free credits vs a build at ' + C.rebuildCredits());
+ok('and a bought pack comfortably can', 100 >= C.rebuildCredits(),
+   '100 credits vs ' + C.rebuildCredits());
 ok('nothing is in the thousands', cfg.grant < 1000 && C.creditsFor(9.30) < 1000);
 
 console.log('\nwhat the measured trips would charge');

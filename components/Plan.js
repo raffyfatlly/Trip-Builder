@@ -68,7 +68,16 @@ export default function Plan({ plan, onBuild, built, building }) {
               <span className="sv">{plan[s.key] || s.hint}</span>
             </div>
           ))}
-          {!building && (
+          {/* BUILT ONCE. raffy, 2026-09-07: "can only build once, so any button
+              say build this is disabled."
+              A second build re-plans the whole trip from scratch, costs another
+              16-29 credits, and throws away everything they have edited since.
+              The server refuses one without an explicit yes anyway; leaving a
+              live button here just invites the argument. Changes go through the
+              chat, which edits instead of rebuilding. */}
+          {built ? (
+            <p className="builtnote">Built. Ask in the chat to change anything — it edits your trip rather than starting over.</p>
+          ) : !building && (
             <button className="buildnow" onClick={onBuild}>
               {done ? 'Build my itinerary' : `Build it anyway (${left.length} still open)`}
             </button>
@@ -77,6 +86,9 @@ export default function Plan({ plan, onBuild, built, building }) {
       )}
 
       <style jsx>{`
+        .builtnote{
+          margin:10px 12px 12px;font-size:12px;line-height:1.5;color:var(--ink-faint);
+        }
         .plan{
           flex:none;background:var(--surface);border-radius:16px;
           box-shadow:var(--sh-s);margin:0 2px 10px;overflow:hidden;
