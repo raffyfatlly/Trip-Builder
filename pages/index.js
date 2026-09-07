@@ -1264,23 +1264,18 @@ export default function Home() {
                 ))}
               </div>
             )}
-            {/* WHERE THIS MESSAGE IS GOING, said in words, above the box.
-                raffy, 2026-09-07: "design better for the composer with the @."
-                The first pass was an @ glyph on a circle beside the input — a
-                control you have to already understand. This is the same one tap
-                and says the answer instead: "To Syahirah" or "Asking the
-                assistant". Only in a shared trip; alone there is only one
-                possible destination and a row saying so is noise. */}
+            {/* WHERE THIS MESSAGE IS GOING. ONE control you tap, not two tabs.
+                raffy, 2026-09-07: "I don't like the current two tab design for
+                choosing. i want click toggle style."
+                Two tabs took the full composer width and gave a permanent seat
+                to the option you are not using. This says the current
+                destination and flips on tap — smaller, and it reads as a state
+                rather than a pair of choices. The label and icon swap
+                instantly: this gets tapped constantly, and a crossfade on a
+                control used that often is in the way. Only the colour moves.
+                Only in a shared trip; alone there is one possible destination
+                and a control saying so is noise. */}
             {party && party.shared && (
-              {/* ONE control you tap, not two tabs.
-                  raffy, 2026-09-07: "I don't like the current two tab design
-                  for choosing. i want click toggle style."
-                  Two tabs took the full width and gave a permanent seat to the
-                  option you are not using. This says the current destination
-                  and flips on tap — smaller, and it reads as a state rather
-                  than a pair of choices. The label and icon swap instantly:
-                  this gets tapped constantly, and a crossfade on a control used
-                  that often is in the way. Only the colour moves. */}
               <button type="button"
                 className={'dest' + (ask ? ' asking' : '')}
                 aria-pressed={ask}
