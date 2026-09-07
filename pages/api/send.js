@@ -11,6 +11,8 @@ import { note } from '../../lib/journal.js';
 import { billed } from '../../lib/billed.js';
 import { allowed, leftOf } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
+import { shouldReply, heldFor } from '../../lib/listen.js';
+import { readOwner, readHeld, appendHeld, clearHeld, firestoreConfigured } from '../../lib/firestore.js';
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -63,6 +65,43 @@ async function handler(req, res) {
       return res.status(429).json({ error: 'This conversation has reached its limit.' });
     }
 
+    // WHETHER THE AGENT SHOULD ANSWER THIS AT ALL.
+    //
+    // raffy, 2026-09-07: "allow them to chat in the same session ... but not
+    // like automated response ... if they just talking between each other the
+    // agent don't respond."
+    //
+    // A message sent to the agent IS a turn, and a turn is about $0.109, so
+    // this decision has to happen BEFORE the message goes anywhere near it. On
+    // a trip with one person in it nothing here runs at all — same path, same
+    // cost, same speed as before. See lib/listen.js.
+    let shared = false;
+    let owner = null;
+    if (firestoreConfigured()) {
+      try {
+        owner = await readOwner(session);
+        shared = !!(owner && (owner.guests || []).length);
+      } catch (e) { /* unknown ownership behaves as a solo trip */ }
+    }
+
+    let held = [];
+    if (shared) {
+      try { held = await readHeld(session); } catch (e) { held = []; }
+      const verdict = await shouldReply({ text: text || '', recent: held, shared });
+      if (!verdict.reply) {
+        // Said to the other person, not to the agent. It is kept where both of
+        // them can see it and where the agent will read it the next time it
+        // does speak — but nothing is woken and nothing is charged.
+        try {
+          await appendHeld(session, { who, text: String(text || '').trim(), at: Date.now() });
+        } catch (e) {
+          console.error('could not hold message:', e && e.message);
+        }
+        note(session, 'msg', { turn: turns + 1, held: true, why: verdict.why });
+        return res.status(200).json({ ok: true, spoke: false, why: verdict.why });
+      }
+    }
+
     const content = [];
     const kept = [];
     for (const f of files || []) {
@@ -84,14 +123,30 @@ async function handler(req, res) {
         + 'from the card:\n'
         + kept.map((d) => '- ' + (d.name || 'attachment') + ': ' + d.url).join('\n') });
     }
-    if (text && text.trim()) content.push({ type: 'text', text: text.trim() });
+    // On a shared trip the agent is told who is speaking, and what it missed.
+    // Without the first it answers "we decided Tuesday" without knowing which
+    // of them decided; without the second it replies to a message whose whole
+    // meaning is in the three before it.
+    if (shared && held.length) {
+      content.push({ type: 'text', text: heldFor(held, who) });
+    }
+    if (text && text.trim()) {
+      const from = shared && who ? who.split('@')[0] + ': ' : '';
+      content.push({ type: 'text', text: from + text.trim() });
+    }
 
     // Where and when they are, attached to every message so "now" is never
     // stale. Stripped before display — see CTX_MARKER.
     content.push({ type: 'text', text: contextBlock(geoFrom(req), client, memory) });
 
     await sendUserMessage(session, content);
-    res.status(200).json({ ok: true });
+    // Handed over, so it must not be handed over twice. Cleared AFTER the send
+    // rather than before: a send that fails leaves the messages held, which is
+    // recoverable, where clearing first would lose them.
+    if (shared && held.length) {
+      try { await clearHeld(session); } catch (e) { /* next send clears it */ }
+    }
+    res.status(200).json({ ok: true, spoke: true });
   } catch (err) {
     console.error('send failed:', err);
     res.status(500).json({ error: 'Could not send that.' });

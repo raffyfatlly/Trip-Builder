@@ -37,6 +37,11 @@ export default function Home() {
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState([]);      // uploaded, not yet sent
   const [thinking, setThinking] = useState(false);
+  // Who else is in this trip, from /api/state. null when it is just them.
+  // Declared up here with the other hooks rather than beside the code that
+  // uses it: the poll reads setParty ~470 lines earlier, and a hook declared
+  // below its first use is a trap even when useEffect happens to make it safe.
+  const [party, setParty] = useState(null);
   // What the agent is doing, in its own words, and how long it has been at it.
   const [doing, setDoing] = useState(null);
   // A turn that died on the model's side. Silence is the worst thing the chat
@@ -207,6 +212,10 @@ export default function Home() {
         // their own words appeared, vanished for a poll or two, and came back.
         //
         // An optimistic message is kept until the transcript actually has it.
+        // Who is in this trip. Drives the name over the other person's
+        // messages and whether the invite panel appears at all.
+        setParty(d.party || null);
+
         if (d.transcript) {
           setMessages((prev) => {
             const waiting = prev.filter((m) => String(m.id || '').startsWith('tmp'));
@@ -1031,13 +1040,26 @@ export default function Home() {
               ) : m.role === 'block' ? (
                 <Block key={m.id} block={m} disabled={thinking || spent} where={tripName} onChoose={(t) => send(t)} />
               ) : (
-                <div key={m.id} className={'msg ' + m.role}>
+                <div key={m.id}
+                  className={'msg ' + m.role
+                    + (m.who && party && m.who !== party.me ? ' theirs' : '')
+                    + (m.aside ? ' aside' : '')}>
                   {m.role === 'assistant' ? (
                     <>
                       <Rich text={m.text} />
                       <Actions actions={m.actions} />
                     </>
-                  ) : m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                  ) : (
+                    <>
+                      {/* Whose message this is, but only when there is more
+                          than one of them — a name over every message in a
+                          conversation with yourself is noise. */}
+                      {m.who && party && party.shared && m.who !== party.me && (
+                        <span className="from">{m.who.split('@')[0]}</span>
+                      )}
+                      {m.text.split('\n').map((line, i) => <p key={i}>{line}</p>)}
+                    </>
+                  )}
                 </div>
               )
             ))}
@@ -1689,6 +1711,27 @@ export default function Home() {
            in a bubble reads as someone talking to you — and it gives long
            replies, lists and prices the full column to breathe in. */
         .msg.assistant{max-width:60ch;padding:2px 2px 4px}
+
+        /* The other person's messages, in a shared trip.
+           raffy, 2026-09-07: two people in one chat. Theirs sit on the LEFT in
+           a pale bubble — the traveller's own dark bubble on the right stays
+           exactly as it was, so a solo trip looks untouched and a shared one
+           reads as a conversation at a glance rather than needing the name to
+           be read. */
+        .msg.user.theirs{
+          margin-left:0;margin-right:auto;
+          background:var(--sage);color:var(--ink);
+          border-radius:20px;border-bottom-right-radius:20px;border-bottom-left-radius:8px;
+          box-shadow:var(--sh-s);
+        }
+        .from{
+          display:block;font-size:11px;font-weight:750;letter-spacing:.02em;
+          color:var(--ink-faint);margin-bottom:3px;text-transform:capitalize;
+        }
+        /* Said to each other, not to the agent. Quieter, and a hair narrower —
+           it is beside the conversation rather than in it. */
+        .msg.user.aside{opacity:.9}
+        .msg.user.aside .from{color:var(--ink-faint)}
 
         .msg.user{
           max-width:min(80%,44ch);width:fit-content;margin-left:auto;

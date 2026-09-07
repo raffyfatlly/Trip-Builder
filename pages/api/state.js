@@ -18,6 +18,7 @@ import { getState } from '../../lib/managedAgents.js';
 import { billed } from '../../lib/billed.js';
 import { allowed } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
+import { readOwner, readHeld, firestoreConfigured } from '../../lib/firestore.js';
 
 async function handler(req, res) {
   const session = req.query.session;
@@ -32,8 +33,42 @@ async function handler(req, res) {
     let who = '';
     try { who = userFrom(req) || ''; } catch (e) { /* anonymous */ }
     const [state, purse] = await Promise.all([getState(session), allowed(who, session)]);
+
+    // Messages the two of them said to each other while the agent stayed quiet.
+    //
+    // These are not in the agent's event log — that is the whole point, a
+    // message sent there costs a turn — so the transcript has to be joined here
+    // or the app looks like it swallowed what somebody typed. They sit at the
+    // end because that is when they were said: everything before them has
+    // already been through the agent.
+    let owner = null;
+    let held = [];
+    if (firestoreConfigured()) {
+      try {
+        owner = await readOwner(session);
+        if (owner && (owner.guests || []).length) held = await readHeld(session);
+      } catch (e) { /* a trip whose sharing cannot be read is shown unshared */ }
+    }
+    const transcript = held.length
+      ? [...(state.transcript || []), ...held.map((m, i) => ({
+        role: 'user',
+        text: String(m.text || ''),
+        who: m.who || '',
+        // Marked so the browser can show it as said-to-each-other rather than
+        // as a message the agent has answered.
+        aside: true,
+        id: 'held:' + (m.at || i),
+      }))]
+      : state.transcript;
+
     res.status(200).json({
       ...state,
+      transcript,
+      // Who is in this trip, so the app can put a name on the other person's
+      // messages and show the invite panel only to the owner.
+      party: owner && owner.who
+        ? { owner: owner.who, guests: owner.guests || [], me: who, shared: !!(owner.guests || []).length }
+        : null,
       credits: purse.unmetered ? null : {
         left: purse.left, granted: purse.granted, used: purse.used,
         plan: purse.plan, build: purse.build, signedIn: purse.who,
