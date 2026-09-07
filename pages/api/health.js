@@ -28,6 +28,7 @@ import { locktripProbe, rawTool } from '../../lib/locktrip.js';
 import { syncAgents, chatModel, toolCheck, pushPrompt } from '../../lib/agentSync.js';
 import { createSession, sendUserMessage, advanceState, getState, tripCost } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
+import { stripeProbe } from '../../lib/stripe.js';
 
 // What is actually switched on in this deployment.
 //
@@ -171,6 +172,11 @@ export default async function handler(req, res) {
     lt = await rawTool(String(req.query.lt), body);
   }
 
+  // `?stripe=1` proves the key works and the packs hold the ceiling. Reads the
+  // balance only — it moves no money and creates nothing.
+  let stripe;
+  if (req.query && req.query.stripe) { await loadConfig(); stripe = await stripeProbe(); }
+
   // `?cost=<session>` asks ANTHROPIC what a trip cost, rather than trusting our
   // own journal. It reports the chat session and every builder session it
   // started, with token counts and list_cost. Free — it reads session objects.
@@ -271,6 +277,7 @@ export default async function handler(req, res) {
     prices,
     locktrip,
     lt,
+    stripe,
     cost,
     promptPush,
     agentSync,

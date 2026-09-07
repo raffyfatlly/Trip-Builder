@@ -51,17 +51,35 @@ const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '
 console.log('\nthe rate card');
 
 const cfg = C.explain();
-ok('markup is inside the 3-5x he asked for', cfg.markup >= 3 && cfg.markup <= 5, cfg.markup + 'x');
-// raffy, 2026-09-05: "reflect the credit to be alligned with the one we use in
-// landing page. maybe thousands seems to much." public/welcome/index.html says
-// "Planning a whole trip — 50". Everything here is that number's consequence.
-ok('a whole trip is about 50 credits, as the landing page says',
-   Math.abs(C.creditsFor(3.55) - 50) <= 3, C.creditsFor(3.55) + ' for the median trip');
-ok('a free grant is one trip and a bit', cfg.grant === 70);
-ok('and it can cost him about RM22', Math.abs(cfg.grantCostsMyr - 21.7) < 0.01, 'RM' + cfg.grantCostsMyr);
-ok('a credit costs RM0.31 to serve and should sell for RM1.55',
-   cfg.myrPerCredit === 0.31 && cfg.creditSellsFor === 1.55);
-ok('nothing is in the thousands any more', cfg.grant < 1000 && C.creditsFor(9.30) < 1000);
+// THE RULE THIS WHOLE FILE NOW ENCODES. raffy, 2026-09-07:
+//
+//   "im targeting about RM 28 for first payment ... just that make sure for
+//    every rm 28 they spend. i will not incur more than RM 10 cost."
+//
+// A ceiling, not a margin — a margin can be broken by one expensive turn and a
+// ceiling cannot. It replaces the 3-5x these tests used to assert, and the free
+// grant that used to cover a whole trip.
+ok('a credit is ten sen of real cost', cfg.myrPerCredit === 0.10, 'RM' + cfg.myrPerCredit);
+ok('and sells for 28 sen — RM28 buys 100', cfg.creditSellsFor === 0.28
+   && Math.abs(100 * cfg.creditSellsFor - 28) < 0.01, 'RM' + cfg.creditSellsFor);
+ok('so RM28 can never cost him more than RM10', Math.abs(100 * cfg.myrPerCredit - 10) < 0.01,
+   'RM' + (100 * cfg.myrPerCredit).toFixed(2));
+ok('the ceiling holds at 2.8x, his floor', cfg.markup >= 2.8, cfg.markup + 'x');
+
+// Measured 2026-09-07 from Anthropic's own session records: a light trip (KL,
+// the only one built on the current stack) is $0.62 all in, a heavy one $1.10.
+ok('a trip is 27-49 credits, a number you can hold in your head',
+   C.creditsFor(0.62) >= 25 && C.creditsFor(1.10) <= 50,
+   C.creditsFor(0.62) + ' light, ' + C.creditsFor(1.10) + ' heavy');
+ok('so RM28 is one big trip with room, usually two',
+   Math.floor(100 / C.creditsFor(1.00)) >= 2, Math.floor(100 / C.creditsFor(1.00)) + ' typical trips');
+
+// "we give 7 turns without building if they don't pay." A turn is $0.010.
+ok('the free grant is about seven turns', cfg.grant >= 3 && cfg.grant <= 6, cfg.grant + ' credits');
+ok('and costs him under RM0.50 a signup', cfg.grantCostsMyr <= 0.5, 'RM' + cfg.grantCostsMyr);
+ok('a free account CANNOT afford a build — that is the paywall',
+   cfg.grant < C.creditsFor(0.36), cfg.grant + ' credits vs a build at ' + C.creditsFor(0.36));
+ok('nothing is in the thousands', cfg.grant < 1000 && C.creditsFor(9.30) < 1000);
 
 console.log('\nwhat the measured trips would charge');
 
@@ -81,10 +99,13 @@ for (const [name, usd] of TRIPS) {
     + (c <= cfg.grant ? 'inside the free grant' : 'RUNS OUT'));
 }
 
-ok('the median trip fits inside the free grant', C.creditsFor(3.55) < cfg.grant);
-ok('with something left over — "a bit more"', cfg.grant - C.creditsFor(3.55) >= 15,
-   (cfg.grant - C.creditsFor(3.55)) + ' spare');
-ok('a p90 research marathon does NOT fit, so it is capped', C.creditsFor(9.30) > cfg.grant);
+// The free grant deliberately does NOT cover a trip any more. It used to, and
+// that was the old deal; the new one is seven turns and a paywall at the build.
+ok('a trip does NOT fit inside the free grant', C.creditsFor(0.62) > cfg.grant,
+   C.creditsFor(0.62) + ' credits vs a grant of ' + cfg.grant);
+ok('but a RM28 pack covers even the heaviest trip', C.creditsFor(1.10) <= 100,
+   C.creditsFor(1.10) + ' of 100');
+ok('and two typical trips still fit', 2 * C.creditsFor(1.00) <= 100, 2 * C.creditsFor(1.00) + ' of 100');
 
 console.log('\nrounding never goes his way by accident');
 ok('a fraction of a credit rounds up', C.creditsFor(0.0001) === 1);
@@ -129,7 +150,28 @@ console.log('\nthe gate');
 const purse = await C.allowed('someone@example.com', S);
 ok('a signed-in person has a balance', purse.granted === C.explain().grant);
 ok('and has been charged for the session', purse.used > 0, purse.used + ' used');
-ok('and can still send', purse.ok);
+// This session spent $2.52 — 111 credits, well past a free grant of 4. Under
+// the old economics (grant 70, RM0.31 a credit) it fitted; under the new deal a
+// free account cannot run a trip, which is the paywall doing its job rather
+// than a fault. So the realistic case is a customer who has PAID.
+ok('a free account is stopped by it', !purse.ok, purse.used + ' used of ' + purse.granted);
+{
+  const { readLedger: rl, writeLedger: wl } = await import('../lib/firestore.js');
+  const id = 'u:someone@example.com';
+  const l = await rl(id);
+  // ONE PACK IS NOT ENOUGH HERE, and that is the ceiling working rather than
+  // failing. This fixture spent $2.52 = RM11.10 of real cost, which is MORE than
+  // the RM10 a single RM28 pack is allowed to buy. A session that expensive is
+  // supposed to run out and ask for another pack — that is precisely the
+  // promise "for every rm 28 they spend, i will not incur more than RM 10 cost".
+  await wl({ ...l, granted: (l.granted || 0) + 100 });   // one RM28 pack
+  const one = await C.allowed('someone@example.com', S);
+  ok('one pack does NOT cover an RM11 session — the ceiling holds', !one.ok,
+     one.used + ' used of ' + one.granted);
+  await wl({ ...(await rl(id)), granted: (await rl(id)).granted + 100 });   // a second
+  const paid = await C.allowed('someone@example.com', S);
+  ok('a second pack lets them carry on', paid.ok, paid.used + ' used of ' + paid.granted);
+}
 
 // Spend the rest.
 const { readLedger, writeLedger } = await import('../lib/firestore.js');
