@@ -799,7 +799,23 @@ export default function Home() {
 
   const onSignOut = async () => {
     try { await fetch('/api/auth/signout', { method: 'POST' }); } catch (e) { /* ignore */ }
-    // The local list stays. Signing out is not "delete my trips".
+    // Let go of the OPEN session, and of the trip list this account brought
+    // with it.
+    //
+    // raffy, 2026-09-07: "I use her phone, log out, then sign in again suddenly
+    // her session is saved on my account." Signing out left both of those in
+    // localStorage, so the next person to sign in on the same phone opened the
+    // previous person's conversation and their browser then claimed it. The
+    // server refuses that claim now, but leaving somebody else's chat on screen
+    // after they signed out is its own problem — it is their conversation.
+    //
+    // Their trips are not deleted; they are on their account and come back when
+    // they sign in. What is cleared is only this browser's copy.
+    try {
+      localStorage.removeItem(KEY);
+      localStorage.removeItem('itin.trips.v1');
+      localStorage.removeItem('itin.memory.v1');
+    } catch (e) { /* a browser that refuses storage has nothing to clear */ }
     setAccount((a) => ({ ...a, user: null }));
     // Land on the landing page rather than on a thinner copy of the app.
     // Someone who has just left an account is not mid-task, and the page they
