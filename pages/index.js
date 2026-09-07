@@ -1734,24 +1734,31 @@ export default function Home() {
           transition:background 160ms ease,color 160ms ease,transform 140ms cubic-bezier(.23,1,.32,1);
         }
         .dest svg{width:14px;height:14px;flex:none;opacity:.75}
+        /* "tap to switch", set apart by a dot rather than sitting flush
+           against the label — two text runs of different weight touching read
+           as one broken word. */
         .dest i{
           font-style:normal;font-weight:600;font-size:10.5px;
-          color:var(--ink-faint);opacity:.8;margin-left:2px;
+          color:var(--ink-faint);
         }
+        .dest i::before{content:'·';margin:0 5px 0 3px;opacity:.55}
         .dest.asking{background:var(--deep);color:#EAF2EC}
         .dest.asking svg{opacity:.9}
-        .dest.asking i{color:#9FB8AC}
+        .dest.asking i{color:#93AEA2}
         .dest:active{transform:scale(.97)}
-        /* The hint is for discovering it, not for living with it. */
-        @media (max-width: 360px){ .dest i{display:none} }
 
-        /* Asking: the input itself changes, so the mode is visible at the exact
-           spot the eye is already on while typing. */
-        .row.asking textarea{
-          background:var(--surface);
-          box-shadow:inset 0 0 0 1.5px var(--deep);
-        }
-        .row.asking textarea:focus{box-shadow:inset 0 0 0 1.5px var(--deep),0 0 0 2px var(--coral)}
+        /* Asking used to draw a hard dark ring INSIDE the box and then the
+           coral focus ring OUTSIDE it — two outlines fighting, which is the
+           "not clean like others" raffy photographed. Nothing else in this app
+           has two rings.
+           The pill above already went dark green and the placeholder already
+           says "Ask about the trip" — the box does not need to shout it a third
+           time. A tinted background was tried and dropped: at the distance from
+           sage that still looked like the same family it was indistinguishable,
+           so it was decoration pretending to be a signal.
+           So the input is now IDENTICAL in both modes, which is what "clean
+           like the others" means — the same shape, the same one focus ring as
+           every other field in the app. */
         .drow button{
           flex:none;width:38px;height:38px;border:0;border-radius:50%;cursor:pointer;
           background:var(--deep);color:#EAF2EC;display:grid;place-items:center;
