@@ -16,7 +16,7 @@ import { FACT_TOOLS } from '../lib/facts.js';
 import { PRICE_TOOL } from '../lib/prices.js';
 import { RESEARCH_TOOL } from '../lib/research.js';
 import { CHAT_AGENT_ID } from '../lib/config.js';
-import { CHAT_TOOLS } from '../lib/agentSync.js';
+import { CHAT_TOOLS, modelFor, chatModel } from '../lib/agentSync.js';
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) throw new Error('ANTHROPIC_API_KEY not set');
@@ -62,7 +62,13 @@ if (process.argv.includes('--dry')) {
 // first, and it cuts the wait as well as the bill.
 //
 // Set EFFORT=high to put it back in one command if the conversation gets worse.
-const effort = process.env.EFFORT || 'medium';
+// Effort is not universal: Haiku 4.5 rejects it outright. modelFor() knows
+// which families take it, so the CLI and the deployment cannot disagree about
+// what a valid model object looks like.
+const wantModel = modelFor(before.model, process.env.CHAT_MODEL || chatModel());
+if (process.env.EFFORT && wantModel.effort) wantModel.effort = { type: process.env.EFFORT };
+console.log('model    ' + wantModel.id
+  + (wantModel.effort ? '  effort ' + wantModel.effort.type : '  (no effort on this model)'));
 
 const res = await fetch('https://api.anthropic.com/v1/agents/' + CHAT_AGENT_ID, {
   method: 'POST',
@@ -70,7 +76,7 @@ const res = await fetch('https://api.anthropic.com/v1/agents/' + CHAT_AGENT_ID, 
   body: JSON.stringify({
     system: SYSTEM,
     tools,
-    model: { ...(before.model || {}), effort: { type: effort } },
+    model: wantModel,
   }),
 });
 const text = await res.text();

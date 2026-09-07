@@ -8,7 +8,7 @@
 // thing. The deployment now pushes it itself before creating a session. These
 // check the two ways that can still go wrong quietly.
 import assert from 'node:assert';
-import { CHAT_TOOLS } from '../lib/agentSync.js';
+import { CHAT_TOOLS, modelFor } from '../lib/agentSync.js';
 import { EDIT_TOOL } from '../lib/editTools.js';
 import { toEdits } from '../lib/editTools.js';
 
@@ -79,6 +79,39 @@ console.log('\nEvery op the agent is offered actually does something');
       assert.ok(out.length > 0, op + ' is advertised but does nothing');
     });
   }
+}
+
+console.log('\nThe model object, which is where a 400 comes from');
+{
+  // raffy, 2026-09-07: "change sonnet to haiku." The agent had been running
+  // effort: medium since it was on Sonnet, and Haiku 4.5 REJECTS effort — so
+  // moving the model without dropping the field would have 400'd every
+  // conversation, and it would have looked like the model being bad rather
+  // than the request being malformed.
+  t('haiku gets no effort at all', () => {
+    const m = modelFor({ id: 'claude-sonnet-5', effort: { type: 'medium' } }, 'claude-haiku-4-5');
+    assert.equal(m.id, 'claude-haiku-4-5');
+    assert.ok(!('effort' in m), JSON.stringify(m));
+  });
+  t('switching back to sonnet gets it again', () => {
+    const m = modelFor({ id: 'claude-haiku-4-5' }, 'claude-sonnet-5');
+    assert.equal(m.effort.type, 'medium');
+  });
+  t('an effort already set is left alone', () => {
+    assert.equal(modelFor({ effort: { type: 'high' } }, 'claude-opus-5').effort.type, 'high');
+  });
+  t('anything else on the live model survives the swap', () => {
+    const m = modelFor({ id: 'claude-sonnet-5', inference_geo: 'us' }, 'claude-haiku-4-5');
+    assert.equal(m.inference_geo, 'us');
+  });
+  // An id we do not recognise errs toward omitting effort, because sending it
+  // where it is unsupported is a hard 400 while omitting it is only a default.
+  t('an unknown model is treated as not taking effort', () => {
+    assert.ok(!('effort' in modelFor({ effort: { type: 'medium' } }, 'something-new')));
+  });
+  t('no date suffix on the id we ship', () => {
+    assert.equal(modelFor({}, 'claude-haiku-4-5').id, 'claude-haiku-4-5');
+  });
 }
 
 console.log('\n' + n + ' passed');
