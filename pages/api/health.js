@@ -11,7 +11,7 @@ import { placesKey } from '../../lib/photos.js';
 import { checkSources } from '../../lib/facts.js';
 import { storageConfigured, bucket, putDoc, getDoc, dropDoc, newDocId, listBuckets, resolveBucket, createBucket } from '../../lib/storage.js';
 import { agentDrift } from '../../lib/managedAgents.js';
-import { CHAT_AGENT_ID, BUILDER_AGENT_ID } from '../../lib/config.js';
+import { CHAT_AGENT_ID, BUILDER_AGENT_ID, ENV_ID } from '../../lib/config.js';
 import { BUILDER_SYSTEM } from '../../lib/builderPrompt.js';
 import { TOOLS } from '../../lib/schema.js';
 import { SYSTEM } from '../../lib/prompt.js';
@@ -19,7 +19,8 @@ import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
 import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
-import { syncAgents } from '../../lib/agentSync.js';
+import { syncAgents, chatModel } from '../../lib/agentSync.js';
+import { createSession, sendUserMessage, advanceState, getState } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
 
 // What is actually switched on in this deployment.
@@ -120,6 +121,39 @@ export default async function handler(req, res) {
   // create the one Firebase default name and refuses if any bucket exists.
   const madeBucket = req.query && req.query.makebucket ? await createBucket() : undefined;
 
+  // `?chat=<message>` holds one real conversation with the live chat agent and
+  // reports what it said. The only way to answer "does the model change
+  // actually work" without asking raffy to open the app and try it — which is
+  // how every model question has been answered until now.
+  //
+  // SPENDS REAL MONEY: a session, a turn, and whatever tools the agent reaches
+  // for. Opt-in, and it says which model answered so the reply can be judged
+  // against the model that produced it.
+  let chat;
+  if (req.query && req.query.chat) {
+    const t0 = Date.now();
+    try {
+      await syncAgents();
+      const s = await createSession(CHAT_AGENT_ID, ENV_ID);
+      await sendUserMessage(s.id, [{ type: 'text', text: String(req.query.chat) }]);
+      await advanceState(s.id, 90000);
+      const st = await getState(s.id);
+      const said = (st.transcript || []).filter((m) => m.role === 'assistant');
+      chat = {
+        model: chatModel(),
+        session: s.id,
+        seconds: +((Date.now() - t0) / 1000).toFixed(1),
+        // Everything it said, plus what it did — a model that answers well but
+        // never calls a tool is not working, and the reply alone hides that.
+        said: said.map((m) => m.text),
+        did: (st.transcript || []).flatMap((m) => (m.actions || []).map((a) => a.text || a.icon)),
+        error: st.agentError || null,
+      };
+    } catch (err) {
+      chat = { model: chatModel(), failed: String((err && err.message) || err).slice(0, 400) };
+    }
+  }
+
   let desk;
   if (req.query && req.query.research) {
     const t0 = Date.now();
@@ -140,6 +174,7 @@ export default async function handler(req, res) {
     models,
     prices,
     agentSync,
+    chat,
     madeBucket,
     firecrawl,
     desk,
