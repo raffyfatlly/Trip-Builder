@@ -34,13 +34,23 @@ import { parse, tokens } from '../lib/richtext.js';
 // A chip fixes both. It cannot break across lines, it names its destination
 // rather than reciting a path, and it is a tap target rather than a word that
 // happens to be underlined. The little arrow says it leaves the app.
+//
+// A `tel:` chip is the same idea one step further: on the phone this app is
+// actually used on, tapping it opens the dialler with the number in it. It gets
+// a handset rather than the leaving-the-app arrow, and no target="_blank" — a
+// new tab that immediately hands off to the dialler and then sits there empty
+// is the kind of small mess nobody reports and everybody notices.
 function Chip({ href, children }) {
+  const call = /^tel:/i.test(String(href || ''));
   return (
-    <a className="chip" href={href} target="_blank" rel="noopener noreferrer">
+    <a className={'chip' + (call ? ' call' : '')} href={href}
+      {...(call ? {} : { target: '_blank', rel: 'noopener noreferrer' })}>
       {children}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
         strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M7 17 17 7M9 7h8v8" />
+        {call
+          ? <path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6 6l1.5-2 4 1.5v3a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 5 5.1 1.5 1.5 0 0 1 6.5 3.5z" />
+          : <path d="M7 17 17 7M9 7h8v8" />}
       </svg>
     </a>
   );

@@ -96,4 +96,39 @@ console.log('\nBlocks');
   });
 }
 
+
+// --- a number you can tap ------------------------------------------------------
+//
+// raffy, 2026-09-07: "when it ask to do something, always include the call to
+// action button or link. not just plain text like phone number. best is link to
+// book or website or phone number if click it opens up on their phone."
+//
+// His screenshot had "call their number (03-2113 1888)" sitting there as text.
+
+console.log('\nphone numbers');
+
+t('a bare number becomes a link that dials', () => {
+  const l = link('call their number (03-2113 1888) and ask for the suite');
+  assert.ok(l, 'no link found');
+  assert.equal(l.href, 'tel:0321131888');
+  assert.equal(l.v, '03-2113 1888');
+});
+
+t('an international form works too', () => {
+  const l = link('reach them on +60 3-2113 1888 any time');
+  assert.ok(l && /^tel:\+?60/.test(l.href), JSON.stringify(l));
+});
+
+t('a labelled tel: link keeps its label and its number', () => {
+  const l = link('[Call the hotel](tel:+60321131888) to ask');
+  assert.equal(l && l.v, 'Call the hotel');
+  assert.equal(l && l.href, 'tel:+60321131888');
+});
+
+// The guard rails. A loose phone pattern eats things that are not phone numbers.
+const notAPhone = (s) => !tokens(s).some((x) => x.t === 'link' && /^tel:/.test(x.href));
+t('a price is not a phone number', () => assert.ok(notAPhone('it is RM2,113 a night')));
+t('a date is not a phone number', () => assert.ok(notAPhone('check in 2026-09-28')));
+t('a flight number is not a phone number', () => assert.ok(notAPhone('flight MH 370 at 09:45')));
+
 console.log('\n' + n + ' passed');
