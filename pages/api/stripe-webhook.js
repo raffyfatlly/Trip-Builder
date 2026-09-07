@@ -93,7 +93,9 @@ export default async function handler(req, res) {
 
     const id = 'u:' + who;
     const l = (await readLedger(id)) || { id, granted: 0, used: 0, plan: 0, build: 0, since: new Date().toISOString() };
-    await writeLedger({ ...l, granted: (l.granted || 0) + credits });
+    // `paid` is what unlocks building, and it is set here — the one place that
+    // knows money actually arrived.
+    await writeLedger({ ...l, granted: (l.granted || 0) + credits, paid: true });
     console.log('stripe: granted', credits, 'credits to', who, 'for', s.id);
     return res.status(200).json({ ok: true, granted: credits });
   } catch (err) {

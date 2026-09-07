@@ -2,6 +2,7 @@ import { Credits } from '../components/Ring.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview } from '../lib/preview.js';
+import Packs from '../components/Packs.js';
 import Progress from '../components/Progress.js';
 import Auth from '../components/Auth.js';
 import { applyEdits, countStale, loadEdits, saveEdits, forRender } from '../lib/edits.js';
@@ -353,7 +354,40 @@ export default function Home() {
   // page down.
   // Out of credit, and the deployment is actually metering. `purse` is null
   // when there is no store, and the app is then what it always was.
+  // BACK FROM STRIPE. The success_url returns to /?paid=<pack>, so the first
+  // thing somebody sees after paying is their own trip with the credits already
+  // in it — not a receipt page they have to click out of.
+  //
+  // The balance is NOT read from the URL. The webhook is what grants credits,
+  // and it can land a second or two after the browser does; the poll picks it
+  // up. Trusting a query string here would mean a bookmarked ?paid=starter
+  // showed a balance nobody bought.
+  const [paid, setPaid] = useState('');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search).get('paid');
+    if (!q) return;
+    setPaid(q);
+    // Take it out of the URL so a refresh does not re-announce it.
+    const u = new URL(window.location.href);
+    u.searchParams.delete('paid');
+    window.history.replaceState({}, '', u.toString());
+    if (q !== 'cancelled') log('paid', { pack: q });
+  }, []);
+
   const spent = !!(purse && purse.left <= 0);
+  // ENOUGH TO TALK, NOT ENOUGH TO BUILD. The state between "fine" and "spent",
+  // and the one the free tier lives in: four credits buys a conversation and a
+  // build costs twenty-five.
+  //
+  // Worth its own panel because the alternative is letting somebody plan a whole
+  // trip and then be refused at the last step. Chat keeps working — only the
+  // build is out of reach — so this offers rather than blocks.
+  // Building is the paid part. "new account with no paid credit cannot build at
+  // all" — so this is true for anyone who has never bought, and for anyone who
+  // has but is now short. Same rule the server enforces, said early.
+  const mustBuy = !!(purse && !spent && purse.signedIn
+    && (!purse.paid || (purse.buildCost && purse.left < purse.buildCost)));
 
   const tripName =
     (working && working.trip && working.trip.title)
@@ -1270,9 +1304,45 @@ export default function Home() {
                 telling them. And the sentence that matters most is the second
                 one: their trip is not taken away, and they can still work on
                 it. */}
+            {/* Back from checkout. Deliberately not a modal: they were in the
+                middle of planning a holiday and a dialog would be one more
+                thing to dismiss. It disappears on its own once the credits
+                arrive, because by then it has said everything it can. */}
+            {paid && (
+              <div className={'paid' + (paid === 'cancelled' ? ' off' : '') + (paid.startsWith('error:') ? ' bad' : '')}>
+                {paid === 'cancelled'
+                  ? <span>No payment taken. Your trip is exactly where you left it.</span>
+                  : paid.startsWith('error:')
+                    ? <span>{paid.slice(6)}</span>
+                    : <span>{purse && purse.left > 0
+                        ? 'Paid — ' + purse.left.toLocaleString('en') + ' credits are in. Carry on.'
+                        : 'Paid. Your credits are landing now…'}</span>}
+                <button onClick={() => setPaid('')} aria-label="Dismiss">×</button>
+              </div>
+            )}
+            {/* Enough to talk, not enough to build. Offered before they ask,
+                because being refused at the end of planning a holiday is a
+                worse moment than being told at the start. */}
+            {mustBuy && !paid && (
+              <div className="wall low">
+                <b>{purse.paid ? 'Not quite enough to build it' : 'Building your trip is the paid part'}</b>
+                <p>
+                  {purse.paid
+                    ? 'You have ' + purse.left.toLocaleString('en') + ' credits and building takes about '
+                      + purse.buildCost + '. Carry on chatting — everything you decide is saved.'
+                    : 'Keep planning as long as you like — the chat, the research, the recommendations are'
+                      + ' yours. Turning it into an app you can carry is what a pack buys.'}
+                </p>
+                <Packs onError={(m) => setPaid('error:' + m)} />
+              </div>
+            )}
             {spent ? (
               <div className="wall">
-                <b>{purse.signedIn ? "That's your free credit used up" : 'Free trial used up'}</b>
+                {/* A paying customer who runs out has not used up "free
+                    credit" — they used up credit they bought, and calling it
+                    free reads as a slight. */}
+                <b>{!purse.signedIn ? 'Free trial used up'
+                  : purse.paid ? "You're out of credits" : "That's your free credit used up"}</b>
                 <p>
                   {ready
                     ? 'Your itinerary is yours — open it any time, and you can still edit it by hand: move things, rewrite them, tick off the to-do list. Everything saves.'
@@ -1280,11 +1350,16 @@ export default function Home() {
                 </p>
                 <p className="wsub">
                   {purse.signedIn
-                    ? 'What stops is the chat and rebuilding. Top-ups are not switched on yet — this is the beta.'
-                    : 'Sign in with your email and you get the full allowance, which covers a whole trip.'}
+                    ? 'What stops is the chat and rebuilding. Top up below and you pick up exactly where you left off.'
+                    : 'Sign in with your email first — credits belong to an account, so there has to be one to put them in.'}
                 </p>
-                {!purse.signedIn && (
+                {!purse.signedIn ? (
                   <button className="wbtn" onClick={() => setMenu(true)}>Sign in</button>
+                ) : (
+                  /* The packs, right here rather than behind another tap. They
+                     have already hit the wall; making them navigate to a
+                     pricing page to get past it is one step too many. */
+                  <Packs onError={(m) => setPaid('error:' + m)} />
                 )}
                 <div className="wring"><Credits credits={purse} size={104} /></div>
               </div>
@@ -1966,11 +2041,34 @@ export default function Home() {
         /* The paywall replaces the composer. It is not an error state and does
            not look like one — the trip is still theirs and the first line they
            read should not be a refusal. */
+        /* Back from checkout. A strip, not a modal — they were mid-holiday and
+           a dialog is one more thing to dismiss. */
+        .paid{
+          display:flex;align-items:center;gap:10px;
+          margin:2px 0 8px;padding:11px 12px 11px 15px;border-radius:14px;
+          background:var(--deep);color:#fff;font-size:13px;line-height:1.45;
+          box-shadow:var(--sh-s);animation:rise 320ms var(--e) both;
+        }
+        .paid span{flex:1;min-width:0}
+        .paid button{
+          flex:none;width:26px;height:26px;border:0;border-radius:99px;
+          background:rgba(255,255,255,.16);color:#fff;font-size:15px;line-height:1;
+          cursor:pointer;
+        }
+        /* Cancelled is not a failure and should not look like one. */
+        .paid.off{background:var(--sage);color:var(--ink-soft)}
+        .paid.off button{background:rgba(20,50,40,.10);color:var(--ink-soft)}
+        .paid.bad{background:#8C2F1F}
+
         .wall{
           margin:2px 0 6px;padding:18px 18px 16px;border-radius:22px;
           background:var(--sage);box-shadow:var(--sh-s);
           animation:rise 320ms var(--e) both;
         }
+        /* The low-balance variant is an offer, not a stop. Lighter ground and
+           no shadow, so it sits beside the conversation rather than replacing
+           it the way the spent-out wall does. */
+        .wall.low{background:var(--surface);border:1px solid rgba(20,50,40,.10);box-shadow:none}
         .wall b{
           display:block;font-size:15.5px;font-weight:700;color:var(--deep);
           letter-spacing:-.01em;margin-bottom:7px;

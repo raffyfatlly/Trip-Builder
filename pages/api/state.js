@@ -16,7 +16,7 @@ export const config = { maxDuration: 30 };
 
 import { getState } from '../../lib/managedAgents.js';
 import { billed } from '../../lib/billed.js';
-import { allowed } from '../../lib/credits.js';
+import { allowed, rebuildCredits } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
 import { readOwner, readHeld, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
 
@@ -86,6 +86,14 @@ async function handler(req, res) {
       credits: purse.unmetered ? null : {
         left: purse.left, granted: purse.granted, used: purse.used,
         plan: purse.plan, build: purse.build, signedIn: purse.who,
+        // What a build costs, so the app can offer a top-up BEFORE somebody
+        // asks for one they cannot afford. Without it the client has to guess,
+        // and a guess here either nags people who are fine or lets somebody
+        // walk into a refusal.
+        buildCost: rebuildCredits(),
+        // Building is the paid part, so the app has to know which side of that
+        // line somebody is on before they ask.
+        paid: !!purse.paid,
       },
     });
   } catch (err) {
