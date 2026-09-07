@@ -19,6 +19,7 @@ import { READ_TOOL, EDIT_TOOL } from '../../lib/editTools.js';
 import { BUILD_TOOL } from '../../lib/brief.js';
 import { PRICE_TOOL, priceProbe } from '../../lib/prices.js';
 import { scrape, firecrawlReady } from '../../lib/firecrawl.js';
+import { syncAgents } from '../../lib/agentSync.js';
 import { loadConfig } from '../../lib/settings.js';
 
 // What is actually switched on in this deployment.
@@ -94,6 +95,15 @@ export default async function handler(req, res) {
     };
   }
 
+  // `?syncagent=1` pushes this repo's prompt and tools to both persisted agents
+  // now, rather than waiting for the next session to do it. The deployment does
+  // this on its own before every chat session; this is here so a deploy can be
+  // CHECKED without starting a conversation, which is how the stale-agent
+  // problem stayed invisible for so long. Idempotent — a matching agent is read
+  // and left alone.
+  const agentSync = req.query && req.query.syncagent
+    ? await syncAgents({ force: true }) : undefined;
+
   let desk;
   if (req.query && req.query.research) {
     const t0 = Date.now();
@@ -113,6 +123,7 @@ export default async function handler(req, res) {
     builderModel,
     models,
     prices,
+    agentSync,
     firecrawl,
     desk,
     openrouterKey: !!settingOR(),
