@@ -12,7 +12,7 @@ import { billed } from '../../lib/billed.js';
 import { allowed, leftOf } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
 import { shouldReply, heldFor, withoutAsk } from '../../lib/listen.js';
-import { readOwner, readHeld, appendHeld, clearHeld, firestoreConfigured } from '../../lib/firestore.js';
+import { readOwner, readHeld, appendHeld, clearHeld, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -80,6 +80,12 @@ async function handler(req, res) {
     if (firestoreConfigured()) {
       try {
         owner = await readOwner(session);
+        // Reading is gated in /api/state; writing has to be gated too, or a
+        // stranger with the session id can talk into somebody's trip — and
+        // spend their own credits doing it, which makes it look consensual.
+        if (!mayOpen(owner, who)) {
+          return res.status(403).json({ error: 'That trip is not shared with you.' });
+        }
         shared = !!(owner && (owner.guests || []).length);
       } catch (e) { /* unknown ownership behaves as a solo trip */ }
     }

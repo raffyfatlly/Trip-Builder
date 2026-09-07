@@ -42,6 +42,12 @@ export default function Home() {
   // uses it: the poll reads setParty ~470 lines earlier, and a hook declared
   // below its first use is a trap even when useEffect happens to make it safe.
   const [party, setParty] = useState(null);
+  // Whether the next message goes to the assistant rather than to the other
+  // person. A real mode rather than something read back out of the draft: the
+  // whole complaint was not knowing where a message was going before sending
+  // it, and inferring the answer from text you are still editing is exactly
+  // that uncertainty with extra steps.
+  const [ask, setAsk] = useState(false);
   // What the agent is doing, in its own words, and how long it has been at it.
   const [doing, setDoing] = useState(null);
   // A turn that died on the model's side. Silence is the worst thing the chat
@@ -590,6 +596,10 @@ export default function Home() {
     const files = pending;
     setPending([]);
     setThinking(true);
+    // Back to talking to each other. Asking is a per-message act, not a room
+    // you stay in — leaving it latched is how somebody's next aside gets sent
+    // to the assistant by accident.
+    setAsk(false);
 
     try {
       const r = await fetch('/api/send', {
@@ -600,7 +610,9 @@ export default function Home() {
           // Said outright rather than inferred from the text: the button and
           // the typed @ are the same intent, and the server should not have to
           // reverse-engineer which one happened.
-          asked: /@/.test(text),
+          // The mode, or a typed @. Both are the same intent said two ways,
+          // and the server should not have to reverse-engineer which happened.
+          asked: ask || /@/.test(text),
           // The browser knows its own timezone exactly; the IP lookup only
           // approximates it. No permission prompt for either.
           client: {
@@ -1235,37 +1247,39 @@ export default function Home() {
                 ))}
               </div>
             )}
-            <div className={'row' + (tall ? ' tall' : '')}>
+            {/* WHERE THIS MESSAGE IS GOING, said in words, above the box.
+                raffy, 2026-09-07: "design better for the composer with the @."
+                The first pass was an @ glyph on a circle beside the input — a
+                control you have to already understand. This is the same one tap
+                and says the answer instead: "To Syahirah" or "Asking the
+                assistant". Only in a shared trip; alone there is only one
+                possible destination and a row saying so is noise. */}
+            {party && party.shared && (
+              <div className={'to' + (ask ? ' asking' : '')}>
+                <span className="who">
+                  {ask ? 'Asking the assistant' : 'To ' + ((party.guests || []).concat(party.owner)
+                    .filter((e) => e && e !== party.me)
+                    .map((e) => e.split('@')[0]).join(', ') || 'the others')}
+                </span>
+                <button type="button" className="swap"
+                  onClick={() => { setAsk((v) => !v); if (inputRef.current) inputRef.current.focus(); }}>
+                  {ask ? 'Cancel' : '@ Ask'}
+                </button>
+              </div>
+            )}
+            <div className={'row' + (tall ? ' tall' : '') + (ask ? ' asking' : '')}>
               <label className="attach" title="Attach a photo or booking">
                 <input type="file" multiple accept="image/*,application/pdf,text/plain" onChange={attach} />
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5" />
                 </svg>
               </label>
-              {/* raffy, 2026-09-07: "maybe we can @ something to ask agent to
-                  reply or something? but make it easy for user to invoke."
-                  Typing @ works, and this types it for them — the convention
-                  should be discoverable, not something you have to be told.
-                  Only in a shared trip: alone, every message is answered and a
-                  button to ask would be asking for what you already have. */}
-              {party && party.shared && (
-                <button
-                  type="button"
-                  className={'askbtn' + (draft.trim().startsWith('@') ? ' on' : '')}
-                  title="Ask the assistant"
-                  aria-label="Ask the assistant"
-                  onClick={() => {
-                    setDraft((d) => (d.trim().startsWith('@') ? d.replace(/^\s*@\s*/, '') : '@ ' + d.trimStart()));
-                    if (inputRef.current) inputRef.current.focus();
-                  }}
-                >@</button>
-              )}
               <textarea
                 ref={inputRef}
                 rows={1}
                 value={draft}
                 placeholder={party && party.shared
-                  ? 'Message them \u2014 @ to ask the assistant'
+                  ? (ask ? 'Ask about the trip\u2026' : 'Message them\u2026')
                   : (messages.length ? 'Reply, or attach a booking' : 'Tell me about your trip')}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
@@ -1673,17 +1687,38 @@ export default function Home() {
         }
         .drow textarea:focus{box-shadow:0 0 0 2px var(--coral)}
 
-        /* The @ button. Sits where the paperclip does, reads as a chip rather
-           than a control, and lights up once the @ is actually in the draft so
-           there is no doubt whether the next message goes to the assistant. */
-        .askbtn{
-          flex:none;width:38px;height:38px;border:0;border-radius:50%;
-          background:var(--sage);color:var(--ink-soft);cursor:pointer;
-          font-family:inherit;font-size:17px;font-weight:750;line-height:1;
-          transition:background 140ms ease,color 140ms ease;
+        /* The destination line. Reads as a label, not a toolbar: the point is
+           that you can SEE where the next message goes without decoding an
+           icon. */
+        .to{
+          display:flex;align-items:center;gap:8px;
+          padding:1px 4px 7px;font-size:12px;line-height:1.3;
         }
-        .askbtn.on{background:var(--deep);color:#EAF2EC}
-        .askbtn:active{transform:scale(.94)}
+        .to .who{
+          flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+          color:var(--ink-faint);font-weight:650;
+          /* Only the colour moves. Switching modes happens often enough that
+             anything more would be in the way, and a colour change is the one
+             thing reduced-motion keeps. */
+          transition:color 140ms ease;
+        }
+        .to.asking .who{color:var(--deep)}
+        .to .swap{
+          flex:none;border:0;background:var(--sage);color:var(--deep);
+          padding:4px 10px;border-radius:99px;cursor:pointer;
+          font-family:inherit;font-size:11.5px;font-weight:700;line-height:1.3;
+          transition:transform 140ms cubic-bezier(.23,1,.32,1),background 140ms ease;
+        }
+        .to.asking .swap{background:var(--well);color:var(--ink-soft)}
+        .to .swap:active{transform:scale(.96)}
+
+        /* Asking: the input itself changes, so the mode is visible at the exact
+           spot the eye is already on while typing. */
+        .row.asking textarea{
+          background:var(--surface);
+          box-shadow:inset 0 0 0 1.5px var(--deep);
+        }
+        .row.asking textarea:focus{box-shadow:inset 0 0 0 1.5px var(--deep),0 0 0 2px var(--coral)}
         .drow button{
           flex:none;width:38px;height:38px;border:0;border-radius:50%;cursor:pointer;
           background:var(--deep);color:#EAF2EC;display:grid;place-items:center;

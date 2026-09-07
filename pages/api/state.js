@@ -18,7 +18,7 @@ import { getState } from '../../lib/managedAgents.js';
 import { billed } from '../../lib/billed.js';
 import { allowed } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
-import { readOwner, readHeld, firestoreConfigured } from '../../lib/firestore.js';
+import { readOwner, readHeld, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
 
 async function handler(req, res) {
   const session = req.query.session;
@@ -46,6 +46,20 @@ async function handler(req, res) {
     if (firestoreConfigured()) {
       try {
         owner = await readOwner(session);
+        // WHO IS ALLOWED TO READ THIS CONVERSATION.
+        //
+        // Sharing was only ever enforced on the CLAIM path — /api/me refused to
+        // add somebody else's trip to your account — which protected the trip
+        // LIST and nothing else. The conversation itself was readable by anyone
+        // holding the session id, which makes the guest list decorative.
+        //
+        // An unowned session stays open: anonymous trips have no owner and must
+        // keep working, and so must every session created before owners existed.
+        // The read-only share link does not come through here at all — pages/
+        // t/[s].js resolves its token and calls getState directly.
+        if (!mayOpen(owner, who)) {
+          return res.status(403).json({ error: 'That trip is not shared with you.' });
+        }
         if (owner && (owner.guests || []).length) held = await readHeld(session);
       } catch (e) { /* a trip whose sharing cannot be read is shown unshared */ }
     }
