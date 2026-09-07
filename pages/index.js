@@ -72,6 +72,17 @@ export default function Home() {
   // Consecutive failed polls. A blank page after a refresh reads as "my trip
   // is gone" when the truth is "the server did not answer" — say which.
   const [stalled, setStalled] = useState(0);
+  // A REFUSAL IS NOT A BLIP, and until now the poll could not tell them apart.
+  //
+  // raffy, 2026-09-07: "my last session give error again. can't access the
+  // chat." /api/state answers 403 when the trip belongs to another account —
+  // which happens after signing in and out on somebody else's phone, exactly
+  // what he does. The poll threw, the catch counted it as a stall, and it
+  // retried every couple of seconds forever. The one banner that mentions a
+  // stall only renders while the agent is thinking, and on a trip that never
+  // loaded it is not, so the screen said NOTHING. A permanent lockout that
+  // looks identical to a slow connection.
+  const [blocked, setBlocked] = useState(null);
   const [building, setBuilding] = useState(false);
   const [itinerary, setItinerary] = useState(null);
   // What the page saw, for the beta journal. Never awaited, never allowed to
@@ -212,6 +223,15 @@ export default function Home() {
         // try again rather than waiting on it.
         const r = await fetch('/api/state?session=' + encodeURIComponent(session),
           { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) });
+        // 403 (not yours) and 404 (gone) are answers, not failures. Retrying
+        // them changes nothing and hides them; say so and stop.
+        if (r.status === 403 || r.status === 404) {
+          const why = await r.json().catch(() => ({}));
+          if (!alive) return;
+          setBlocked({ status: r.status, why: (why && why.error) || '' });
+          log('error', { why: 'state ' + r.status + ' ' + ((why && why.error) || '') });
+          return;                       // no reschedule: this will not recover
+        }
         if (!r.ok) throw new Error('state ' + r.status);
         const d = await r.json();
         if (!alive) return;
@@ -266,6 +286,7 @@ export default function Home() {
         if ((d.memoryOps || []).length) foldMemory(d.memoryOps);
         setLoaded(true);
         setStalled(0);
+        setBlocked(null);
       } catch (e) {
         if (alive) setStalled((n) => n + 1);
       }
@@ -1044,6 +1065,32 @@ export default function Home() {
               </div>
             )}
 
+            {/* SAY IT, RATHER THAN RETRYING FOREVER.
+                A trip that belongs to another account, or one that no longer
+                exists, is a permanent answer. Before this the poll retried it
+                every two seconds and the screen stayed empty, which is what
+                "can't access the chat" looked like from his side. */}
+            {blocked && (
+              <div className="blocked">
+                <h3>{blocked.status === 404 ? 'This trip is not here' : 'This trip is on another account'}</h3>
+                <p>{blocked.why || 'The server would not open this conversation.'}</p>
+                <p className="sub">
+                  {blocked.status === 404
+                    ? 'The link may be from a session that was deleted.'
+                    : 'Trips belong to the account that started them. If you have more than one — or you signed in on somebody else\'s phone — sign in as the account that made this trip.'}
+                </p>
+                <div className="row">
+                  {blocked.status !== 404 && (
+                    <button className="go" onClick={() => setAuthMode('signin')}>Sign in</button>
+                  )}
+                  <button className="alt" onClick={() => { window.location.href = '/'; }}>
+                    Start a new trip
+                  </button>
+                </div>
+                <code>{session}</code>
+              </div>
+            )}
+
             {messages.map((m, mi) => (
               /* The way into the trip, where the build happened. raffy,
                  2026-09-02: "the open app file button should stay at the
@@ -1652,6 +1699,29 @@ export default function Home() {
            a row rather than a fixed slot — with neither, the spacer keeps the
            trip name centred exactly as it did before. */
         .hend{display:flex;align-items:center;gap:8px;flex:none}
+        /* A refusal, said plainly. Deliberately not styled as a toast or a
+           banner — it is the whole answer for this screen, not a note beside
+           one, and the screen is otherwise empty. */
+        .blocked{
+          margin:18px 2px;padding:18px;border-radius:16px;
+          background:var(--card,#fff);border:1px solid rgba(20,50,40,.10);
+        }
+        .blocked h3{margin:0 0 6px;font-size:17px;letter-spacing:-.01em}
+        .blocked p{margin:0 0 8px;font-size:14px;line-height:1.5}
+        .blocked .sub{color:rgba(20,50,40,.62)}
+        .blocked .row{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+        .blocked .go,.blocked .alt{
+          border:0;border-radius:999px;padding:10px 16px;font:inherit;
+          font-weight:600;font-size:14px;cursor:pointer;
+        }
+        .blocked .go{background:var(--ink,#12352b);color:#fff}
+        .blocked .alt{background:rgba(20,50,40,.07);color:var(--ink,#12352b)}
+        /* The session id, so a screenshot of this screen is enough to debug it.
+           Every previous report of this arrived without one. */
+        .blocked code{
+          display:block;font-size:11px;color:rgba(20,50,40,.45);
+          word-break:break-all;
+        }
         .signin{
           flex:none;border:1.5px solid var(--line);border-radius:99px;
           padding:7px 13px;background:var(--surface);color:var(--deep);
