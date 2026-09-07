@@ -1,3 +1,8 @@
+// The chat probe polls a real turn to completion, which can take a minute or
+// two. Everything else here answers in seconds; the ceiling only matters when
+// ?chat= is used.
+export const config = { maxDuration: 300 };
+
 import { storeConfigured } from '../../lib/db.js';
 import { orBuilderReady, MODEL, builderProbe, modelSearch } from '../../lib/orBuilder.js';
 import { setting } from '../../lib/settings.js';
@@ -136,12 +141,23 @@ export default async function handler(req, res) {
       await syncAgents();
       const s = await createSession(CHAT_AGENT_ID, ENV_ID);
       await sendUserMessage(s.id, [{ type: 'text', text: String(req.query.chat) }]);
-      await advanceState(s.id, 90000);
-      const st = await getState(s.id);
-      const said = (st.transcript || []).filter((m) => m.role === 'assistant');
+      // Poll the way the browser does. A single advance came back in 3.5s with
+      // an empty transcript — not a broken model, just a turn that had not
+      // finished yet. The app polls /api/state every couple of seconds for
+      // exactly this reason, so a probe that advances once is testing nothing.
+      let st = null;
+      let said = [];
+      for (let i = 0; i < 12 && !said.length; i++) {
+        await advanceState(s.id, 20000);
+        st = await getState(s.id);
+        said = (st.transcript || []).filter((m) => m.role === 'assistant');
+        if (st.agentError) break;
+      }
+      st = st || { transcript: [] };
       chat = {
         model: chatModel(),
         session: s.id,
+        turns: 'polled until it spoke',
         seconds: +((Date.now() - t0) / 1000).toFixed(1),
         // Everything it said, plus what it did — a model that answers well but
         // never calls a tool is not working, and the reply alone hides that.
