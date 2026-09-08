@@ -327,6 +327,24 @@ section{padding:66px 0}
 .tier .btn{width:100%;margin-top:24px}
 .tag{display:inline-flex;align-items:center;border-radius:var(--r-pill);padding:5px 11px;font-size:11.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;background:var(--coral);color:#fff;margin-left:9px;font-family:'Outfit',sans-serif}
 .credits{margin-top:26px;border-radius:var(--r);border:1px solid var(--line);background:var(--paper-2);padding:20px 22px}
+/* The one thing on this page worth its own panel: what they walk away with. */
+.keep{
+  margin-top:26px;border-radius:var(--r);padding:24px 26px;display:flex;gap:18px;align-items:flex-start;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#F2F7F2;
+}
+.keep .kico{
+  flex:none;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;
+  background:var(--coral);color:#fff;
+}
+.keep .kico svg{width:21px;height:21px}
+.keep h3{font-family:'Outfit',sans-serif;font-weight:800;font-size:20px;letter-spacing:-.02em;margin:2px 0 0}
+.keep p{margin:9px 0 0;font-size:14.5px;line-height:1.6;color:#C8DACE}
+.spend{margin:16px 2px 0;font-size:13.5px;line-height:1.65;color:#A9C0B4;max-width:70ch}
+.spend b{color:#E7EFE8;font-weight:750}
+@media (max-width:560px){
+  .keep{padding:20px;gap:14px}
+  .keep h3{font-size:18px}
+}
 .credits .ch{font-family:'Outfit',sans-serif;font-weight:750;font-size:15px;margin-bottom:12px}
 .crow{display:flex;justify-content:space-between;gap:16px;font-size:14.5px;padding:9px 0;border-top:1px solid var(--line)}
 .crow:first-of-type{border-top:0}
@@ -574,7 +592,7 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
         <ul>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>A whole trip: where you sleep, and what you do each day</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Real prices and real opening times, checked as it plans</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>The app is yours to keep, and it works with no internet</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>A To do list that knows what has to be booked, and by when</li>
         </ul>
         <a class="btn btn-ghost" href="/">Start here</a>
       </div>
@@ -593,16 +611,24 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
       </div>
     </div>
 
-    <div class="credits rv" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12);color:#E7EFE8">
-      <div class="ch">What each thing costs</div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Planning a whole trip</span><span>30&ndash;85</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Planning it again, after your dates change</span><span>25</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Asking it to look one thing up</span><span>1&ndash;6</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Changing a time, a name or a day</span><span>About 1</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Opening a trip you already have</span><span>Free</span></div>
-      <p style="margin:14px 0 0;font-size:13.5px;color:#A9C0B4;line-height:1.55">If you finish your credits while planning, you can add any amount from RM10. The price stays the same: RM0.28 for one credit.</p>
+    <!-- THE APP THEY KEEP, NOT A LIST OF CHARGES.
+         raffy, 2026-09-08: "idk why I don't like seeing how this is written up.
+         the only thing I like is the free part, but opening seems like no value.
+         that's an app that they can have, that's huge right."
+         He is right twice. A table of five charges reads like a taxi meter, and
+         it made the ONE enormous thing on it -- you keep a working app forever --
+         into a row saying "Free", which is the smallest way to say it. So the
+         thing they keep leads, at full size, and the costs are one honest
+         sentence underneath instead of a price per keystroke. -->
+    <div class="keep rv">
+      <span class="kico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><path d="M10.5 5.6h3"/></svg></span>
+      <div>
+        <h3>The app is yours to keep.</h3>
+        <p>Your trip becomes a real app on your phone &mdash; every day, every booking, the map, the photos. Open it on the plane, in a taxi, anywhere with no signal. It never asks you for anything again.</p>
+      </div>
     </div>
-  </div>
+
+    <p class="spend rv">Credits are only for the planning. A whole trip is <b>30&ndash;85</b>. Questions and small changes along the way are a credit or two each. If your dates move and the whole trip has to be planned again, that is <b>25</b>. Nothing is charged once the app is on your phone &mdash; and if you finish your credits while planning, you can add any amount from RM10, still RM0.28 for one credit.</p>
 </section>
 
 <!-- ============ BAND ============ -->

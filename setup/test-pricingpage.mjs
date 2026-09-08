@@ -48,6 +48,15 @@ for (const [name, w, h] of [['phone', 390, 844], ['desktop', 1280, 900]]) {
   // The old table said edits were free. They are not.
   ok('nothing claims a change is free', !/Changing something yourself[\s\S]{0,40}Free/.test(text));
 
+  // WHAT THEY WALK AWAY WITH LEADS. raffy, 2026-09-08: "opening seems like no
+  // value. that's an app that they can have, that's huge right." A charge list
+  // that renders keeping the app as a row saying "Free" is the smallest
+  // possible way to say the biggest thing on the page.
+  ok('the app they keep is stated at full size',
+     /yours to keep/i.test(text) && !/Opening a trip you already have/.test(text));
+  ok('and it still says what planning costs',
+     /Credits are only for the planning/i.test(text));
+
   // THE SAME PLAIN-ENGLISH RULE THE AGENT WORKS TO. raffy, 2026-09-08: "use
   // better language." Most people reading this learned English at school in
   // Malaysia or Indonesia, and business slang is the part that cannot be
