@@ -139,4 +139,39 @@ console.log('\nAnd one bad call does not silence the others');
   });
 }
 
+// PHOTOGRAPHS MUST NOT WAIT ON THE BUILD BEING DECLARED FINISHED.
+//
+// raffy, 2026-09-08, on a Penang trip that was plainly complete — six days, a
+// stay, twenty-nine things, the map — with the card stuck at five of six:
+// "its still stuck at photograph."
+//
+// The build had wedged on an unanswered call, so the app still believed it was
+// building. The photo fill ran only when the build was finished. So a finished
+// itinerary could never get its pictures, because the thing that had stopped
+// was not the thing being waited for.
+console.log('\nPhotographs do not wait on the build');
+{
+  const src = await (await import('node:fs/promises')).readFile('lib/managedAgents.js', 'utf8');
+  const i = src.indexOf('const after = await look(await listEvents(chatSessionId));');
+  const block = src.slice(i, i + 1600);
+  t('the fill runs whenever there is an itinerary', () => {
+    assert.ok(/if \(after\.itinerary\) \{/.test(block), block.slice(0, 300));
+    assert.ok(!/!after\.building/.test(block), 'the build gate is back');
+  });
+
+  // And the fill itself has to be safe to run repeatedly, since it now runs on
+  // every poll rather than once at the end.
+  const { fillPhotoGaps } = await import('../lib/photos.js');
+  t('with no key it changes nothing', async () => {
+    const known = { 'a:b': { u: 'x', done: 1 } };
+    assert.deepEqual(await fillPhotoGaps({ days: [] }, known, {}), known);
+  });
+  t('and a place already looked up is never bought twice', async () => {
+    // `done` marks a key we have paid for, hit or miss. Running mid-build is
+    // only affordable because of this.
+    const src2 = await (await import('node:fs/promises')).readFile('lib/photos.js', 'utf8');
+    assert.ok(/\.filter\(\(g\) => !fillOf\(known\[g\.key\]\)\.done\)/.test(src2));
+  });
+}
+
 console.log('\n' + n + ' passed');
