@@ -16,10 +16,14 @@ let fail = 0;
 const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '   ' + x : '')); if (!c) fail++; };
 
 // --- the shape ------------------------------------------------------------
-const mk = (input) => blockFrom({ id: 'e1', name: 'present', input });
+// A card in each of these, because a card set with no cards is no longer drawn
+// at all — see setup/test-emptycards.mjs for why.
+const mk = (input) => blockFrom({ id: 'e1', name: 'present', input: { items: [{ name: 'A' }], ...input } });
 ok('pick defaults to one', mk({ kind: 'options', title: 'x' }).pick === 'one');
 ok('many is carried through', mk({ kind: 'options', title: 'x', pick: 'many' }).pick === 'many');
 ok('anything else is one', mk({ kind: 'options', title: 'x', pick: 'lots' }).pick === 'one');
+ok('and an empty one is not a card set at all',
+   blockFrom({ id: 'e1', name: 'present', input: { kind: 'options', title: 'x' } }) === null);
 
 // --- in the browser -------------------------------------------------------
 const OPTIONS = {
@@ -53,36 +57,42 @@ await page.addInitScript(() => localStorage.setItem('itin.session.v1', 'sesn_X')
 await page.goto(B, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1400);
 
-const ticks = page.locator('.opt .pick.tick');
-ok('every option is a tick, not a send', await ticks.count() === 3);
-ok('the bar says what to do', (await page.locator('.confirm').innerText()).includes('Tick the ones'));
+// YES / MAYBE / NO, not a tick box.
+//
+// This section described the tick-box version this replaced, and had been red
+// since. Updated rather than left to rot: a permanently failing test is worse
+// than no test, because it is the one nobody reads when it starts failing for
+// a real reason.
+const yes = page.locator('.opt .tri.yes');
+const no = page.locator('.opt .tri.no');
+ok('every option gets its own yes, maybe and no', await yes.count() === 3
+   && await no.count() === 3 && await page.locator('.opt .tri.maybe').count() === 3);
+ok('the bar says what to do', (await page.locator('.confirm').innerText()).includes('Yes, maybe or no on each'));
 ok('and will not send yet', await page.locator('.confirm .send').isDisabled());
 
-await ticks.nth(0).click();
+await yes.nth(0).click();
 await page.waitForTimeout(200);
-ok('one tick does NOT send', sent === null);
-ok('the bar counts it', (await page.locator('.confirm').innerText()).includes('1 picked'));
+ok('one answer does NOT send', sent === null);
+ok('the bar counts it', (await page.locator('.confirm').innerText()).includes('1 of 3 answered'));
 ok('and now it can send', !(await page.locator('.confirm .send').isDisabled()));
 
-await ticks.nth(2).click();
+await no.nth(2).click();
 await page.waitForTimeout(200);
-ok('a second tick still does not send', sent === null);
-ok('the count follows', (await page.locator('.confirm').innerText()).includes('2 picked'));
+ok('a second answer still does not send', sent === null);
+ok('the count follows', (await page.locator('.confirm').innerText()).includes('2 of 3 answered'));
 
-// Untick and re-tick: the state is real, not one-way.
-await ticks.nth(2).click();
+// Changing your mind is real, not one-way.
+await yes.nth(2).click();
 await page.waitForTimeout(150);
-ok('ticking again removes it', (await page.locator('.confirm').innerText()).includes('1 picked'));
-await ticks.nth(2).click();
-await page.waitForTimeout(150);
+ok('an answer can be changed without adding to the count',
+   (await page.locator('.confirm').innerText()).includes('2 of 3 answered'));
 
-await page.screenshot({ path: '/home/user/claude/tools/itinerary-chat/shots/multipick.png' });
+await page.screenshot({ path: 'shots/multipick.png' });
 await page.locator('.confirm .send').click();
 await page.waitForTimeout(600);
 
 ok('sending goes once, with both', !!sent && /Davanzati/.test(sent.text) && /Artemide/.test(sent.text));
 ok('read back in card order, not tap order', !!sent && sent.text.indexOf('Davanzati') < sent.text.indexOf('Artemide'));
-ok('and it reads like a sentence', !!sent && sent.text.includes(' and '), sent && sent.text);
 
 // A normal single-pick set is untouched.
 await ctx.unroute('**/api/state**');
