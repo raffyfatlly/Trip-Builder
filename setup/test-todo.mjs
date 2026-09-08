@@ -98,14 +98,24 @@ const withRoute = (() => {
 })();
 ok('the agent can fill in the airports', !!withRoute.task && withRoute.task.what === 'Book the flights',
    JSON.stringify(withRoute.task && withRoute.task.what));
-ok('and then it is a real dated fare search',
-   /aviasales\.com\/search\/KUL\d{4}FCO/.test(withRoute.link), withRoute.link);
-ok('carrying the affiliate marker', withRoute.link.includes('marker=TESTMARKER'));
+// GOOGLE FLIGHTS, not Aviasales. raffy, 2026-09-08: "link is platform that
+// people familiar with. Aviasales is not known." The affiliate marker went with
+// it, deliberately — a commission on a booking nobody makes is worth less than
+// a booking made somewhere they trust.
+ok('and then it is a real dated fare search on a site people know',
+   /google\.com\/travel\/flights/.test(withRoute.link)
+   && /KUL/.test(decodeURIComponent(withRoute.link))
+   && /FCO/.test(decodeURIComponent(withRoute.link)), withRoute.link);
+ok('carrying both dates', /2026-10-18/.test(decodeURIComponent(withRoute.link))
+   && /2026-10-25/.test(decodeURIComponent(withRoute.link)), withRoute.link);
 ok('without adding a second flight row',
    checklist(applyEdits(trip(), toEdits([{ op: 'add_task', id: 'd:flights',
      task: { route: { from: 'KUL', to: 'FCO' } } }], 1))).all.filter((t) => t.kind === 'flight').length === 1);
-ok('the room link carries dates and the marker',
-   links[1].includes('checkIn=') && links[1].includes('marker=TESTMARKER'), links[1]);
+// Booking.com, and no affiliate marker on it. raffy, 2026-09-08: hotels should
+// go somewhere people already trust, and Booking.com is that place here.
+ok('the room link carries the dates and goes somewhere people know',
+   /booking\.com/.test(links[1]) && links[1].includes('checkin=') && links[1].includes('checkout='),
+   links[1]);
 
 ok('a deadline reads like a person said it', dueIn(new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)) === 'this week');
 ok('and an overdue one is blunt', dueIn('2020-01-01') === 'do this now');
@@ -121,7 +131,7 @@ ok('and forbids the estimate outright', /do NOT estimate/i.test(noTok));
 // same town. A rate scraped from a search result is not a live rate.
 ok('and closes the web-search loophole too', /do NOT go and find one by web search/i.test(noTok));
 ok('and points at the hotel\'s own page for one property', /place_details/i.test(noTok));
-ok('but still hands over a real search link', noTok.includes('aviasales.com/search/'), noTok.split('\n').pop());
+ok('but still hands over a real search link', noTok.includes('google.com/travel/flights'), noTok.split('\n').pop());
 ok('an empty request is answered, not thrown', (await checkPrices({})) === 'Nothing to price.');
 ok('a link needs real IATA codes', flightSearchLink({ from: 'Kuala Lumpur', to: 'Rome', date: soon }) === '');
 ok('and a hotel link needs somewhere to go', hotelSearchLink({ where: '' }) === '');
@@ -131,8 +141,11 @@ const { SYSTEM: P } = await import('../lib/prompt.js');
 ok('the prompt explains the arranging phase', /three phases/i.test(P) && P.includes('To do'));
 ok('and that a price search takes a town, not a hotel name',
    /never a hotel name/i.test(P) && /different town/i.test(P));
-ok('and not to go hunting a rate by web search when it cannot quote one',
-   /do not go and find a rate by web search/i.test(P));
+// The rule this replaces was "never search for a rate". raffy loosened it on
+// 2026-09-08 — a labelled range beats silence — but the part that must hold is
+// that check_prices is asked FIRST rather than reached past.
+ok('and that a price question goes to check_prices before any search',
+   /check_prices CALL, FIRST/i.test(P) && /not a web search/i.test(P));
 ok('and that most of the list writes itself', /writes itself/i.test(P));
 ok('and not to pad it', /Do not pad it/.test(P));
 ok('and never to estimate a fare', /Never estimate a fare/.test(P));
@@ -277,7 +290,7 @@ ok('the prompt still parses whole', P.length > 25000, P.length + ' chars');
 {
   console.log('');
   ok('a city search names the city',
-     /destination=Desaru\+Coast/.test(hotelSearchLink({ city: 'Desaru Coast, Johor' })),
+     /ss=Desaru\+Coast/.test(hotelSearchLink({ city: 'Desaru Coast, Johor' })),
      hotelSearchLink({ city: 'Desaru Coast, Johor' }));
   ok('a hotel name alone builds no link at all',
      hotelSearchLink({ hotel: 'Mandarin Oriental Desaru Coast' }) === '',
@@ -288,7 +301,7 @@ ok('the prompt still parses whole', P.length > 25000, P.length + ' chars');
   t.stays = [{ n: 'Mandarin Oriental, Desaru Coast', draft: true }];
   const room = linkFor(checklist(t).todo.find((x) => /Mandarin/.test(x.what)), t);
   ok('Find rooms searches the town, not the hotel name',
-     /destination=Desaru\+Coast/.test(room) && !/Mandarin/.test(room), room);
+     /ss=Desaru\+Coast/.test(room) && !/Mandarin/.test(room), room);
 
   // Their own booking page is the actual hotel on the actual dates. An
   // aggregator search is a guess at which property you meant.

@@ -131,4 +131,42 @@ t('a price is not a phone number', () => assert.ok(notAPhone('it is RM2,113 a ni
 t('a date is not a phone number', () => assert.ok(notAPhone('check in 2026-09-28')));
 t('a flight number is not a phone number', () => assert.ok(notAPhone('flight MH 370 at 09:45')));
 
+
+// A LABEL IS A PROMISE ABOUT WHERE A TAP GOES.
+//
+// raffy, 2026-09-08, tapping "Book on Google Flights" and landing on Aviasales:
+// "the link must correspond to what it says."
+//
+// The label is written by the agent and the URL is built by the app, so nothing
+// was checking the two agreed. When they disagree the label is the lie — the
+// traveller reads it, the browser obeys the URL.
+console.log('\na link says where it goes');
+{
+  const { linkLabel, siteOf } = await import('../lib/richtext.js');
+  t('a label naming the wrong site is corrected', () => {
+    assert.equal(linkLabel('https://www.aviasales.com/search/KUL2009BKK1', 'Book on Google Flights'),
+      'Book on Aviasales');
+  });
+  t('and one naming the right site is left alone', () => {
+    assert.equal(linkLabel('https://www.google.com/travel/flights?q=x', 'Book on Google Flights'),
+      'Book on Google Flights');
+  });
+  t('the rest of the sentence survives the correction', () => {
+    assert.equal(linkLabel('https://www.booking.com/x', 'Check the 20th on Agoda'),
+      'Check the 20th on Booking.com');
+  });
+  t('a label that names no site is never touched', () => {
+    assert.equal(linkLabel('https://www.booking.com/x', 'Check the dates'), 'Check the dates');
+  });
+  t('and with no label at all it still says the host', () => {
+    assert.equal(linkLabel('https://www.booking.com/searchresults.html?ss=x', ''), 'booking.com');
+  });
+  t('sites are named the way a person says them', () => {
+    assert.equal(siteOf('https://www.google.com/travel/flights?q=x'), 'Google Flights');
+    assert.equal(siteOf('https://www.priceline.com/x'), 'Priceline');
+    assert.equal(siteOf('https://www.booking.com/x'), 'Booking.com');
+  });
+  t('an unparseable url claims nothing', () => assert.equal(siteOf('not a url'), ''));
+}
+
 console.log('\n' + n + ' passed');
