@@ -29,7 +29,11 @@ globalThis.fetch = async (url, opts = {}) => {
     return new Response(JSON.stringify({ access_token: 't', expires_in: 3600 }), { status: 200 });
   }
   if (u.includes('firestore.googleapis.com')) {
-    const path = u.split('/documents')[0 + 1].split('?')[0];
+    // Firestore decodes a URL path segment to get the document id, so
+    // /documents/ledger/u%3Ax and the resource name .../ledger/u:x are the SAME
+    // document. The stub has to do that too or it cannot tell a real bug from
+    // its own bookkeeping.
+    const path = decodeURIComponent(u.split('/documents')[0 + 1].split('?')[0]);
     // Firestore's atomic add, which is how credits are charged now — the
     // read-modify-write it replaced lost charges whenever two requests settled
     // at once. Modelled here rather than mocked away, because "does a second
@@ -37,7 +41,13 @@ globalThis.fetch = async (url, opts = {}) => {
     if (path === ':commit') {
       for (const w of (JSON.parse(opts.body || '{}').writes || [])) {
         const name = w.update.name;
-        const at = name.split('/documents')[1];
+        // A resource name is a PATH, not a URL. Firestore addresses the
+        // document called exactly what this says — so if the caller
+        // percent-encodes the id, this stub must file it under the encoded
+        // name too, because that is what the real database does. Modelling it
+        // faithfully is the difference between catching the split-ledger bug
+        // here and finding it in production, which is where it was found.
+        const at = decodeURIComponent(name.split('/documents')[1]);
         const fields = { ...((DOCS.get(at) || {}).fields || {}), ...(w.update.fields || {}) };
         for (const t of w.updateTransforms || []) {
           const was = Number((fields[t.fieldPath] || {}).integerValue || 0);
@@ -298,6 +308,29 @@ console.log('\nconcurrent charges');
   ok('and four landing together all count', p.used === owed,
      p.used + ' charged of ' + owed + ' owed');
   ok('the ledger never goes backwards', p.used >= one);
+}
+
+// THE SPLIT LEDGER. Shipped 2026-09-08 and caught within the hour, by raffy:
+// every reply said "0 credits" while his balance quietly fell.
+//
+// bumpLedger built the document's resource name with encodeURIComponent, so
+// `u:tes@user.com` and `u%3Ates%40user.com` were two different documents. Every
+// charge went to the second; every read came from the first. It passed a live
+// check against the real database because the check used the id
+// `zz-atomic-check-1788832395949`, which has no ':' or '@' in it to encode.
+//
+// So the guard is not "does an increment work" — it is "does it land where the
+// reader looks", asked with a key shaped like a real one.
+console.log('\ncharges land where the reader looks');
+{
+  const F = await import('../lib/firestore.js');
+  const id = 'u:someone.with@an-email.com';
+  await F.bumpLedger(id, { used: 7, plan: 7 });
+  const back = await F.readLedger(id);
+  ok('an id with : and @ in it reads back what was added', back && back.used === 7,
+     JSON.stringify(back));
+  const twins = [...DOCS.keys()].filter((k) => k.includes('ledger') && k.includes('%'));
+  ok('and no percent-encoded twin was created', twins.length === 0, twins.join(' '));
 }
 
 console.log(fail ? '\n' + fail + ' FAILED\n' : '\nall passed\n');
