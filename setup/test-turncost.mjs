@@ -54,7 +54,10 @@ transcript = [
   { role: 'assistant', text: 'Lovely. Who is going?', id: 'a1' },
 ];
 used = 3;
-await page.waitForTimeout(5200);
+// Three polls: the reading has to repeat before it is believed, and then be
+// rendered. See `settling` in pages/index.js — the whole point is that the
+// figure arrives a little late and arrives right.
+await page.waitForTimeout(8000);
 
 const creds = page.locator('.acts .cred');
 ok('the FIRST reply of a session is priced', await creds.count() === 1,
@@ -62,12 +65,39 @@ ok('the FIRST reply of a session is priced', await creds.count() === 1,
 ok('and it is the real cost of that turn', (await creds.first().innerText()).includes('3 credits'),
    await creds.first().innerText());
 
+// --- THE LIE HE CAUGHT ------------------------------------------------------
+//
+// raffy, 2026-09-08, with the drawer showing 6 of 10 left after one turn and
+// the chat saying 0 under it: "the first click after onboarding already consume
+// 4 credits. but under chat it says 0 credit. this is a lie."
+//
+// The charge does not land with the reply — settle() runs in the `finally` of
+// the request that spent the money, and the poll that first sees the reply has
+// usually already read the balance from before it. The old code took that first
+// reading, wrote 0, and never looked again. This is that exact sequence.
+{
+  transcript = [...transcript,
+    { role: 'user', text: 'bali in september', id: 'u9' },
+    { role: 'assistant', text: 'Five nights. Where from?', id: 'a9' }];
+  // The reply lands; the money has not moved yet.
+  await page.waitForTimeout(2600);
+  // Now the charge arrives, three seconds late, as it does in production.
+  used = 7;
+  await page.waitForTimeout(8000);
+  const last = page.locator('.acts .cred').last();
+  ok('a late charge is caught, not frozen at zero',
+     (await last.innerText()).includes('4 credits'), await last.innerText());
+  ok('and no wrong number was ever shown on the way there',
+     !(await page.locator('.msg.assistant').last().innerText()).includes('0 credits'),
+     await page.locator('.msg.assistant').last().innerText());
+}
+
 // --- a turn that cost nothing still says so --------------------------------
 transcript = [...transcript,
   { role: 'user', text: 'thanks', id: 'u2' },
   { role: 'assistant', text: 'Any time.', id: 'a2' }];
-await page.waitForTimeout(5200);
-ok('a free turn shows a zero rather than nothing', await creds.count() === 2,
+await page.waitForTimeout(8000);
+ok('a free turn shows a zero rather than nothing', await creds.count() === 3,
    'found ' + await creds.count());
 ok('and reads as zero', (await creds.last().innerText()).includes('0 credits'),
    await creds.last().innerText());

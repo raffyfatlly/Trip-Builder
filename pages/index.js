@@ -575,63 +575,101 @@ export default function Home() {
   // the total as it stood when it arrived, and the cost is the gap to the one
   // before it.
   //
-  // A ref rather than state: writing it must not itself cause a render, and the
-  // value is read during render of a message that has already been decided.
+  // WHAT EACH TURN COST — MEASURED, NOT GUESSED ONCE.
   //
-  // AND IT IS WRITTEN DOWN. raffy, 2026-09-07, looking at a real conversation:
-  // "i don't see the credits spent. do i need to start new chat?"
+  // raffy, 2026-09-07: "I want after each turn it shows how many credit the turn
+  // consume. so its clear." Then, 2026-09-08, with the drawer showing 6 of 10
+  // left after a single turn while the chat said 0 under it:
   //
-  // He did not. The figures were being worked out in memory and thrown away
-  // with the page — so every message already on screen when the app opened had
-  // no cost against it, and there is no way to recover one: the ledger holds a
-  // running total, not a per-turn history, and a reload loses the reading the
-  // difference was measured from. On a phone that reload happens constantly.
+  //   "the first click after onboarding already consume 4 credits. but under
+  //    chat it says 0 credit. this is a lie."
   //
-  // So both halves are kept in localStorage, per session: what each reply cost,
-  // and the balance the next reading is measured against. A tab that reloads
-  // mid-conversation now picks up exactly where it left off, and the whole
-  // conversation keeps its figures instead of the newest one.
+  // He is right and it was a real lie, with a real cause. The charge for a turn
+  // does not land at the same moment its reply does. settle() runs in the
+  // `finally` of the request that spent the money (lib/billed.js), and the poll
+  // that first SEES the reply reads the balance before that settle has finished
+  // — so the reading at first sighting is usually the balance from before the
+  // turn. The old code took that first reading, wrote "0", and never looked
+  // again.
+  //
+  // So a reply is not stamped once. Each one carries a MARK: the running total
+  // as it stood when that reply was the newest thing said. The newest reply's
+  // mark is re-read on every poll, so a charge landing three seconds late walks
+  // the figure up to the truth; it stops moving the moment a newer reply
+  // arrives and takes over. A turn costs the gap between its mark and the one
+  // before it, which is the same arithmetic as before with one difference that
+  // matters: nothing is frozen before the money has actually moved.
+  //
+  // `@start` is the mark for a conversation with no replies yet, so the very
+  // first turn has something to measure from. A reply with no mark before it —
+  // one already on screen when the app opened — shows nothing rather than a
+  // number that would really be the whole session's spend.
+  //
+  // Kept in localStorage per session, because a phone reloads a tab whenever it
+  // feels like it and a conversation should not lose its figures when it does.
   const COSTS = session ? 'itin.cost.' + session : '';
-  const turnCost = useRef(new Map());
-  const lastUsed = useRef(null);
+  const START = '@start';
+  const marks = useRef(new Map());
   useEffect(() => {
-    turnCost.current = new Map();
-    lastUsed.current = null;
+    marks.current = new Map();
     if (!COSTS) return;
     try {
       const saved = JSON.parse(localStorage.getItem(COSTS) || '{}');
-      if (saved && typeof saved === 'object') {
-        for (const [id, n] of Object.entries(saved.turns || {})) turnCost.current.set(id, n);
-        if (typeof saved.used === 'number') lastUsed.current = saved.used;
+      for (const [id, n] of Object.entries((saved && saved.marks) || {})) {
+        if (typeof n === 'number') marks.current.set(id, n);
       }
     } catch (e) { /* private mode, or something else wrote there */ }
   }, [COSTS]);
 
+  // A reading is only believed once it repeats.
+  //
+  // Otherwise the figure appears as "0 credits", then two seconds later becomes
+  // "4 credits" — which is the lie he caught, just with a shorter life. Waiting
+  // for the same balance twice means the charge has landed and stopped moving,
+  // so the number arrives a few seconds after the reply and arrives right. It
+  // also holds the figure back for the whole of a build, which is correct: the
+  // cost is genuinely still climbing.
+  const settling = useRef({ key: '', used: null, seen: 0 });
+
   useEffect(() => {
     if (!purse || typeof purse.used !== 'number') return;
-    const said = messages.filter((m) => m.role === 'assistant' && m.text);
+    const said = messages.filter((m) => m.role === 'assistant' && m.text && m.id);
     const newest = said[said.length - 1];
-    if (!newest || !newest.id) return;
-    if (turnCost.current.has(newest.id)) return;
-    // A reply with nothing to measure against is stamped null and draws
-    // nothing: that is a reply that was already on screen when the app opened,
-    // and the only number available for it would be the whole session's spend.
-    // Every reply produced while the app is open has a baseline — taken at the
-    // send, kept across reloads — so this is now the rare case rather than the
-    // first turn of every conversation.
-    const before = lastUsed.current;
-    lastUsed.current = purse.used;
-    turnCost.current.set(newest.id, before == null ? null : Math.max(0, purse.used - before));
+    // Only ever the newest. Everything above it is finished and must not move.
+    const key = newest ? newest.id : START;
+    const at = settling.current;
+    if (at.key !== key || at.used !== purse.used) {
+      settling.current = { key, used: purse.used, seen: 1 };
+      return;
+    }
+    settling.current = { key, used: purse.used, seen: at.seen + 1 };
+    if (at.seen + 1 < 2) return;
+    if (marks.current.get(key) === purse.used) return;
+    marks.current.set(key, purse.used);
     if (!COSTS) return;
     try {
+      // Bounded. A session is capped at 40 turns so this cannot really grow,
+      // but a slice costs nothing and means a bug here can never fill their
+      // storage.
       localStorage.setItem(COSTS, JSON.stringify({
-        used: purse.used,
-        // Bounded: a session is capped at 40 turns, so this cannot grow, but a
-        // slice costs nothing and means a bug here can never fill their storage.
-        turns: Object.fromEntries([...turnCost.current.entries()].slice(-80)),
+        marks: Object.fromEntries([...marks.current.entries()].slice(-80)),
       }));
     } catch (e) { /* ignore */ }
   }, [purse, messages, COSTS]);
+
+  // The gap between one reply's mark and the one before it. Recomputed rather
+  // than stored, so a mark that moves takes its figure with it.
+  const turnCost = useMemo(() => {
+    const out = new Map();
+    const said = messages.filter((m) => m.role === 'assistant' && m.text && m.id);
+    said.forEach((m, i) => {
+      const here = marks.current.get(m.id);
+      const before = marks.current.get(i === 0 ? START : said[i - 1].id);
+      if (typeof here !== 'number' || typeof before !== 'number') return;
+      out.set(m.id, Math.max(0, here - before));
+    });
+    return out;
+  }, [messages, purse]);
 
   // What the agent last said, trimmed to something that fits a dock — but only
   // if it said it after they asked.
@@ -810,16 +848,6 @@ export default function Home() {
     // which may carry an attachment line the transcript will never have. The
     // poll compares against `sent`.
     setMessages((m) => [...m, { role: 'user', text: label, sent: text, id: 'tmp' + stamp }]);
-    // The reading this turn's cost will be measured against.
-    //
-    // Without it the first reply of a session had nothing to compare to and was
-    // left blank — which is most of what raffy was looking at when he said "i
-    // don't see the credits spent". Taken at the moment of sending, which is
-    // exactly the right baseline: everything charged after this belongs to the
-    // turn about to happen.
-    if (purse && typeof purse.used === 'number' && lastUsed.current == null) {
-      lastUsed.current = purse.used;
-    }
     // The previous turn's trail goes now, not when the server catches up.
     pendingSend.current = true;
     setSteps([]);
@@ -1362,7 +1390,7 @@ export default function Home() {
                           to nothing: "0 credits" invites the question of what a
                           fraction of a credit is, and the answer is not
                           interesting. */}
-                      <Actions actions={m.actions} cost={turnCost.current.get(m.id)} />
+                      <Actions actions={m.actions} cost={turnCost.get(m.id)} />
                     </>
                   ) : (
                     <>

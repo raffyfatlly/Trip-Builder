@@ -55,9 +55,10 @@ extra = [
     actions: [{ icon: 'search', text: 'Checked live prices' }] },
 ];
 used = 12;
-// Two polls: one for the effect to stamp the turn, one to draw it. The figure
-// is a ref, so it appears on the render after the one that measured it.
-await page.waitForTimeout(5200);
+// Three polls. The figure is withheld until the same balance has been read
+// twice — a charge lands a moment after the reply it belongs to, and showing
+// the first reading is how the meter came to say 0 for a 4-credit turn.
+await page.waitForTimeout(8000);
 
 // An aside is a message in the conversation, not a footer. Once the next turn
 // lands it has to still be where it was said, with newer messages under it.

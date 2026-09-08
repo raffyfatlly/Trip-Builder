@@ -78,7 +78,8 @@ ok('a reload does not point it back at the other person',
 extra = [...extra, { role: 'assistant', text: 'Two good ones nearby.', id: 'a2',
   actions: [{ icon: 'search', text: 'Searched' }] }];
 used = 14;
-await page.waitForTimeout(5200);
+// Three polls: a balance has to be read twice before the meter believes it.
+await page.waitForTimeout(8000);
 const cred = page.locator('.acts .cred').last();
 ok('the first reply after a reload still shows its cost',
    await cred.count() === 1 && (await cred.innerText()).includes('4 credits'),
