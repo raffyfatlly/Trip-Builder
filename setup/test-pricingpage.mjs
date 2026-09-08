@@ -35,14 +35,14 @@ for (const [name, w, h] of [['phone', 390, 844], ['desktop', 1280, 900]]) {
   ok('the tiers on the page are the packs on sale',
      named.every((p) => text.includes('RM' + p.myr) && text.includes(String(p.credits))),
      named.map((p) => 'RM' + p.myr + '/' + p.credits).join(' '));
-  const rate = named.length ? (named[0].myr / named[0].credits).toFixed(2) : '';
-  ok('and the top-up rate is the same rate', text.includes('RM' + rate), 'RM' + rate + ' a credit');
   ok('the free credits a new account gets are stated',
      new RegExp('\\b' + money.grant + '\\b[^.]{0,40}free|free[^.]{0,40}\\b' + money.grant + '\\b', 'i').test(text),
      money.grant + ' free');
-  ok('planning again is priced at what it costs',
-     new RegExp('\\b' + money.rebuildCredits + '\\b').test(text), money.rebuildCredits + ' credits');
-  ok('the top-up floor is right', text.includes('RM' + (pay.topup ? pay.topup.min : 10)));
+  // Topping up is not on this page any more and should not come back to it: it
+  // is a thing that happens mid-trip, inside the app, where the paywall states
+  // the floor and the rate. A landing page explaining it was fine print under
+  // the best thing on the page.
+  ok('topping up is left to the app', !/top up|top-up/i.test(text));
   ok('no stale prices survive', !/RM29|RM89|120 credits|500 credits/.test(text),
      (text.match(/RM29|RM89|120 credits|500 credits/g) || []).join(' '));
   // The old table said edits were free. They are not.
@@ -54,8 +54,14 @@ for (const [name, w, h] of [['phone', 390, 844], ['desktop', 1280, 900]]) {
   // possible way to say the biggest thing on the page.
   ok('the app they keep is stated at full size',
      /yours to keep/i.test(text) && !/Opening a trip you already have/.test(text));
-  ok('and it still says what planning costs',
-     /Credits are only for the planning/i.test(text));
+  // NOTHING ITEMISED, AND NOTHING OVER-PROMISED. raffy, 2026-09-08: "it never
+  // ask u for anything again is unnecessary" and "no need explanation about the
+  // credit included". The packs say what money buys and the line above says
+  // what a credit is; anything past that is an argument nobody is having.
+  ok('no charge list has grown back',
+     !/Changing a time|Asking it to look one thing up|Planning it again/i.test(text));
+  ok('and no promise nobody asked for',
+     !/never asks you for anything/i.test(text));
 
   // THE SAME PLAIN-ENGLISH RULE THE AGENT WORKS TO. raffy, 2026-09-08: "use
   // better language." Most people reading this learned English at school in
