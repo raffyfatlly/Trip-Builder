@@ -149,6 +149,15 @@ export default function Home() {
   const [staleNote, setStaleNote] = useState(0);
   const [progress, setProgress] = useState(null);
   const [capped, setCapped] = useState(false);
+  // They asked for the build and could not afford it. The one thing that puts
+  // the packs in front of somebody who has not paid — see mustBuy.
+  const [denied, setDenied] = useState(false);
+  // And the same panel for the tap that would have been refused.
+  //
+  // raffy, 2026-09-07, adding to the rule above: "or when they want to click the
+  // build button." A tap that quietly does nothing, or spends a turn to be told
+  // no, are both worse than the answer arriving with the tap.
+  const [wantBuild, setWantBuild] = useState(false);
   // The composer, docked over the trip, so a change never costs you the view.
   const [dock, setDock] = useState(null);
   const [agentEdits, setAgentEdits] = useState([]);
@@ -314,6 +323,7 @@ export default function Home() {
         setBuilding(!!d.building);
         setProgress(d.progress || null);
         setCapped(!!d.buildCapped);
+        setDenied(!!d.buildDenied);
         setSeenState(true);
         setDoing(d.doing || null);
         setAgentErr(d.agentError || null);
@@ -432,22 +442,42 @@ export default function Home() {
   // Worth its own panel because the alternative is letting somebody plan a whole
   // trip and then be refused at the last step. Chat keeps working — only the
   // build is out of reach — so this offers rather than blocks.
-  // Building is the paid part. "new account with no paid credit cannot build at
-  // all" — so this is true for anyone who has never bought, and for anyone who
-  // has but is now short. Same rule the server enforces, said early.
-  // Shown when they cannot afford a build — and ONLY then.
-  //
   // raffy, 2026-09-07, in a trip shared with his wife: "after I got the credit
   // after paying, the building your trip is paid part still there and doesn't go
   // away." It keyed on a `paid` flag as well as the balance, and he had bought
   // credits before that flag existed — so the app had him buy what he had
-  // already bought. The balance is the honest test and the only one needed:
-  // the free grant is 4 and a build is 25.
+  // already bought. The balance is the honest test: the free grant is 4 and a
+  // build is 25.
+  //
+  // AND IT WAITS TO BE TRUE. raffy, 2026-09-07, with a screenshot of the packs
+  // sitting in a chat where nothing had happened yet: "this part should only
+  // appear when new user ran out of their free credit."
+  //
+  // Balance alone was not enough of a test, because a free account is under the
+  // cost of a build from its very first message — so the offer greeted every new
+  // user and then never went away. An offer that is permanently on screen is not
+  // an offer, it is furniture, and it makes the app feel like a checkout.
+  //
+  // Two moments earn it instead, and both are moments where it is news:
+  //
+  //   they asked to build and the server refused for money  (buildDenied)
+  //   they have bought before and are now short of a build  (purse.paid)
+  //
+  // Everyone else — which is every new user, for as long as their free credit
+  // lasts — plans in peace. When that runs out, the spent-out wall below takes
+  // over and carries the same packs.
   //
   // (Balances are per person, keyed on email, so a guest running out never
   // affects the owner. He asked; it does not.)
   const mustBuy = !!(purse && !spent && purse.signedIn
-    && purse.buildCost && purse.left < purse.buildCost);
+    && purse.buildCost && purse.left < purse.buildCost
+    && (denied || wantBuild || purse.paid));
+
+  // Once they can afford one, the tap they made earlier is answered and the
+  // panel has nothing left to say.
+  useEffect(() => {
+    if (purse && purse.buildCost && purse.left >= purse.buildCost) setWantBuild(false);
+  }, [purse]);
 
   const tripName =
     (working && working.trip && working.trip.title)
@@ -839,6 +869,25 @@ export default function Home() {
     }
   }, [draft, pending, session]);
 
+  // ASKING TO BUILD, WHEN A BUILD IS OUT OF REACH.
+  //
+  // raffy, 2026-09-07: "or when they want to click the build button." The
+  // server refuses this anyway, but doing it there costs a turn of their
+  // remaining credit to be told no, and the answer arrives late — under a
+  // paragraph from the agent rather than under their thumb. So the two buttons
+  // that mean "build it" ask here first, and the packs appear on the tap.
+  //
+  // Anything typed still goes through the server's gate; this is not the
+  // enforcement, it is the manners.
+  const askBuild = useCallback((text) => {
+    if (purse && purse.signedIn && purse.buildCost && purse.left < purse.buildCost) {
+      setWantBuild(true);
+      stickToBottom();
+      return;
+    }
+    send(text);
+  }, [purse, send, stickToBottom]);
+
   const attach = async (e) => {
     const files = [...(e.target.files || [])];
     e.target.value = '';
@@ -1181,7 +1230,7 @@ export default function Home() {
             plan={plan}
             built={ready}
             building={building}
-            onBuild={() => send('Build it now with what you have.')}
+            onBuild={() => askBuild('Build it now with what you have.')}
           />
           <div className="scroll" ref={scroller} onScroll={onScroll}>
             {booting && <div className="sys">Starting…</div>}
@@ -1285,7 +1334,8 @@ export default function Home() {
                   </div>
                 ) : null
               ) : m.role === 'block' ? (
-                <Block key={m.id} block={m} disabled={thinking || spent} where={tripName} onChoose={(t) => send(t)} />
+                <Block key={m.id} block={m} disabled={thinking || spent} where={tripName}
+                  onChoose={(t, o) => (o && o.build ? askBuild(t) : send(t))} />
               ) : (
                 <div key={m.id}
                   className={'msg ' + m.role
@@ -1477,18 +1527,19 @@ export default function Home() {
                 <button onClick={() => setPaid('')} aria-label="Dismiss">×</button>
               </div>
             )}
-            {/* Enough to talk, not enough to build. Offered before they ask,
-                because being refused at the end of planning a holiday is a
-                worse moment than being told at the start. */}
+            {/* Only once it is news: they asked to build and could not afford
+                it, or they have paid before and are now short. Never as a
+                greeting — see mustBuy. */}
             {mustBuy && !paid && (
               <div className="wall low">
-                <b>{purse.used > 0 ? 'Not quite enough to build it' : 'Building your trip is the paid part'}</b>
+                <b>{denied || wantBuild ? 'Building it needs a top-up' : 'Not quite enough to build it'}</b>
                 <p>
-                  {purse.used > 0
-                    ? 'You have ' + purse.left.toLocaleString('en') + ' credits and building takes about '
-                      + purse.buildCost + '. Carry on chatting — everything you decide is saved.'
-                    : 'Keep planning as long as you like — the chat, the research, the recommendations are'
-                      + ' yours. Turning it into an app you can carry is what a pack buys.'}
+                  {denied || wantBuild
+                    ? 'Everything you have planned is saved and yours — the chat, the research, all of'
+                      + ' it. Building takes about ' + purse.buildCost + ' credits and you have '
+                      + purse.left.toLocaleString('en') + '.'
+                    : 'You have ' + purse.left.toLocaleString('en') + ' credits and building takes about '
+                      + purse.buildCost + '. Carry on chatting — everything you decide is saved.'}
                 </p>
                 <Packs paid={!!(purse && purse.paid)} onError={(m) => setPaid('error:' + m)} />
               </div>

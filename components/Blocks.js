@@ -578,8 +578,12 @@ export default function Block({ block, onChoose, disabled, where }) {
           )}
 
           <div className="acts">
+            {/* Flagged as a build rather than left to be recognised by its
+                wording: the app has to know this tap is the expensive one so it
+                can say what it costs BEFORE spending a turn on it. Matching the
+                sentence would work until somebody reworded the sentence. */}
             <button className="pick" disabled={disabled}
-              onClick={() => onChoose('That looks right — build it.')}>
+              onClick={() => onChoose('That looks right — build it.', { build: true })}>
               Build my itinerary
             </button>
             <button className="more" disabled={disabled}
