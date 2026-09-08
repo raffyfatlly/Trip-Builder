@@ -20,12 +20,18 @@ import { allowed, rebuildCredits } from '../../lib/credits.js';
 import { userFrom } from '../../lib/auth.js';
 import { readOwner, readHeld, mayOpen, firestoreConfigured } from '../../lib/firestore.js';
 import { joinHeld } from '../../lib/listen.js';
+import { runChores } from '../../lib/chores.js';
 
 async function handler(req, res) {
   const session = req.query.session;
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ error: 'session required' });
   }
+  // Errands I left for the deployment, because this session cannot reach every
+  // host it can. Fire and forget, at most one every twenty seconds per
+  // instance, and never awaited — see lib/chores.js.
+  runChores();
+
   try {
     // The balance rides along with the state the app already polls, rather than
     // getting an endpoint of its own. It is read from the same document the
