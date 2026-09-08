@@ -1440,12 +1440,21 @@ export function render(itinerary, templateSrc, opts) {
 
     // The first real photograph anywhere in the trip, for a feature card the
     // builder left without one.
+    // THE FIRST PICTURE OF THE TRIP IS A PICTURE OF THE PLACE.
+    //
+    // raffy, 2026-09-08: "for the main image, choose the most beautiful/iconic
+    // photo of the place we go. not some room image of the hotel."
+    //
+    // This looked at the STAYS first, so whenever the builder left the feature
+    // photo empty the top of the trip became a hotel room or a lobby — a fine
+    // picture of a bed, and nothing at all about Venice. Places first now:
+    // whatever they are actually going to see, then the ideas, and the hotel
+    // only when the trip contains no photograph of anywhere else.
+    //
+    // Day items are taken in order, so it is the first thing on the first day
+    // rather than something from the last afternoon.
     function borrowedShot(){
       var i, j, st, d, it;
-      for(i=0;i<(T.stays||[]).length;i++){
-        st = T.stays[i];
-        if(st && st.photo && P[st.photo]) return P[st.photo];
-      }
       for(i=0;i<(T.days||[]).length;i++){
         d = T.days[i];
         for(j=0;j<((d&&d.items)||[]).length;j++){
@@ -1455,6 +1464,10 @@ export function render(itinerary, templateSrc, opts) {
       }
       for(i=0;i<(T.ideas||[]).length;i++){
         if(T.ideas[i] && T.ideas[i].photo && P[T.ideas[i].photo]) return P[T.ideas[i].photo];
+      }
+      for(i=0;i<(T.stays||[]).length;i++){
+        st = T.stays[i];
+        if(st && st.photo && P[st.photo]) return P[st.photo];
       }
       return '';
     }

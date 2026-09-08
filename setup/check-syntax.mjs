@@ -59,5 +59,28 @@ for (const f of files) {
   }
 }
 
-console.log('\n' + files.length + ' files checked, ' + (bad ? bad + ' FAILED' : 'all parse'));
-process.exit(bad ? 1 : 0);
+// PARSING IS NOT LOADING.
+//
+// 2026-09-08: a second `const named` in the same function passed every check
+// here and then threw "Identifier 'named' has already been declared" the moment
+// anything imported the file. Prettier parses one file in isolation; a
+// duplicate binding is a scope error the module loader raises at
+// instantiation, and lib/ is exactly where that matters — nothing in pages/
+// compiles it, so a broken lib file reaches production as a 500.
+//
+// So every lib module is also IMPORTED. They are written to be import-safe
+// already (config is loaded lazily, nothing calls out at module scope), which
+// is what makes this cheap enough to run on every commit.
+let dead = 0;
+for (const f of files.filter((x) => x.startsWith('lib/'))) {
+  try {
+    await import('../' + f);
+  } catch (err) {
+    dead++;
+    console.error('\nWILL NOT LOAD ' + f + '\n  ' + String((err && err.message) || err).split('\n')[0]);
+  }
+}
+
+console.log('\n' + files.length + ' files checked, ' + (bad ? bad + ' FAILED' : 'all parse')
+  + (dead ? ', ' + dead + ' WILL NOT LOAD' : ''));
+process.exit(bad || dead ? 1 : 0);
