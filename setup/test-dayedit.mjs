@@ -14,12 +14,19 @@
 //
 //   node setup/test-dayedit.mjs
 
+// PATHS. This file used to import the renderer and the template from
+// /home/user/claude/tools/itinerary-chat — a COPY of this app that lives in the
+// vault and stopped being updated on 2026-09-04. So every assertion below was
+// being made about code that is not the code that ships: 68 lines of renderer
+// behind, and green either way. Both now come from this repo. The trip fixture
+// is still read from the vault because that is the only place it exists; it is
+// data, not behaviour, so a stale one fails loudly rather than silently.
 import fs from 'fs'; import zlib from 'zlib';
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
-import { render } from '/home/user/claude/tools/itinerary-chat/renderer/render.js';
-const tpl = zlib.gunzipSync(fs.readFileSync('/home/user/claude/tools/itinerary-chat/public/app-template.html.gz')).toString();
+import { render } from '../renderer/render.js';
+const tpl = zlib.gunzipSync(fs.readFileSync('public/app-template.html.gz')).toString();
 const T = JSON.parse(fs.readFileSync('/home/user/claude/tools/itinerary-generator/trips/phuquoc.json','utf8'));
-const IMG = fs.readFileSync('/home/user/claude/tools/itinerary-chat/public/welcome/img/halong.jpg');
+const IMG = fs.readFileSync('public/welcome/img/halong.jpg');
 const O='https://itinerary.test'; const { html } = render(T, tpl);
 const b = await chromium.launch();
 const ctx = await b.newContext({ viewport:{width:390,height:844}, hasTouch:true });

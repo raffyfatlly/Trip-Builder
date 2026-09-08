@@ -2252,11 +2252,21 @@ export function render(itinerary, templateSrc, opts) {
     '      \'<div class="bkbody">\';',
     '    // Once it is done the verb is in the way: "Book Furama" is an',
     '    // instruction, and there is nothing left to instruct.',
-    '    var name=(b&&b.title)||t.what||"";',
+    '    var name=t.label||(b&&b.title)||t.what||"";',
     '    if(t.done) name=name.replace(/^(Book|Confirm|Sort|Apply for|Arrange|Get|Buy|Renew)\\s+/i,"");',
-    '    h+=\'<div class="tdtop"><b>\'+esc(name)+\'</b>\'+',
-    '      \'<span class="bktag \'+(t.done?"ok":(soon?"no":"ok"))+\'">\'+',
-    '      esc(t.done?(t.own?"Done":"Booked"):(t.due||(t.own?"To do":"To book")))+\'</span></div>\';',
+    // THE TITLE IS THE EDIT SURFACE.
+    //
+    // raffy, 2026-09-08: "make it so that user can manually edit to to do part
+    // (not relying) on agent."
+    //
+    // A pencil in the corner is a control you have to find. The words are the
+    // thing being changed, so the words are the button — tap the title and it
+    // becomes an input with the cursor in it. Nothing moves, nothing opens.
+    '    var chip = t.skip ? "Not needed" : (t.done?(t.own?"Done":"Booked"):(t.due||(t.own?"To do":"To book")));',
+    '    h+=\'<div class="tdtop"><button type="button" class="tdname" data-td-edit="\'+esc(t.id||"")+\'" \'+',
+    '      \'aria-label="Edit this"><b>\'+esc(name)+\'</b></button>\'+',
+    '      \'<span class="bktag \'+(t.skip?"off":(t.done?"ok":(soon?"no":"ok")))+\'">\'+',
+    '      esc(chip)+\'</span></div>\';',
     '    // Whatever is actually known, in the order somebody would want it.',
     '    var when=(b&&b.when)||t.when||"";',
     '    // s.loc is prose in the itinerary — a paragraph about the',
@@ -2309,25 +2319,67 @@ export function render(itinerary, templateSrc, opts) {
     '      \'<span>Their site</span>\'+',
     '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" \'+',
     '      \'stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>\';',
-    // raffy, 2026-09-03: "maybe change done it to just tick." The label was the
-    // widest thing on the row and it sat beside a cross that says the opposite
-    // in one glyph. Two marks now, same size, same weight, opposite meanings.
-    '    if(LIVE && !t.done && !t.mine) foot+=\'<button class="tddone" data-booked="\'+esc(t.what||"")+\'" \'+',
-    '      \'aria-label="Mark this as done" title="Done it">\'+',
-    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" \'+',
-    '      \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></button>\';',
-    '    if(t.mine) foot+=\'<button class="tdx" data-mine-off="\'+esc(t.id)+\'" \'+',
-    '      \'aria-label="Take this off the list" title="Take this off the list">\'+',
-    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
-    '      \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>\';',
-    '    if(t.mine) foot+=\'<button class="tddone" data-mine-tick="\'+esc(t.id)+\'" \'+',
-    '      \'aria-label="\'+(t.done?"Put this back on the list":"Mark this as done")+\'">\'+',
-    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" \'+',
-    '      \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></button>\';',
-    '    if(LIVE && !t.mine) foot+=\'<button class="tdx" data-droptask="\'+esc(t.what||"")+\'" \'+',
-    '      \'aria-label="Take this off the list" title="Take this off the list">\'+',
-    '      \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
-    '      \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>\';',
+    // TICK AND CROSS, ON EVERY ROW, WITHOUT THE AGENT.
+    //
+    // raffy, 2026-09-08: "make it so that user can manually edit to to do part
+    // (not relying) on agent. anything they say tick or x bring down to confirm
+    // section."
+    //
+    // What was here: a tick that only appeared inside the chat app and, when
+    // tapped, opened the composer with "I've booked..." typed into it — so
+    // ticking a hotel off your own list meant writing a sentence to an agent
+    // and spending a turn on it. On a plane, or on the downloaded app, there
+    // was no tick at all. His own items had working buttons; everything the
+    // trip implied did not, which is the wrong way round: the flights and the
+    // rooms are the things you actually tick off.
+    //
+    // Now every row has both marks, they are local and instant, and they
+    // BOTH move the row down to Confirmed — a tick because it is sorted, a
+    // cross because it does not apply. Nothing is deleted by either: a crossed
+    // row sits in Confirmed as "Not needed" and can be put back, which is the
+    // only honest thing to do with a list somebody is going to travel on.
+    //
+    // Telling the agent is now a choice on the confirmed row rather than the
+    // price of ticking one.
+    '    if(!t.done && !t.skip){',
+    '      foot+=\'<button class="tdx" data-td-skip="\'+esc(t.id||"")+\'" \'+',
+    '        \'aria-label="Not needed" title="Not needed">\'+',
+    '        \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '        \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>\';',
+    // A pencil as well as the tappable title. The title being the control is
+    // the nicer interaction and the one people use once they know; nobody
+    // discovers it on their own, and an undiscoverable feature is not a
+    // feature. Both point at the same handler.
+    '      foot+=\'<button class="tdpen" data-td-edit="\'+esc(t.id||"")+\'" \'+',
+    '        \'aria-label="Rename this" title="Rename">\'+',
+    '        \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" \'+',
+    '        \'stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4z"/>\'+',
+    '        \'<path d="M13.5 6.5 17.5 10.5"/></svg></button>\';',
+    '      foot+=\'<button class="tddone" data-td-tick="\'+esc(t.id||"")+\'" \'+',
+    '        \'aria-label="Mark this as done" title="Done">\'+',
+    '        \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" \'+',
+    '        \'stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg></button>\';',
+    '    } else if(t.local){',
+    // Only a row THIS PHONE moved can be moved back from here. A booking the
+    // agent filed is done because there is a confirmation behind it, and a
+    // "put it back" on that would be undoing a fact rather than a choice.
+    '      foot+=\'<button class="tdback" data-td-back="\'+esc(t.id||"")+\'" type="button">\'+',
+    '        \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '        \'stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/>\'+',
+    '        \'<path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg><span>Put it back</span></button>\';',
+    // Your own typo is yours to delete. Nothing the TRIP put on the list can be
+    // deleted here — that would be arguing with the itinerary — but a line you
+    // typed yourself and no longer want should not have to live in Confirmed.
+    '      if(t.mine) foot+=\'<button class="tdx" data-td-drop="\'+esc(t.id||"")+\'" \'+',
+    '        \'aria-label="Delete this" title="Delete this">\'+',
+    '        \'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" \'+',
+    '        \'stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>\';',
+    '    }',
+    // Filing the confirmation is worth doing and is still the agent's job — it
+    // reads the email and puts the reference on the card. It is an offer on a
+    // row that is already ticked, not a toll on ticking it.
+    '    if(LIVE && t.done && !t.own && !b) foot+=\'<button class="tdfile" type="button" \'+',
+    '      \'data-booked="\'+esc(t.what||"")+\'">Add the booking details</button>\';',
     '    if(foot) h+=\'<div class="tdfoot">\'+foot+\'</div>\';',
     '    return h+\'</div>\';',
     '  }',
@@ -2347,11 +2399,39 @@ export function render(itinerary, templateSrc, opts) {
     // rather than an annex.
     '    var mem=store();',
     '    (mem.todoAdd||[]).forEach(function(x){',
-    '      var t={ id:x.id, what:x.what, kind:x.kind||"other", own:true, mine:true,',
-    '              done:!!mem.todoDone[x.id], due:x.due||"" };',
-    '      (t.done?done:todo).push(t);',
+    '      todo.push({ id:x.id, what:x.what, kind:x.kind||"other", own:true, mine:true,',
+    '                  due:x.due||"" });',
     '    });',
-    '    var need=todo.length+done.length, sorted=done.length;',
+    '',
+    // WHAT THIS PHONE DECIDED, LAID OVER WHAT THE TRIP SAYS.
+    //
+    // The server's own `done` still holds — a booking it filed is done because
+    // there is a confirmation behind it. On top of that sit three local maps:
+    // ticked, crossed off, and renamed. They are keyed by task id, so they
+    // survive a rebuild of the trip: the flights row is d:flights whether it
+    // was written this morning or last week.
+    '    function localise(t, wasDone){',
+    '      var id=t.id||"";',
+    '      var mine=!!mem.todoDone[id], skip=!wasDone&&!!mem.todoSkip[id];',
+    '      return Object.assign({}, t, {',
+    '        label: mem.todoText[id]||"",',
+    '        done: wasDone||mine,',
+    '        skip: skip,',
+    '        local: (mine&&!wasDone)||skip',
+    '      });',
+    '    }',
+    '    var all=todo.map(function(t){ return localise(t,false); })',
+    '      .concat(done.map(function(t){ return localise(t,true); }));',
+    '    var open=all.filter(function(t){ return !t.done&&!t.skip; });',
+    // Ticked first, then the ones that do not apply. Both are settled, but one
+    // is an achievement and the other is housekeeping.
+    '    var settled=all.filter(function(t){ return t.done; })',
+    '      .concat(all.filter(function(t){ return t.skip; }));',
+    '    todo=open; done=all.filter(function(t){ return t.done; });',
+    // The ring counts what you got through, and a row you crossed off is not
+    // something left to do — so it counts as settled rather than dragging the
+    // total down forever.
+    '    var need=all.length, sorted=settled.length;',
     '',
     '    var pct=need?Math.round(sorted/need*100):0, C=163.4;',
     '    var h=need?\'<div class="bksum"><div class="bkring">\'+',
@@ -2411,16 +2491,18 @@ export function render(itinerary, templateSrc, opts) {
     '        \'or ask me to add it, and I will look it up</button>\';',
     '    }',
     '',
-    '    if(done.length||extra.length){',
-    '      h+=group("Sorted", done.map(todoCard).concat(',
+    // Everything you have settled, one section, at the bottom. raffy: "anything
+    // they say tick or x bring down to confirm section."
+    '    if(settled.length||extra.length){',
+    '      h+=group("Confirmed", settled.map(todoCard).concat(',
     '        extra.map(function(b){ return todoCard({ what:b.title, kind:b.kind||"other", done:true, booking:b }); })',
-    '      ), "ok");',
+    '      ), "ok", "Ticked off or ruled out. Tap Put it back if you change your mind.");',
     '    } else if(need) {',
-    '      h+=\'<div class="sect"><h2>Sorted</h2></div>\';',
+    '      h+=\'<div class="sect"><h2>Confirmed</h2></div>\';',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
-    '        \'<b>Nothing filed yet</b><p>Once you have booked something, tap <b>Done it</b> \'+',
-    '        \'and send me the confirmation \\u2014 an email, a screenshot, or just the \'+',
-    '        \'reference. It lands here with the times and the address.</p></div>\';',
+    '        \'<b>Nothing settled yet</b><p>Tick anything you have sorted, or cross off \'+',
+    '        \'what does not apply. Either way it comes down here, and you can put it \'+',
+    '        \'back.</p></div>\';',
     '    }',
     '    el.innerHTML=h;',
     '  }',
@@ -3310,19 +3392,56 @@ export function render(itinerary, templateSrc, opts) {
     '    }',
     '    save(); renderPack();',
     '  });',
+    // The whole of manual editing: tick, cross, put back, delete, rename. Every
+    // one of them writes to this phone and redraws, and none of them needs a
+    // network, an agent or a credit.
     '  document.addEventListener("click",function(e){',
-    '    var t=e.target.closest&&e.target.closest("[data-mine-tick],[data-mine-off]");',
+    '    var t=e.target.closest&&e.target.closest("[data-td-tick],[data-td-skip],[data-td-back],[data-td-drop]");',
     '    if(!t) return;',
     '    var st=store();',
-    '    if(t.hasAttribute("data-mine-off")){',
-    '      var off=t.getAttribute("data-mine-off");',
-    '      st.todoAdd=(st.todoAdd||[]).filter(function(x){ return x.id!==off; });',
-    '      delete st.todoDone[off];',
-    '    } else {',
-    '      var k=t.getAttribute("data-mine-tick");',
-    '      if(st.todoDone[k]) delete st.todoDone[k]; else st.todoDone[k]=1;',
+    '    st.todoDone=st.todoDone||{}; st.todoSkip=st.todoSkip||{};',
+    '    var id=t.getAttribute("data-td-tick")||t.getAttribute("data-td-skip")||',
+    '           t.getAttribute("data-td-back")||t.getAttribute("data-td-drop")||"";',
+    '    if(!id) return;',
+    '    if(t.hasAttribute("data-td-tick")){ st.todoDone[id]=1; delete st.todoSkip[id]; }',
+    '    else if(t.hasAttribute("data-td-skip")){ st.todoSkip[id]=1; delete st.todoDone[id]; }',
+    '    else if(t.hasAttribute("data-td-back")){ delete st.todoDone[id]; delete st.todoSkip[id]; }',
+    '    else {',
+    '      st.todoAdd=(st.todoAdd||[]).filter(function(x){ return x.id!==id; });',
+    '      delete st.todoDone[id]; delete st.todoSkip[id]; delete (st.todoText||{})[id];',
     '    }',
     '    save(); renderBookings();',
+    '  });',
+    // RENAMING, IN PLACE.
+    //
+    // The title swaps for an input holding the same words, at the same size, in
+    // the same spot — so it reads as the text becoming editable rather than a
+    // form appearing. Enter or blur saves; Escape puts it back. Empty means
+    // "I changed my mind", not "delete the row", because a row with no name is
+    // not a thing anybody meant to make.
+    '  document.addEventListener("click",function(e){',
+    '    var t=e.target.closest&&e.target.closest("[data-td-edit]");',
+    '    if(!t) return;',
+    '    var id=t.getAttribute("data-td-edit"); if(!id) return;',
+    '    var was=(t.textContent||"").trim();',
+    '    var inp=document.createElement("input");',
+    '    inp.className="tdedit"; inp.value=was; inp.maxLength=90;',
+    '    inp.setAttribute("aria-label","Rename this");',
+    '    var shut=function(keep){',
+    '      if(!inp.parentNode) return;',
+    '      var v=(inp.value||"").trim();',
+    '      if(keep && v && v!==was){',
+    '        var st=store(); st.todoText=st.todoText||{}; st.todoText[id]=v; save();',
+    '      }',
+    '      renderBookings();',
+    '    };',
+    '    inp.addEventListener("keydown",function(ev){',
+    '      if(ev.key==="Enter"){ ev.preventDefault(); shut(true); }',
+    '      if(ev.key==="Escape"){ ev.preventDefault(); shut(false); }',
+    '    });',
+    '    inp.addEventListener("blur",function(){ shut(true); });',
+    '    t.replaceWith(inp);',
+    '    inp.focus(); inp.select();',
     '  });',
     '  document.addEventListener("submit",function(e){',
     '    if(!e.target || e.target.id!=="tdnew") return;',
@@ -3695,6 +3814,53 @@ export function render(itinerary, templateSrc, opts) {
     '  .tdx{background:none;color:var(--ink-faint);opacity:.5;order:9;margin-left:0}',
     '  .tdx svg{width:14px;height:14px}',
     '  .tdx:active{opacity:1;background:rgba(12,36,27,.06)}',
+    // ---- manual editing, 2026-09-08 ----
+    // The title is a button but must not look like one: same type, same colour,
+    // same position, no chrome. The only tell is that it takes a tap, which is
+    // what the whole row already does.
+    '  .tdname{',
+    '    display:block;border:0;background:none;padding:0;margin:0;text-align:left;',
+    '    font:inherit;color:inherit;cursor:text;-webkit-tap-highlight-color:transparent;',
+    '  }',
+    '  .tdname:active b{opacity:.55}',
+    // And the input takes the title's exact metrics, so nothing shifts when the
+    // words become editable.
+    '  .tdedit{',
+    "    width:100%;font-family:'Outfit',sans-serif;font-size:14.5px;font-weight:750;",
+    '    line-height:1.28;letter-spacing:-.01em;color:var(--ink);background:var(--paper-2);',
+    '    border:1px solid var(--line);border-radius:9px;padding:5px 8px;margin:-6px 0;',
+    '    outline:none;-webkit-appearance:none;',
+    '  }',
+    '  .tdedit:focus{border-color:var(--deep);background:var(--surface)}',
+    // A crossed-off row is settled, not achieved, so its chip is grey where a
+    // booked one is green.
+    '  .bktag.off{background:var(--sage);color:var(--ink-faint)}',
+    // Put it back is the only word-bearing control down here, so it is quiet:
+    // ghost, small, and it holds the left the way .tdgo does above.
+    '  .tdback{',
+    '    display:inline-flex;align-items:center;gap:6px;flex:none;margin-right:auto;',
+    '    border:0;background:none;padding:5px 2px;cursor:pointer;',
+    "    font-family:'Outfit',sans-serif;font-size:12px;font-weight:700;",
+    '    color:var(--ink-faint);letter-spacing:-.005em;',
+    '  }',
+    '  .tdback svg{width:13px;height:13px;flex:none}',
+    '  .tdback:active{color:var(--deep)}',
+    // Offering the agent's help AFTER the tick, never as the price of it.
+    '  .tdfile{',
+    '    flex:none;border:0;background:var(--sage);color:var(--deep);cursor:pointer;',
+    "    font-family:'Outfit',sans-serif;font-size:11.5px;font-weight:750;",
+    '    border-radius:var(--r-pill);padding:7px 12px;letter-spacing:-.005em;',
+    '  }',
+    '  .tdfile:active{background:#CFE0D6}',
+    // Same footprint as the cross, and as quiet: it is a way in, not an action
+    // anybody came to this screen to take.
+    '  .tdpen{',
+    '    flex:none;width:30px;height:30px;padding:0;border-radius:10px;border:0;',
+    '    display:grid;place-items:center;background:none;cursor:pointer;',
+    '    color:var(--ink-faint);opacity:.5;',
+    '  }',
+    '  .tdpen svg{width:14px;height:14px}',
+    '  .tdpen:active{opacity:1;background:rgba(12,36,27,.06)}',
     '  .tddl{gap:8px 14px;margin-top:8px;padding-top:8px}',
     '  .tddl dt{font-size:9.5px;letter-spacing:.08em}',
     '  .tddl dd{font-size:12.5px}',
@@ -3940,13 +4106,14 @@ export function render(itinerary, templateSrc, opts) {
   replaceOnce(
     '    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],seq:0};',
     '    MEM={times:{},plans:{},done:{},pack:{},packOff:{},packAdd:[],text:{},hide:{},own:{},'+
-      'todoAdd:[],todoDone:{},seq:0};',
+      'todoAdd:[],todoDone:{},todoSkip:{},todoText:{},seq:0};',
     'edits in the store');
   replaceOnce(
     'MEM.packAdd=o.packAdd||[]; MEM.seq=o.seq||0; } }',
     'MEM.packAdd=o.packAdd||[]; MEM.text=o.text||{}; MEM.hide=o.hide||{};\n' +
     '          MEM.own=o.own||{}; MEM.todoAdd=o.todoAdd||[];'+
-      ' MEM.todoDone=o.todoDone||{}; MEM.seq=o.seq||0; } }',
+      ' MEM.todoDone=o.todoDone||{}; MEM.todoSkip=o.todoSkip||{};'+
+      ' MEM.todoText=o.todoText||{}; MEM.seq=o.seq||0; } }',
     'edits out of the store');
 
   // 2. rows() is the single place a day is assembled, so it is the only place
