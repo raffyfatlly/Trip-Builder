@@ -92,7 +92,7 @@ const html = `<style>
   <div class="t">
     <p class="eyebrow">Looking for testers</p>
     <h1>Anyone planning a trip?</h1>
-    <p class="sub">I built something that plans it with you, then turns the whole thing into an app on your phone.</p>
+    <p class="sub">I built something that plans the trip with you, then turns it into an app on your phone.</p>
     <div class="does">${DOES.map((d) => `<span>${d}</span>`).join('')}</div>
   </div>
   <div class="foot"><span class="u">trip-builder-two.vercel.app</span>
