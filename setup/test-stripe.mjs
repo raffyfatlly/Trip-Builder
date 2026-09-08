@@ -105,4 +105,53 @@ console.log('\nwhich events grant credits');
   t('everything else is acknowledged and ignored', () => assert.ok(/ignored: event\.type/.test(src)));
 }
 
+
+// TOP UP IS AN AMOUNT, NOT A PACK. raffy, 2026-09-08: "the topup function is rm
+// 10 minimum. then user can put any amount after that."
+//
+// The money side of a free-text field is where a pricing bug becomes a refund,
+// so the rules are asserted rather than trusted: a floor, a cap, the same rate
+// as the named packs, and rounding that never goes the customer's way by
+// accident.
+console.log('\na custom top-up');
+{
+  const { topupFor, TOPUP_MIN, TOPUP_MAX } = await import('../lib/stripe.js');
+  const rate = 0.10 * 2.8;               // RM0.28 a credit, the pack rate
+
+  t('the minimum is RM10 and it is inclusive', () => {
+    assert.equal(topupFor(TOPUP_MIN, rate).myr, 10);
+    assert.equal(topupFor(9.99, rate), null);
+    assert.equal(topupFor(0, rate), null);
+    assert.equal(topupFor(-50, rate), null);
+  });
+  t('anything above it is allowed, to a sane cap', () => {
+    assert.equal(topupFor(12, rate).credits, 42);
+    assert.equal(topupFor(50, rate).credits, 178);
+    assert.ok(topupFor(TOPUP_MAX, rate));
+    assert.equal(topupFor(TOPUP_MAX + 1, rate), null);
+  });
+  t('it buys at exactly the pack rate — no bulk discount', () => {
+    // RM28 buys 100 credits as a named pack. Typed as a top-up it must buy the
+    // same 100, or the two prices on one screen disagree with each other.
+    assert.equal(topupFor(28, rate).credits, 100);
+    assert.equal(topupFor(68, rate).credits, 242);
+  });
+  t('and rounds DOWN, always', () => {
+    // RM10 is 35.7 credits. A credit given away is a credit served at a loss.
+    assert.equal(topupFor(10, rate).credits, 35);
+    assert.equal(topupFor(10.27, rate).credits, 36);
+  });
+  t('nonsense is refused rather than priced', () => {
+    assert.equal(topupFor('abc', rate), null);
+    assert.equal(topupFor(null, rate), null);
+    assert.equal(topupFor(50, 0), null);
+  });
+  t('a custom amount still respects the ceiling', async () => {
+    const { packSafe } = await import('../lib/stripe.js');
+    for (const myr of [10, 12, 37.5, 500]) {
+      assert.ok(packSafe(topupFor(myr, rate), 0.10, 2.8), 'RM' + myr);
+    }
+  });
+}
+
 console.log('\n' + n + ' passed');

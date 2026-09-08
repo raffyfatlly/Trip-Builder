@@ -34,7 +34,7 @@ const transcript = [
 
 await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_BG' } }));
 await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: true, user: { email: 'new@x.com' } } }));
-await ctx.route('**/api/pay*', (r) => r.fulfill({ json: { ready: true, packs: [
+await ctx.route('**/api/pay*', (r) => r.fulfill({ json: { ready: true, topup: { min: 10, max: 2000, perCredit: 0.28 }, packs: [
   { id: 'starter', name: 'Plan a trip', credits: 100, myr: 28, blurb: 'One big trip.' },
   { id: 'plus', name: 'Plan a few', credits: 242, myr: 68, blurb: 'A few trips.' },
 ] } }));
