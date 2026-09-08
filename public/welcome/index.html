@@ -545,49 +545,56 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
 </section>
 
 <!-- ============ PRICING ============ -->
+<!-- The numbers here are the ones the app actually charges. lib/stripe.js holds
+     the packs (RM28 = 100 credits, RM68 = 242, top up from RM10 at the same
+     RM0.28 a credit) and lib/credits.js the free grant (15) and the cost of a
+     rebuild (25). A trip has measured between 27 and 84 credits across the test
+     runs, so the ranges below are the real spread, not a guess. If a price moves
+     in config, it moves here too. -->
 <section id="pricing" class="dark">
   <div class="wrap">
     <div class="rv" style="max-width:620px;margin-bottom:10px">
       <p class="eyebrow">Pricing</p>
       <h2>Pay per trip, not every month.</h2>
-      <p class="lede" style="margin-top:16px">You buy credits. Planning a whole trip uses some, asking it to look one thing up uses a few. Nothing runs out while you still have a trip coming.</p>
+      <p class="lede" style="margin-top:16px">You buy credits and spend them as you plan. No subscription, and they do not expire. <strong style="color:#F2F7F2">Start with 15 free credits</strong> &mdash; enough to see how it works before you pay anything.</p>
     </div>
 
     <div class="tiers">
       <div class="tier rv">
-        <div class="tname">Traveller</div>
-        <div class="tprice">RM29</div>
-        <div class="tunit">120 credits, paid once</div>
-        <p class="tsub">Enough for one holiday, planned and then re-planned as things change.</p>
+        <div class="tname">Plan a trip</div>
+        <div class="tprice">RM28</div>
+        <div class="tunit">100 credits, paid once</div>
+        <p class="tsub">One big trip, researched properly, with room to change your mind.</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>About 2 trips</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Ask it anything about a trip you have made, free</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>A whole trip planned, start to finish</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Asking about a trip you have made costs a credit or two</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>The app is yours, and it works with no internet</li>
         </ul>
         <a class="btn btn-ghost" href="/">Start here</a>
       </div>
 
       <div class="tier best rv">
-        <div class="tname">Frequent <span class="tag">Best value</span></div>
-        <div class="tprice">RM89</div>
-        <div class="tunit">500 credits, paid once</div>
-        <p class="tsub">For a year when you are actually going places.</p>
+        <div class="tname">Plan a few <span class="tag">Best value</span></div>
+        <div class="tprice">RM68</div>
+        <div class="tunit">242 credits, paid once</div>
+        <p class="tsub">Two or three trips, or one you keep coming back to.</p>
         <ul>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>About 9 trips</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Checking prices and places stops using credits</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>The same rate as the smaller pack &mdash; no bulk discount, no catch</li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Plan trips for other people on your account</li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Credits stay yours while a trip is still open</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>Credits stay yours until you use them</li>
         </ul>
         <a class="btn btn-onDark" href="/">Start here</a>
       </div>
     </div>
 
     <div class="credits rv" style="background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.12);color:#E7EFE8">
-      <div class="ch">What a credit buys</div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Planning a whole trip</span><span>50</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Redoing it after your plans change</span><span>20</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Looking up hotels, food or a day out</span><span>3</span></div>
-      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Changing something yourself</span><span>Free</span></div>
+      <div class="ch">What things cost</div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Planning a whole trip</span><span>30&ndash;85</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Rebuilding it after your plans change</span><span>25</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Asking it to look one thing up</span><span>1&ndash;6</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Changing a time, a name, a day</span><span>About 1</span></div>
+      <div class="crow" style="border-top-color:rgba(255,255,255,.1)"><span style="color:#A9C0B4">Opening a trip you already have</span><span>Free</span></div>
+      <p style="margin:14px 0 0;font-size:13.5px;color:#A9C0B4;line-height:1.55">Run low mid&#8209;trip and you can top up any amount from RM10, at the same RM0.28 a credit.</p>
     </div>
   </div>
 </section>

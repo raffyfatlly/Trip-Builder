@@ -10,9 +10,14 @@
 //
 // The credit numbers are shown because they are what runs out, but the sentence
 // under each is what people actually decide on. "One big trip, with room to
-// change your mind" is the honest description of 100 credits: a trip measures
-// 27 to 49, so it is one comfortably and usually two — under-promised on
-// purpose, which is what he asked for.
+// change your mind" is the honest description of 100 credits.
+//
+// WHAT A TRIP ACTUALLY MEASURES. This said "27 to 49, so it is one comfortably
+// and usually two" until the Penang trip was reconciled on 2026-09-08 and came
+// to 84 credits — nearly double the top of that range, most of it Google Places
+// rather than the model. So 100 credits is ONE trip, and "usually two" was
+// wrong. The wording above survives that correction because it never promised a
+// number; the landing page did, and was fixed at the same time.
 
 import { useEffect, useState } from 'react';
 
