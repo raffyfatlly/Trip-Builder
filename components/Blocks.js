@@ -119,10 +119,18 @@ function usePlace(name, where) {
 // scroll rather than a comparison. A search result puts the picture beside the
 // facts precisely so the eye can run down the column — which is the whole job
 // of a card set: choosing between these, not admiring each one.
-function Pic({ name, where, small }) {
+function Pic({ name, where, small, solo }) {
   const place = usePlace(name, where);
   const [dead, setDead] = useState(false);
   const live = place && place.photo && !dead;
+  // ONE CARD WITH NO PHOTOGRAPH SHOULD NOT CARRY AN EMPTY SQUARE.
+  //
+  // The blank tile below is deliberate in a SET — a column of cards where one
+  // place has no picture should still line up. On its own it is just dead
+  // space, and on the case raffy asked to see next ("try on flight ticket lemme
+  // see") it is dead space by default: Places has no photograph of MH780, and
+  // never will.
+  if (!live && solo) return null;
   return (
     <div className={'pic' + (live ? '' : ' none') + (small ? ' sm' : '')}>
       {live && <img src={place.photo} alt="" loading="lazy" onError={() => setDead(true)} />}
@@ -222,6 +230,13 @@ function Links({ o, name, where }) {
           {OUT}{l.label}
         </a>
       ))}
+      {/* Only for something that is actually somewhere. A flight card offering
+          to map "Malaysia Airlines MH780" is a link to a shrug — Places could
+          not find it, which is exactly the signal that it is not a place.
+          A card whose lookup resolved keeps its map, as before, and so does a
+          card with no links at all: raffy's "map is not that important
+          actually" was about priority, not about leaving a dead end. */}
+      {(place || out.length === 0) && (
       <a className="mapl" href={(place && place.maps) || mapsFor(name, where)}
         target="_blank" rel="noopener noreferrer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -230,6 +245,7 @@ function Links({ o, name, where }) {
         </svg>
         Map
       </a>
+      )}
       <style jsx>{`
         .links{
           display:flex;flex-wrap:wrap;gap:14px;align-items:center;
@@ -611,7 +627,7 @@ export default function Block({ block, onChoose, disabled, where }) {
       ) : (
         <div key={i} className="opt">
           <div className="head">
-            <Pic name={o.name} where={where} />
+            <Pic name={o.name} where={where} solo={list.length === 1} />
             <div className="hbody">
               <div className="name">{o.name}</div>
               <Meta o={o} name={o.name} where={where} />
