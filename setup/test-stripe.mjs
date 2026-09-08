@@ -154,4 +154,75 @@ console.log('\na custom top-up');
   });
 }
 
+
+// FPX: OFFERED, BUT NEVER AT THE COST OF TAKING NO MONEY AT ALL.
+//
+// raffy, 2026-09-08: "also i want to enable fpx." Online banking is how a great
+// many Malaysians pay, so leaving it to Stripe's automatic selection — which
+// depends on a Dashboard setting nobody can see from the code — is not good
+// enough. It is named explicitly.
+//
+// The risk that creates: naming a method the account has not been approved for
+// makes Stripe reject the WHOLE request, so a checkout that could have taken a
+// card would take nothing while FPX activation is pending. These cover the
+// fallback that stops that.
+console.log('\nFPX at checkout');
+{
+  // A key shaped like a test key, so stripeReady() is true. Nothing here ever
+  // reaches Stripe — every request is answered by the stub below.
+  process.env.STRIPE_SECRET = 'sk_test_notarealkey';
+  const S = await import('../lib/stripe.js');
+  const calls = [];
+  const realFetch = globalThis.fetch;
+
+  const run = async (fail) => {
+    calls.length = 0;
+    globalThis.fetch = async (url, opts = {}) => {
+      const body = String(opts.body || '');
+      calls.push(body);
+      const wantsFpx = /payment_method_types(%5B|\[)\d+(%5D|\])=fpx/.test(body)
+        || body.includes('=fpx');
+      if (fail && wantsFpx) {
+        return new Response(JSON.stringify({ error: {
+          message: 'The payment method type provided: fpx is invalid. '
+            + 'You must activate it in your dashboard.',
+          type: 'invalid_request_error',
+        } }), { status: 400 });
+      }
+      return new Response(JSON.stringify({
+        id: 'cs_test_1', url: 'https://checkout.stripe.com/x',
+        payment_method_types: wantsFpx ? ['card', 'fpx'] : ['card'],
+      }), { status: 200 });
+    };
+    const out = await S.checkout({
+      pack: 'topup', who: 'a@b.com', origin: 'https://x.y',
+      amount: { id: 'topup', name: 'Top up', myr: 10, credits: 35 },
+    });
+    globalThis.fetch = realFetch;
+    return out;
+  };
+
+  const good = await run(false);
+  t('the payment screen is asked for card AND fpx', () => {
+    assert.ok(calls[0].includes('fpx'), calls[0].slice(0, 200));
+    assert.ok(calls[0].includes('card'), calls[0].slice(0, 200));
+  });
+  t('and one request is all it takes when the account allows it', () => {
+    assert.equal(calls.length, 1);
+    assert.deepEqual(good.payment_method_types, ['card', 'fpx']);
+  });
+
+  const fell = await run(true);
+  t('an account without FPX approved still takes cards', () => {
+    // The whole point. Stripe rejects the method, not the sale — so the sale
+    // must survive it. Two requests: the hopeful one, then card alone.
+    assert.equal(calls.length, 2);
+    assert.ok(!calls[1].includes('fpx'), calls[1].slice(0, 200));
+    assert.deepEqual(fell.payment_method_types, ['card']);
+  });
+  t('and the customer never sees the difference', () => {
+    assert.ok(fell.url, 'a checkout url came back either way');
+  });
+}
+
 console.log('\n' + n + ' passed');
