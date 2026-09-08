@@ -44,6 +44,29 @@ console.log('');
   ok('a finished step is ticked', s[0].done && s[1].done);
   ok('and the one still running is not', s[2].done === false, JSON.stringify(s[2]));
 
+  // TENSE FOLLOWS THE TICK. raffy, 2026-09-08, on a research round that had
+  // only just started: "can we not use the past tense when its still looking
+  // up. or some other phrases? then once it looked up then it's okay."
+  ok('a finished step is in the past tense', s[0].what === 'Searched the web', s[0].what);
+  ok('and one still running is not', s[2].what === 'Putting the options together', s[2].what);
+  {
+    const mid = [
+      { type: 'user.message' },
+      { type: 'agent.custom_tool_use', id: 'r1', name: 'research',
+        input: { questions: [{ about: 'Must-see Bangkok' }, { about: 'Bangkok in September' }] } },
+    ];
+    const r = stepsNow(mid);
+    ok('a research round in flight is not "Looked it up"',
+       r[0].what === 'Looking things up', r[0].what);
+    ok('and it says the same thing the status line does',
+       r[0].what === doingNow(mid), doingNow(mid));
+    const after = mid.concat([{ type: 'user.custom_tool_result', custom_tool_use_id: 'r1' }]);
+    ok('and once the answer is back it is past tense',
+       stepsNow(after)[0].what === 'Looked it up', stepsNow(after)[0].what);
+    ok('the questions stay on the line either way',
+       /Must-see Bangkok/.test(r[0].detail), r[0].detail.replace(/\n/g, ' / '));
+  }
+
   ok('a search shows what it searched for', /halal seafood/.test(s[0].detail), s[0].detail);
   // Long enough to be useful, short enough to be one line on a phone.
   ok('and the query is cut, not wrapped', s[0].detail.length <= 52, s[0].detail.length + ' chars');
