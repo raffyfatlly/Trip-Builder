@@ -6,9 +6,14 @@ const b = await chromium.launch();
 let fail = 0;
 const ok = (n, c, x) => { console.log((c ? '  ok    ' : '  FAIL  ') + n + (x ? '   ' + x : '')); if (!c) fail++; };
 
-// What the app really sells, straight from the API the paywall reads.
+// What the app really sells, straight from the API the paywall reads, and the
+// two constants that never reach it — what a new account is given, and what
+// planning a trip again costs. Asserting against these rather than against a
+// sentence means the page can be reworded freely and still has to be true.
 const pay = await (await fetch(B + '/api/pay')).json().catch(() => ({}));
 const packs = (pay && pay.packs) || [];
+const { explain, rebuildCredits } = await import('../lib/credits.js');
+const money = Object.assign({ rebuildCredits: rebuildCredits() }, explain());
 const say = packs.map((p) => 'RM' + p.myr + '=' + p.credits).join(' ');
 console.log('\n  server sells:', say || '(no /api/pay in this environment)');
 
@@ -32,13 +37,29 @@ for (const [name, w, h] of [['phone', 390, 844], ['desktop', 1280, 900]]) {
      named.map((p) => 'RM' + p.myr + '/' + p.credits).join(' '));
   const rate = named.length ? (named[0].myr / named[0].credits).toFixed(2) : '';
   ok('and the top-up rate is the same rate', text.includes('RM' + rate), 'RM' + rate + ' a credit');
-  ok('the free grant is stated', /15 free credits/.test(text));
-  ok('a rebuild is priced at what it costs', /\b25\b/.test(text));
-  ok('the top-up floor is right', /RM10/.test(text));
+  ok('the free credits a new account gets are stated',
+     new RegExp('\\b' + money.grant + '\\b[^.]{0,40}free|free[^.]{0,40}\\b' + money.grant + '\\b', 'i').test(text),
+     money.grant + ' free');
+  ok('planning again is priced at what it costs',
+     new RegExp('\\b' + money.rebuildCredits + '\\b').test(text), money.rebuildCredits + ' credits');
+  ok('the top-up floor is right', text.includes('RM' + (pay.topup ? pay.topup.min : 10)));
   ok('no stale prices survive', !/RM29|RM89|120 credits|500 credits/.test(text),
      (text.match(/RM29|RM89|120 credits|500 credits/g) || []).join(' '));
   // The old table said edits were free. They are not.
   ok('nothing claims a change is free', !/Changing something yourself[\s\S]{0,40}Free/.test(text));
+
+  // THE SAME PLAIN-ENGLISH RULE THE AGENT WORKS TO. raffy, 2026-09-08: "use
+  // better language." Most people reading this learned English at school in
+  // Malaysia or Indonesia, and business slang is the part that cannot be
+  // looked up.
+  const SLANG = ['bulk discount', 'no catch', 'run low', 'ballpark', 'bang for',
+                 'no-brainer', 'the works', 'off the beaten', 'hassle-free',
+                 'unlock', 'seamless', 'supercharge'];
+  const found = SLANG.filter((w) => text.toLowerCase().includes(w));
+  ok('no slang a second-language reader has to decode', found.length === 0, found.join(', '));
+  // And a credit is explained before anybody is asked to buy one.
+  ok('it says what a credit actually is',
+     /Credits are what you spend/i.test(text));
 
   // Layout: two tiers side by side on desktop, stacked on phone, nothing spilling.
   const box = await page.locator('#pricing').boundingBox();

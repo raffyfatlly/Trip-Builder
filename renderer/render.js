@@ -2422,16 +2422,22 @@ export function render(itinerary, templateSrc, opts) {
     '    }',
     '    var all=todo.map(function(t){ return localise(t,false); })',
     '      .concat(done.map(function(t){ return localise(t,true); }));',
+    '    function dropped(xs){ return xs.filter(function(t){ return t.skip; }); }',
     '    var open=all.filter(function(t){ return !t.done&&!t.skip; });',
     // Ticked first, then the ones that do not apply. Both are settled, but one
     // is an achievement and the other is housekeeping.
     '    var settled=all.filter(function(t){ return t.done; })',
     '      .concat(all.filter(function(t){ return t.skip; }));',
     '    todo=open; done=all.filter(function(t){ return t.done; });',
-    // The ring counts what you got through, and a row you crossed off is not
-    // something left to do — so it counts as settled rather than dragging the
-    // total down forever.
-    '    var need=all.length, sorted=settled.length;',
+    // WHAT THE RING COUNTS, once "not needed" became its own section.
+    //
+    // A crossed-off row leaves the sum entirely rather than counting as sorted.
+    // Counting it as sorted made the ring say "5 of 6 sorted" about a trip where
+    // one of those five was a hotel nobody booked and nobody intends to — the
+    // same overstatement the section split was there to fix. Removing a task
+    // should make the list shorter, which is what anybody crossing something out
+    // expects to happen.
+    '    var need=all.length-dropped(all).length, sorted=all.filter(function(t){ return t.done; }).length;',
     '',
     '    var pct=need?Math.round(sorted/need*100):0, C=163.4;',
     '    var h=need?\'<div class="bksum"><div class="bkring">\'+',
@@ -2491,18 +2497,38 @@ export function render(itinerary, templateSrc, opts) {
     '        \'or ask me to add it, and I will look it up</button>\';',
     '    }',
     '',
-    // Everything you have settled, one section, at the bottom. raffy: "anything
-    // they say tick or x bring down to confirm section."
-    '    if(settled.length||extra.length){',
-    '      h+=group("Confirmed", settled.map(todoCard).concat(',
+    // TWO SECTIONS AT THE BOTTOM, NOT ONE.
+    //
+    // raffy, 2026-09-08, on the first version of this: "wait if it's not needed
+    // why in confirmed? that's not weird?"
+    //
+    // It was. Confirmed means you sorted it — there is a room booked, a seat
+    // held, a thing done. A row you crossed off is the opposite: you decided it
+    // does not apply to this trip. Filing both under one heading made the
+    // heading a lie and the count meaningless, since "6 confirmed" would have
+    // included four things nobody ever did.
+    //
+    // So they go down together and then part: Confirmed for what is sorted, Not
+    // needed for what is out. Both are settled — neither is left to do — which
+    // is why the ring still counts them the same way.
+    '    var didIt=settled.filter(function(t){ return !t.skip; });',
+    '    var notNeeded=dropped(settled);',
+    '    if(didIt.length||extra.length){',
+    '      h+=group("Confirmed", didIt.map(todoCard).concat(',
     '        extra.map(function(b){ return todoCard({ what:b.title, kind:b.kind||"other", done:true, booking:b }); })',
-    '      ), "ok", "Ticked off or ruled out. Tap Put it back if you change your mind.");',
+    '      ), "ok", "Sorted. Nothing left to do on these.");',
     '    } else if(need) {',
     '      h+=\'<div class="sect"><h2>Confirmed</h2></div>\';',
     '      h+=\'<div class="bkempty"><span class="ico">\'+bkIcon("other")+\'</span>\'+',
-    '        \'<b>Nothing settled yet</b><p>Tick anything you have sorted, or cross off \'+',
-    '        \'what does not apply. Either way it comes down here, and you can put it \'+',
-    '        \'back.</p></div>\';',
+    '        \'<b>Nothing sorted yet</b><p>Tick anything you have booked and it comes \'+',
+    '        \'down here. Cross off what does not apply and it goes to Not needed.</p></div>\';',
+    '    }',
+    // Kept, not deleted, and kept quiet: it is a decision you made, and you are
+    // allowed to change it. raffy's rule for his own vault applies here too —
+    // nothing a person put on a list disappears because they crossed it out.
+    '    if(notNeeded.length){',
+    '      h+=group("Not needed", notNeeded.map(todoCard), "off",',
+    '        "Not part of this trip. Tap Put it back if that changes.");',
     '    }',
     '    el.innerHTML=h;',
     '  }',
@@ -3764,6 +3790,10 @@ export function render(itinerary, templateSrc, opts) {
     '  }',
     '  .tgroup.hot::before{background:var(--coral)}',
     '  .tgroup.ok::before{background:var(--deep)}',
+    // Not needed is settled but not achieved, so its edge is the quietest one
+    // on the page rather than a third colour competing with the other two.
+    '  .tgroup.off::before{background:var(--line)}',
+    '  .tgroup.off .tdcard{opacity:.72}',
     '  .tgroup .tdcard{',
     '    background:none;box-shadow:none;border-radius:0;margin:0;',
     '    padding:14px 15px 14px 17px;',

@@ -71,12 +71,19 @@ ok('and the section is called Confirmed',
 await vet().locator('[data-td-back]').click(); await p.waitForTimeout(350);
 ok('put it back returns it', await confirmedHas('Call the vet')===0);
 
-// The cross settles rather than deletes: it is a decision, not a mistake.
+// The cross settles rather than deletes: it is a decision, not a mistake. And
+// it lands in its OWN section — raffy, 2026-09-08: "wait if it's not needed why
+// in confirmed? that's not weird?" It was.
 await vet().locator('[data-td-skip]').click(); await p.waitForTimeout(350);
-ok('crossing it off also brings it down', await confirmedHas('Call the vet')===1);
-ok('and it reads as not needed, not as done',
+ok('crossing it off also brings it down', await p.locator('.tgroup.off .tdcard', {hasText:'Call the vet'}).count()===1);
+ok('but NOT into Confirmed, which would be a lie', await confirmedHas('Call the vet')===0);
+ok('it sits under Not needed',
+   (await p.locator('.sect', {hasText:'Not needed'}).count())===1);
+ok('and reads as not needed, not as done',
    /Not needed/i.test(await vet().innerText()), (await vet().innerText()).replace(/\n/g,' | '));
 await vet().locator('[data-td-back]').click(); await p.waitForTimeout(350);
+ok('and Not needed disappears when it is empty',
+   (await p.locator('.sect', {hasText:'Not needed'}).count())===0);
 
 // Renaming in place. Two ways in — the title itself, and a pencil in the
 // footer for anyone who would never think to tap the words.
@@ -110,8 +117,16 @@ await first.locator('[data-td-tick]').click(); await p.waitForTimeout(350);
 // reads like a stutter — so match on what is left of the name.
 const firstThing = firstName.replace(/^(Book|Confirm|Sort|Apply for|Arrange|Get|Buy|Renew)\s+/i,'');
 ok('and ticking it brings it down as well', await confirmedHas(firstThing)===1, firstThing);
-ok('the ring counts it', /1[0-9]?% |[1-9][0-9]?%/.test(await p.locator('.bksum').innerText()),
-   (await p.locator('.bksum').innerText()).replace(/\n/g,' | '));
+const ring = async () => (await p.locator('.bksum').innerText()).replace(/\n/g,' | ');
+ok('the ring counts a tick', /[1-9]\d* of \d+ sorted/.test(await ring()), await ring());
+// A crossed-off row LEAVES the sum rather than counting as sorted: removing a
+// task should make the list shorter, not make you look more organised.
+const total = () => p.locator('.bksum').innerText().then((t)=>+((t.match(/of (\d+) sorted/)||[])[1]||0));
+const before = await total();
+await p.locator('.tgroup:not(.ok):not(.off) .tdcard').first().locator('[data-td-skip]').click();
+await p.waitForTimeout(350);
+ok('and crossing one off shrinks the total instead', await total()===before-1,
+   before + ' -> ' + (await total()));
 
 // Delete is only for your own words.
 await p.locator('.tgroup.ok .tdcard', {hasText:'AND the neighbour'}).count();
