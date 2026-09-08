@@ -30,6 +30,23 @@ globalThis.fetch = async (url, opts = {}) => {
   }
   if (u.includes('firestore.googleapis.com')) {
     const path = u.split('/documents')[0 + 1].split('?')[0];
+    // Firestore's atomic add, which is how credits are charged now — the
+    // read-modify-write it replaced lost charges whenever two requests settled
+    // at once. Modelled here rather than mocked away, because "does a second
+    // writer still count?" is the whole question.
+    if (path === ':commit') {
+      for (const w of (JSON.parse(opts.body || '{}').writes || [])) {
+        const name = w.update.name;
+        const at = name.split('/documents')[1];
+        const fields = { ...((DOCS.get(at) || {}).fields || {}), ...(w.update.fields || {}) };
+        for (const t of w.updateTransforms || []) {
+          const was = Number((fields[t.fieldPath] || {}).integerValue || 0);
+          fields[t.fieldPath] = { integerValue: String(was + Number(t.increment.integerValue || 0)) };
+        }
+        DOCS.set(at, { name, fields });
+      }
+      return new Response('{}', { status: 200 });
+    }
     if ((opts.method || 'GET') === 'GET') {
       const doc = DOCS.get(path);
       return new Response(doc ? JSON.stringify(doc) : '{}', { status: doc ? 200 : 404 });
@@ -243,6 +260,44 @@ console.log('\nthe ring: two arcs that add up');
   const d = await C.settle(S3);
   ok('an abandoned session is all planning', d && d.build === 0 && d.plan === d.credits,
      d ? d.plan + ' planning, ' + d.build + ' building' : 'nothing');
+}
+
+// THE CHARGE THAT WENT MISSING.
+//
+// raffy, 2026-09-08: "after so many turns, there are no credit charge except
+// the first 4 credit upon onboarding." His journal said 13 credits charged
+// against a ledger that said 4.
+//
+// A chat turn has several metered requests in flight at once — an /api/advance
+// that runs for a minute, an /api/state poll every two seconds — and every one
+// of them settles. settle() read the ledger, added its charge and wrote the
+// whole document back, so two landing together meant the second wrote a stale
+// total over the first. The journal marks the money settled either way, so a
+// lost charge is lost for good.
+console.log('\nconcurrent charges');
+{
+  const S4 = 'sesn_' + 'r'.repeat(20);
+  const who = 'racer@example.com';
+  await J.addMetered(S4, { 'places.search': { calls: 1, usd: 0.02 } }, who);
+  await C.settle(S4, who);
+  const one = (await C.allowed(who, S4)).used;
+  ok('one charge lands', one > 0, one + ' used');
+
+  // Four requests that each metered something, settling at the same moment.
+  const S5 = 'sesn_' + 's'.repeat(20);
+  const her = 'racer2@example.com';
+  let want = 0;
+  for (const usd of [0.05, 0.05, 0.05, 0.05]) {
+    await J.addMetered(S5, { 'places.search': { calls: 1, usd } }, her);
+    want += 1;
+  }
+  // Settle them together, as the app does.
+  await Promise.all([C.settle(S5, her), C.settle(S5, her), C.settle(S5, her), C.settle(S5, her)]);
+  const p = await C.allowed(her, S5);
+  const owed = C.creditsFor(0.20);
+  ok('and four landing together all count', p.used === owed,
+     p.used + ' charged of ' + owed + ' owed');
+  ok('the ledger never goes backwards', p.used >= one);
 }
 
 console.log(fail ? '\n' + fail + ' FAILED\n' : '\nall passed\n');

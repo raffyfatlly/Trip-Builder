@@ -8,7 +8,7 @@
 
 import { verify, packById } from '../../lib/stripe.js';
 import { loadConfig } from '../../lib/settings.js';
-import { readLedger, writeLedger, claimOnce, firestoreConfigured } from '../../lib/firestore.js';
+import { readLedger, writeLedger, bumpLedger, setLedger, claimOnce, firestoreConfigured } from '../../lib/firestore.js';
 
 export const config = { api: { bodyParser: false } };
 
@@ -92,10 +92,18 @@ export default async function handler(req, res) {
     if (!first) return res.status(200).json({ ok: true, duplicate: event.id });
 
     const id = 'u:' + who;
-    const l = (await readLedger(id)) || { id, granted: 0, used: 0, plan: 0, build: 0, since: new Date().toISOString() };
+    // ADDED, not recomputed. This read the ledger, added the pack to `granted`
+    // and wrote the whole document back — so a charge that landed between the
+    // read and the write was erased by somebody's own purchase. The claim above
+    // makes the grant exactly-once; the increment makes it safe to land
+    // alongside anything else happening to that ledger.
+    if (!(await readLedger(id))) {
+      await writeLedger({ id, granted: 0, used: 0, plan: 0, build: 0, since: new Date().toISOString() });
+    }
+    await bumpLedger(id, { granted: credits });
     // `paid` is what unlocks building, and it is set here — the one place that
     // knows money actually arrived.
-    await writeLedger({ ...l, granted: (l.granted || 0) + credits, paid: true });
+    await setLedger(id, { paid: true });
     console.log('stripe: granted', credits, 'credits to', who, 'for', s.id);
     return res.status(200).json({ ok: true, granted: credits });
   } catch (err) {

@@ -26,13 +26,13 @@ console.log('\nFares');
 t('a fare on the asked date is quoted plainly', () => {
   const out = fareReport([row('2026-11-12', '2026-11-16', 890, 'AK')], Q, 'L');
   assert.ok(out.includes('RM890'));
-  assert.ok(!out.includes('NOTHING'));
+  assert.ok(!out.includes('No cached fare ON'));
   assert.ok(!out.includes('OTHER dates'));
 });
 
 t('nothing on the date is said outright, not papered over', () => {
   const out = fareReport([row('2026-11-27', '2026-12-01', 610, 'AK')], Q, 'L');
-  assert.ok(out.includes('NOTHING on 2026-11-12'), out);
+  assert.ok(out.includes('No cached fare ON 2026-11-12'), out);
   assert.ok(out.includes('Do not quote any fare below as if it were their date'));
 });
 
@@ -56,20 +56,29 @@ t('the old bug: a cheaper wrong-date fare never displaces the right one', () => 
 
 t('the right day but the wrong way back does not count', () => {
   const out = fareReport([row('2026-11-12', '2026-11-23', 700, 'AK')], Q, 'L');
-  assert.ok(out.includes('NOTHING on 2026-11-12'), out);
+  assert.ok(out.includes('No cached fare ON 2026-11-12'), out);
 });
 
 t('one way only checks the outbound', () => {
   const out = fareReport([row('2026-11-12', null, 450, 'AK')],
     { from: 'KUL', to: 'CNX', date: '2026-11-12' }, 'L');
   assert.ok(out.includes('RM450'));
-  assert.ok(!out.includes('NOTHING'));
+  assert.ok(!out.includes('No cached fare ON'));
 });
 
-t('no rows at all says so and stops', () => {
+// raffy, 2026-09-08, with a screenshot of "there are no flights available on
+// September 10 from KUL to BKK": an empty cache was being reported as an empty
+// sky. This is the guard on that.
+t('an empty answer is never allowed to read as "no flights"', () => {
   const out = fareReport([], Q, 'L');
-  assert.ok(out.includes('no fares found at all'));
-  assert.ok(out.includes('rather than estimating'));
+  assert.ok(out.includes('THIS IS NOT AN AVAILABILITY CHECK'), out);
+  assert.ok(/never that the flight is full, sold out or unavailable/.test(out), out);
+  assert.ok(out.includes('link'), out);
+});
+
+t('and neither is an empty DAY inside a month that has fares', () => {
+  const out = fareReport([row('2026-11-27', '2026-12-01', 610, 'AK')], Q, 'L');
+  assert.ok(out.includes('do not tell them there are no flights that day'), out);
 });
 
 t('the booking link is always there', () => {
