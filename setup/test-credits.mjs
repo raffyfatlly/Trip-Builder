@@ -74,9 +74,21 @@ ok('a trip is 27-49 credits, a number you can hold in your head',
 ok('so RM28 is one big trip with room, usually two',
    Math.floor(100 / C.creditsFor(1.00)) >= 2, Math.floor(100 / C.creditsFor(1.00)) + ' typical trips');
 
-// "we give 7 turns without building if they don't pay." A turn is $0.010.
-ok('the free grant is about seven turns', cfg.grant >= 3 && cfg.grant <= 6, cfg.grant + ' credits');
-ok('and costs him under RM0.50 a signup', cfg.grantCostsMyr <= 0.5, 'RM' + cfg.grantCostsMyr);
+// THE FREE TIER, and what it is allowed to cost.
+//
+// It was "about seven turns" at a measured 0.44 credits a turn, which made it 4.
+// That measurement predates research, photo cards and live price checks: a real
+// free session on 2026-09-08 ran 3.5 credits a TURN, so 4 credits was one turn
+// and a bit. raffy, seeing it: "4 credits is too little doesn't demonstrate a
+// good part of the app. add it to 10."
+//
+// Ten is three or four turns — enough to see the thing work — and the range
+// below is what stops it drifting back to useless or up into free-trip
+// territory. The RM ceiling is the number he actually cares about: it is what
+// one signup can cost him if they spend every credit.
+ok('the free grant is enough to see the app work', cfg.grant >= 8 && cfg.grant <= 14,
+   cfg.grant + ' credits');
+ok('and costs him at most RM1 a signup', cfg.grantCostsMyr <= 1, 'RM' + cfg.grantCostsMyr);
 // THE INVARIANT THE BUILD GATE NOW RESTS ON.
 //
 // The gate was two conditions — "never paid" and "cannot afford it" — and the
@@ -110,7 +122,8 @@ for (const [name, usd] of TRIPS) {
 }
 
 // The free grant deliberately does NOT cover a trip any more. It used to, and
-// that was the old deal; the new one is seven turns and a paywall at the build.
+// that was the old deal; the new one is a few real turns and a paywall at the
+// build.
 ok('a trip does NOT fit inside the free grant', C.creditsFor(0.62) > cfg.grant,
    C.creditsFor(0.62) + ' credits vs a grant of ' + cfg.grant);
 ok('but a RM28 pack covers even the heaviest trip', C.creditsFor(1.10) <= 100,

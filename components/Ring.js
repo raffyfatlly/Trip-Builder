@@ -28,7 +28,7 @@ function arc(cx, cy, r, from, to) {
     + x1.toFixed(2) + ' ' + y1.toFixed(2);
 }
 
-export default function Ring({ credits, size = 128 }) {
+export default function Ring({ credits, size = 128, bare = false }) {
   if (!credits) return null;
   const granted = Math.max(1, credits.granted || 0);
   const left = Math.max(0, credits.left || 0);
@@ -44,7 +44,13 @@ export default function Ring({ credits, size = 128 }) {
   const pBuild = known > 0 ? Math.min(used, Math.round(used * (build / known))) : 0;
   const pPlan = used - pBuild;
 
-  const r = size / 2 - 9;
+  // The stroke has to scale with the ring or the small one is a solid dot.
+  //
+  // raffy, 2026-09-08: "if credit is already low we should do it like before
+  // like it already show the credit bar. use the circular one like claude usage
+  // ring." The same ring, at a fraction of the size, above the composer.
+  const w = Math.max(3, Math.round(size / 14));
+  const r = size / 2 - w;
   const c = size / 2;
   const f = (n) => n / granted;
   // A hair of a gap so the join reads as two things, and never a gap wider
@@ -56,23 +62,26 @@ export default function Ring({ credits, size = 128 }) {
   return (
     <div className="ring" style={{ width: size }}>
       <svg viewBox={'0 0 ' + size + ' ' + size} width={size} height={size} aria-hidden="true">
-        <circle cx={c} cy={c} r={r} className="rtrack" />
-        {pPlan > 0 && <path d={arc(c, c, r, 0, f(pPlan) - (pBuild > 0 ? gap : 0))} className="rplan" />}
-        {pBuild > 0 && <path d={arc(c, c, r, f(pPlan) + (pPlan > 0 ? gap : 0), f(pPlan + pBuild))} className="rbuild" />}
+        <circle cx={c} cy={c} r={r} className="rtrack" strokeWidth={w} />
+        {pPlan > 0 && <path strokeWidth={w} d={arc(c, c, r, 0, f(pPlan) - (pBuild > 0 ? gap : 0))} className="rplan" />}
+        {pBuild > 0 && <path strokeWidth={w} d={arc(c, c, r, f(pPlan) + (pPlan > 0 ? gap : 0), f(pPlan + pBuild))} className="rbuild" />}
       </svg>
-      <span className="rmid">
-        <b className={nearly ? 'low' : ''}>{left.toLocaleString('en')}</b>
-        <i>{left === 0 ? 'none left' : 'credits left'}</i>
-      </span>
+      {!bare && (
+        <span className="rmid">
+          <b className={nearly ? 'low' : ''}>{left.toLocaleString('en')}</b>
+          <i>{left === 0 ? 'none left' : 'credits left'}</i>
+        </span>
+      )}
 
       <style jsx>{`
         .ring{position:relative;flex:none;display:grid;place-items:center}
         .ring svg{display:block;transform:rotate(0deg)}
-        :global(.ring .rtrack){
-          fill:none;stroke:rgba(16,54,42,.10);stroke-width:9;
-        }
+        /* stroke-width is set on the elements, not here: it scales with the
+           ring, and a CSS rule would win over the attribute and flatten the
+           small one into a dot. */
+        :global(.ring .rtrack){fill:none;stroke:rgba(16,54,42,.10)}
         :global(.ring .rplan),:global(.ring .rbuild){
-          fill:none;stroke-width:9;stroke-linecap:round;
+          fill:none;stroke-linecap:round;
           /* Drawn in on first paint. It is a small thing and it is the
              difference between a chart and something that feels alive. */
           animation:ringin 640ms cubic-bezier(.22,.9,.3,1) both;

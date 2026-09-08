@@ -93,6 +93,17 @@ await page.waitForTimeout(2600);
 ok('a returning customer who is short is warned before they ask',
    (await wall.innerText()).includes('Not quite enough'), await wall.innerText());
 
+// --- and what "running low" looks like now ---------------------------------
+// raffy, 2026-09-08: "if credit is already low we should do it like before like
+// it already show the credit bar. use the circular one like claude usage ring."
+ok('running low shows the ring, not a bar', await page.locator('.fuel svg circle').count() === 1);
+ok('the ring is drawn small enough to sit above the composer',
+   await page.locator('.fuel svg').evaluate((n) => n.getBoundingClientRect().width <= 32),
+   String(await page.locator('.fuel svg').evaluate((n) => Math.round(n.getBoundingClientRect().width))));
+ok('with the number beside it', (await page.locator('.fuel').innerText()).includes('9 credits left'),
+   await page.locator('.fuel').innerText());
+await page.screenshot({ path: 'shots/fuel-ring.png' });
+
 ok('no page errors', errs.length === 0, errs.join(' | '));
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');

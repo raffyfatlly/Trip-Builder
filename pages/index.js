@@ -1,4 +1,4 @@
-import { Credits } from '../components/Ring.js';
+import Ring, { Credits } from '../components/Ring.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview } from '../lib/preview.js';
@@ -613,10 +613,12 @@ export default function Home() {
     const newest = said[said.length - 1];
     if (!newest || !newest.id) return;
     if (turnCost.current.has(newest.id)) return;
-    // The first reply of a session has nothing to measure against, so it is
-    // stamped but not priced — better a blank than a number that is really the
-    // whole session's spend so far. After a reload there IS something to
-    // measure against, which is the point of saving it.
+    // A reply with nothing to measure against is stamped null and draws
+    // nothing: that is a reply that was already on screen when the app opened,
+    // and the only number available for it would be the whole session's spend.
+    // Every reply produced while the app is open has a baseline — taken at the
+    // send, kept across reloads — so this is now the rare case rather than the
+    // first turn of every conversation.
     const before = lastUsed.current;
     lastUsed.current = purse.used;
     turnCost.current.set(newest.id, before == null ? null : Math.max(0, purse.used - before));
@@ -808,6 +810,16 @@ export default function Home() {
     // which may carry an attachment line the transcript will never have. The
     // poll compares against `sent`.
     setMessages((m) => [...m, { role: 'user', text: label, sent: text, id: 'tmp' + stamp }]);
+    // The reading this turn's cost will be measured against.
+    //
+    // Without it the first reply of a session had nothing to compare to and was
+    // left blank — which is most of what raffy was looking at when he said "i
+    // don't see the credits spent". Taken at the moment of sending, which is
+    // exactly the right baseline: everything charged after this belongs to the
+    // turn about to happen.
+    if (purse && typeof purse.used === 'number' && lastUsed.current == null) {
+      lastUsed.current = purse.used;
+    }
     // The previous turn's trail goes now, not when the server catches up.
     pendingSend.current = true;
     setSteps([]);
@@ -867,7 +879,7 @@ export default function Home() {
       setError('Could not send that.');
       setThinking(false);
     }
-  }, [draft, pending, session]);
+  }, [draft, pending, session, purse]);
 
   // ASKING TO BUILD, WHEN A BUILD IS OUT OF REACH.
   //
@@ -1580,7 +1592,13 @@ export default function Home() {
             {purse && purse.left > 0 && purse.used / (purse.granted || 1) > 0.6 && (
               <button className="fuel" onClick={() => setMenu(true)}
                 title="See what's left" aria-label="See what's left">
-                <i><b style={{ width: Math.max(3, Math.round(100 * purse.left / (purse.granted || 1))) + '%' }} /></i>
+                {/* The ring, not a bar. raffy, 2026-09-08: "use the circular one
+                    like claude usage ring." It is the same component the drawer
+                    and the paywall draw, at a fraction of the size and with its
+                    number moved out beside it — so the thing he taps here and
+                    the thing he sees when he taps it are recognisably one
+                    object, rather than two different charts of one number. */}
+                <Ring credits={purse} size={26} bare />
                 <span>{purse.left.toLocaleString('en')} credits left</span>
               </button>
             )}
@@ -2232,25 +2250,10 @@ export default function Home() {
            still deciding whether they like the thing. */
         .fuel{
           display:flex;align-items:center;gap:9px;
-          padding:0 4px 8px;font-size:11.5px;color:var(--ink-faint);
+          padding:0 4px 8px;font-size:11.5px;color:var(--ink-soft);
           animation:rise 300ms var(--e) both;
         }
-        /* A track and a fill, not a bare bar. A bar sized by percentage inside
-           a flex row is capped by its max-width long before the percentage
-           starts meaning anything — at 24% left it looked identical to full,
-           which is worse than showing nothing. */
-        .fuel i{
-          display:block;flex:none;width:88px;height:3px;border-radius:99px;
-          /* A translucent colour, not opacity: opacity on the track applies to
-             the fill inside it too, which made the fill invisible and the
-             meter useless in exactly the way the max-width bug did. */
-          background:rgba(16,54,42,.15);overflow:hidden;
-        }
-        .fuel i b{
-          display:block;height:100%;border-radius:99px;background:var(--deep);
-          transition:width 500ms var(--e);
-        }
-        .fuel span{white-space:nowrap}
+        .fuel span{white-space:nowrap;font-weight:600}
         .fuel{background:none;border:0;cursor:pointer;width:100%}
         .fuel:active{opacity:.6}
         .wall .wring{margin-top:14px}

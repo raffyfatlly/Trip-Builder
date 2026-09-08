@@ -41,8 +41,22 @@ const Icon = ({ name }) => (
 export default function Actions({ actions, cost }) {
   const [open, setOpen] = useState(false);
   const list = actions || [];
-  const credits = Number(cost) > 0 ? Number(cost) : 0;
-  if (!list.length && !credits) return null;
+  // UNDER EVERY REPLY, NOT ONLY THE EXPENSIVE ONES.
+  //
+  // raffy, 2026-09-08: "credit should appear at every agent response (at the
+  // very bottom). do it like how claude handles token count but we do for
+  // credit instead."
+  //
+  // It used to hide a zero, on the reasoning that "0 credits" invites a
+  // question about fractions of a credit. That reasoning treated the figure as
+  // a charge; he is treating it as a meter, and a meter that only appears when
+  // it feels like it is not one. A turn that cost nothing is worth reading.
+  //
+  // null is different from 0 and still hides: it means not measured — an
+  // unmetered deployment, or the reply that was already on screen when the app
+  // opened for the first time.
+  const credits = cost == null || !Number.isFinite(Number(cost)) ? null : Number(cost);
+  if (!list.length && credits == null) return null;
 
   const searches = list.filter((a) => a.icon === 'search').length;
   const summary = searches
@@ -61,7 +75,7 @@ export default function Actions({ actions, cost }) {
               strokeWidth="2.4" strokeLinecap="round"><path d="m6 9 6 6 6-6" /></svg>
           </button>
         )}
-        {credits > 0 && (
+        {credits != null && (
           <span className="cred">
             {list.length > 0 && <i aria-hidden="true">·</i>}
             {credits}{credits === 1 ? ' credit' : ' credits'}
