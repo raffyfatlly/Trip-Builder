@@ -29,8 +29,10 @@ import { syncAgents, chatModel, toolCheck, pushPrompt } from '../../lib/agentSyn
 import { createSession, sendUserMessage, advanceState, getState, tripCost } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
 import { stripeProbe, webhookSecret } from '../../lib/stripe.js';
+import { apifyProbe, apifyStore, apifyTry, apifyReady, flightsActor, hotelsActor } from '../../lib/apify.js';
+
 import crypto from 'crypto';
-import { readLedger } from '../../lib/firestore.js';
+import { readLedger, readConfig } from '../../lib/firestore.js';
 
 // What is actually switched on in this deployment.
 //
@@ -73,6 +75,43 @@ async function checkDocStore() {
 
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
+
+  // APIFY, BEHIND THE ADMIN KEY.
+  //
+  // Everything else on this endpoint is free to run or costs a fraction of a
+  // cent. An Apify actor is a rented browser billed per run, and this endpoint
+  // is public — so without a key on these three, anybody who found the URL
+  // could spend raffy's Apify balance a page load at a time.
+  //
+  // They exist because THE DEPLOYMENT IS THE ONLY THING THAT CAN REACH APIFY.
+  // This session's egress policy blocks api.apify.com, so choosing an actor and
+  // learning the shape of what it returns has to happen from here:
+  //
+  //   ?key=…&apify=1                     is the token live, whose is it   free
+  //   ?key=…&apifystore=google+flights   what the store has, with prices  free
+  //   ?key=…&apifytry=user/actor&in={…}  run one, show me the raw item    COSTS
+  //
+  // The last one hands back the first dataset item untouched, which is the
+  // whole point: the field names in lib/apify.js are guesses until something
+  // real has been read.
+  const wantsApify = req.query && (req.query.apify || req.query.apifystore || req.query.apifytry);
+  let apify;
+  if (wantsApify) {
+    const cfg = await readConfig().catch(() => ({}));
+    const want = process.env.ADMIN_KEY || cfg.adminKey || '';
+    const got = (req.query && req.query.key) || '';
+    if (!want || got.length !== want.length || got !== want) {
+      apify = { error: 'admin key required' };
+    } else if (req.query.apifystore) {
+      apify = await apifyStore(String(req.query.apifystore));
+    } else if (req.query.apifytry) {
+      let input = {};
+      try { input = JSON.parse(String(req.query.in || '{}')); } catch (e) { input = {}; }
+      apify = await apifyTry(String(req.query.apifytry), input);
+    } else {
+      apify = await apifyProbe();
+    }
+  }
   const sources = req.query && req.query.sources ? await checkSources() : undefined;
   // `?builder=1` asks OpenRouter whether the configured model is real and what
   // it charges. Reads the catalogue only, so it sends no completion and costs
@@ -323,6 +362,9 @@ export default async function handler(req, res) {
     };
   }
   res.status(200).json({
+    apify,
+    // Always reported, so "is it even switched on" never needs a run.
+    apifyOn: apifyReady() ? { flights: flightsActor() || '(not set)', hotels: hotelsActor() || '(not set)' } : false,
     accounts: storeConfigured(),
     builder: (await orBuilderReady()) ? MODEL() : 'anthropic (managed agents)',
     builderModel,
