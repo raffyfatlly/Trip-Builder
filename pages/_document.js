@@ -44,6 +44,16 @@ export default function Document() {
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#10362A" />
         <meta name="robots" content="noindex, nofollow" />
+        {/* The tab. raffy, 2026-09-08: "get nice favicon for my url" — there was
+            none, so both this and the landing page were showing the browser's
+            default globe. Same artwork as the app icon, cropped to what
+            survives at 16px; see setup/make-favicon.mjs. Both are listed
+            because a browser picks by what it can render, and .ico alone gets
+            fetched by everything while the 32 is what a retina tab actually
+            draws. */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/* The same two faces the generated trip carries, served from here.
             raffy, 2026-09-02, of his Desaru app: "its not using the font I ask
             you to fix for all app. its still using the old font."
