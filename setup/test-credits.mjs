@@ -265,6 +265,26 @@ console.log('\nthe ring: two arcs that add up');
 }
 
 {
+  // THE KEY THE METER ACTUALLY WRITES.
+  //
+  // Reconciling raffy's Penang trip on 2026-09-08: the ledger read plan 99,
+  // build 0 for a trip whose builder agent had cost $0.33. The managed builder
+  // is metered as `builder.agent`; the split matched only the bare `builder`,
+  // so the whole build was filed as "other" and then apportioned by a builder
+  // spend of zero. Every test above used the bare key and so agreed with the
+  // bug. This one uses the string the running app writes.
+  const S4 = 'sesn_' + 'b'.repeat(20);
+  J.spendTotal(S4, 'chat', 'claude-haiku-4-5', { in: 1, out: 1, calls: 1 }, 0.65);
+  J.spendTotal(S4, 'builder.agent', 'managed-agent', { in: 1, out: 1, calls: 1 }, 0.33);
+  await new Promise((r) => setTimeout(r, 40));
+  await J.addMetered(S4, { 'places.search': { calls: 26, usd: 0.83 } }, 'penang@example.com');
+  const d = await C.settle(S4);
+  ok('a managed builder counts as building', d && d.build > 0,
+     d ? d.plan + ' planning, ' + d.build + ' building' : 'nothing');
+  ok('and the two arcs still add up', d && d.plan + d.build === d.credits);
+}
+
+{
   // A session that never built anything. The ring must not draw an orange arc
   // for work that did not happen.
   const S3 = 'sesn_' + 'q'.repeat(20);
