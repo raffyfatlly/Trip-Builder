@@ -89,4 +89,54 @@ console.log('\nA build can never take the conversation with it');
   });
 }
 
+
+// THE BUILD SIDE, which is where the Penang bug actually lived.
+//
+// raffy, 2026-09-08: "why are u fixing apify? chat is not the issue. the issue
+// is the build part. and the chat got stuck because the build got stuck."
+//
+// He was right. The builder asks the app to apply an itinerary op; the app
+// replays every call so far to rebuild the itinerary and hands back the result.
+// That replay can throw on input the builder can legitimately produce — a day
+// index past the end, a stay that names nothing — and it was the one branch of
+// answerBuilderCall with no try/catch around it. A throw there escapes
+// pumpBuilder, so the call is never ANSWERED: the builder sits idle holding it,
+// the next poll throws in the same place, and the build waits forever.
+console.log('\nA builder call always gets an answer');
+{
+  const { answerBuilderCall } = await import('../lib/managedAgents.js');
+
+  // An op shaped wrongly enough to break the replay. What matters is not this
+  // particular shape — it is that ANY shape comes back with a reply.
+  const bad = { id: 'c1', name: 'set_day', input: { day: 9999, oops: { deep: { bad: undefined } } } };
+  const answer = await answerBuilderCall(bad, [bad]);
+  t('a call the app cannot process still gets a reply', () => {
+    assert.equal(typeof answer, 'string');
+    assert.ok(answer.length > 0);
+  });
+  t('and the reply tells the builder what to do about it', () => {
+    // "Unknown tool" for a name we do not have, or a failure it can act on.
+    assert.ok(/unknown tool|failed|again/i.test(answer), answer.slice(0, 120));
+  });
+  t('an unknown tool is answered rather than ignored', async () => {
+    const out = await answerBuilderCall({ id: 'c2', name: 'not_a_tool', input: {} }, []);
+    assert.equal(out, 'Unknown tool.');
+  });
+}
+
+console.log('\nAnd one bad call does not silence the others');
+{
+  const src = await (await import('node:fs/promises')).readFile('lib/managedAgents.js', 'utf8');
+  const i = src.indexOf('async function pumpBuilder');
+  const block = src.slice(i, i + 1800);
+  t('every call is answered independently', () => {
+    // Promise.all rejects as a whole: one throwing call used to discard the
+    // answers to every call beside it, and none were sent.
+    assert.ok(/try \{\s*text = await answerBuilderCall/.test(block), block.slice(0, 400));
+  });
+  t('and a missing answer is still an answer', () => {
+    assert.ok(/text \|\| 'No answer\.'/.test(block));
+  });
+}
+
 console.log('\n' + n + ' passed');
