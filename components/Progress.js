@@ -86,6 +86,20 @@ export default function Progress({ itinerary, progress, compact }) {
   // all landed the builder is finishing off — say that rather than showing six
   // ticks and no explanation for why it is still going.
   const active = state.findIndex((s) => !s.ok);
+  // WHAT IT IS ON RIGHT NOW, from the builder's own last tool call.
+  //
+  // raffy, 2026-09-09: "i didn't see it progress means the status change need
+  // to be enhance." The stages are read off the itinerary, and the builder
+  // writes the itinerary in one call near the end — so for most of a build
+  // there is nothing to tick, and the card sat at "0 of 6" and then jumped to
+  // six. Nothing was broken; the list was simply blind to the half of the work
+  // that happens before anything is saved.
+  //
+  // This line is that half. It changes every few seconds because it is the
+  // builder's real activity, and it is the difference between a card that
+  // looks stuck and one that is plainly working.
+  const doing = (progress && progress.doing) || '';
+  const early = doneCount === 0;
 
   return (
     <div className={'prog' + (compact ? ' compact' : '')}>
@@ -95,6 +109,13 @@ export default function Progress({ itinerary, progress, compact }) {
         </span>
         <span className="pcount">{doneCount} of {STAGES.length}</span>
       </div>
+
+      {/* Above the stages while none of them have landed, because that is
+          exactly when the list has nothing to say. Once things start ticking
+          the stages carry it and this steps back to a quieter line. */}
+      {doing && (
+        <p className={'pnow' + (early ? ' lead' : '')}>{doing}<Dots /></p>
+      )}
 
       <ul>
         {state.map((s, i) => {
@@ -111,7 +132,10 @@ export default function Progress({ itinerary, progress, compact }) {
               </span>
               <span className="lab">{s.label}</span>
               {s.ok && n > 0 && <span className="n">{n} {s.unit(n)}</span>}
-              {i === active && <Dots />}
+              {/* Only one thing on the card animates. When the live line is
+                  up it is the better place for it — it says WHAT, where this
+                  only says where the list has got to. */}
+              {i === active && !doing && <Dots />}
             </li>
           );
         })}
@@ -134,6 +158,14 @@ export default function Progress({ itinerary, progress, compact }) {
         <i style={{ width: (() => {
           const per = 100 / STAGES.length;
           if (active === -1) return '100%';
+          // Before anything has landed there is no stage to fill, so the bar
+          // creeps on the builder's own call count instead — capped well short
+          // of the first stage so it never claims something exists that does
+          // not. It is the only honest thing to show in that window.
+          if (early) {
+            const n = (progress && progress.step) || 0;
+            return Math.min(per * 0.8, 2 + n * 1.6) + '%';
+          }
           // Part-way through the stage being worked on, from the builder's own
           // step count where there is one. Capped so it never runs into the
           // next stage's territory.
@@ -181,6 +213,13 @@ export default function Progress({ itinerary, progress, compact }) {
           transition:width 600ms cubic-bezier(.23,1,.32,1)}
         .foot{margin:9px 0 0;font-size:11px;color:var(--ink-faint);line-height:1.45}
         .prog.compact .foot{display:none}
+        /* The live line. Quiet once the stages are ticking, and the loudest
+           thing on the card while none of them have — which is the window it
+           exists for. */
+        .pnow{display:flex;align-items:center;margin:10px 0 2px;font-size:12.5px;
+          color:var(--ink-soft);font-weight:600;letter-spacing:-.005em}
+        .pnow.lead{font-family:'Outfit',sans-serif;font-weight:750;font-size:14px;
+          color:var(--ink);margin:12px 0 4px}
       `}</style>
     </div>
   );
