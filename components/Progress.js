@@ -117,16 +117,35 @@ export default function Progress({ itinerary, progress, compact }) {
         })}
       </ul>
 
-      {/* Kept underneath, because the stages say WHAT and this says HOW FAR.
-          It moves when the builder moves, never on a timer. */}
-      {progress && progress.steps > 0 && (
-        <div className="bbar" role="progressbar"
-          aria-valuenow={progress.step} aria-valuemin={0} aria-valuemax={progress.steps}>
-          <i style={{ width: Math.min(97, Math.round((progress.step / progress.steps) * 100)) + '%' }} />
-        </div>
-      )}
+      {/* THE BAR CANNOT DISAGREE WITH THE TICKS ABOVE IT.
+          raffy, 2026-09-09, with a screenshot: six of six ticked, and the bar
+          sitting at half.
+          It was measuring the builder's tool calls against a denominator of
+          fourteen — a number nobody counted and the builder does not know
+          about — while the list above it measured the itinerary itself. Two
+          measures of one thing, and the one that was a guess is the one people
+          read as truth.
+          So the bar is the stages: it fills as they tick, and when they are all
+          ticked it is full. The steps still nudge it WITHIN the last stage, so
+          a build finishing off still shows movement rather than sitting at a
+          hard 100% for a minute. */}
+      <div className="bbar" role="progressbar"
+        aria-valuenow={doneCount} aria-valuemin={0} aria-valuemax={STAGES.length}>
+        <i style={{ width: (() => {
+          const per = 100 / STAGES.length;
+          if (active === -1) return '100%';
+          // Part-way through the stage being worked on, from the builder's own
+          // step count where there is one. Capped so it never runs into the
+          // next stage's territory.
+          const within = progress && progress.steps > 0
+            ? Math.min(0.85, (progress.step % progress.steps) / progress.steps) : 0;
+          return Math.round((doneCount + within) * per) + '%';
+        })() }} />
+      </div>
 
-      <p className="foot">It keeps going if you close this — come back any time.</p>
+      <p className="foot">{active === -1
+        ? 'Finishing off. It keeps going if you close this.'
+        : 'It keeps going if you close this — come back any time.'}</p>
 
       <style jsx>{`
         .prog{
