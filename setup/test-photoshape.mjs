@@ -63,5 +63,24 @@ console.log('\nit always answers');
   ok('and well inside a request', Date.now() - t0 < 40000, (Date.now() - t0) + 'ms');
 }
 
+// A builder that gets no answer asks again, so the same call arrives more than
+// once. raffy's Dolomites build was holding six find_photos calls, three of
+// them identical — which would have been three rounds of the same eight Google
+// lookups the moment the pump started working.
+console.log('\nthe same call is not paid for twice');
+{
+  const { _dedupeKey } = await import('../lib/managedAgents.js');
+  const a = { id: 'c1', name: 'find_photos', input: { queries: '["Tre Cime di Lavaredo"]' } };
+  const b = { id: 'c2', name: 'find_photos', input: { queries: '["Tre Cime di Lavaredo"]' } };
+  const c = { id: 'c3', name: 'find_photos', input: { queries: '["Bolzano old town"]' } };
+  ok('two identical photo calls collapse to one', _dedupeKey(a) === _dedupeKey(b));
+  ok('and a different one does not', _dedupeKey(a) !== _dedupeKey(c));
+  // An edit op describes the itinerary AS IT STOOD at that call, so two of them
+  // are not interchangeable even when the input matches.
+  const e1 = { id: 'e1', name: 'update_day', input: { day: 0 } };
+  const e2 = { id: 'e2', name: 'update_day', input: { day: 0 } };
+  ok('edit calls are never collapsed', _dedupeKey(e1) !== _dedupeKey(e2));
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
