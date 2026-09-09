@@ -1,5 +1,6 @@
 import { advanceState, resumeChat } from '../../lib/managedAgents.js';
 import { billed } from '../../lib/billed.js';
+import { runChores } from '../../lib/chores.js';
 
 // The slow half of the loop: answer the agent's pending tool calls, start a
 // builder when it asks for one, take the build forward by a step.
@@ -38,6 +39,20 @@ async function handler(req, res) {
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ error: 'session required' });
   }
+  // ERRANDS RUN HERE, NOT ON THE READ PATH.
+  //
+  // They started on /api/state because that is the endpoint every open tab
+  // hits, so an errand began moving within seconds. But state is capped at
+  // thirty seconds and some errands are minutes of work — build.kick answers
+  // every call the builder is holding, which on the Dolomites trip was six
+  // photo rounds. The request died, the claim expired, it retried, and it died
+  // again: the same trap that already cost a day on 2026-09-08, one endpoint
+  // over. This one has five minutes and is already the slow half of the loop.
+  //
+  // Never awaited, and it swallows everything, so an errand can no more fail a
+  // build here than it could fail a read.
+  runChores();
+
   try {
     // A turn that died leaves the session idle with nothing pending, so
     // advancing alone will not restart it. `resume` is the retry button.

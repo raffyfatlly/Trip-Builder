@@ -30,6 +30,10 @@ async function handler(req, res) {
   // Errands I left for the deployment, because this session cannot reach every
   // host it can. Fire and forget, at most one every twenty seconds per
   // instance, and never awaited — see lib/chores.js.
+  // Errands moved to /api/advance, which has five minutes rather than thirty
+  // seconds — see the note there. This stays as the FALLBACK: a tab that is
+  // only reading (a shared trip, a finished one) still nudges the queue along,
+  // and the short errands are the ones that fit here anyway.
   runChores();
 
   try {
