@@ -49,5 +49,40 @@ ok('a brand new tool is appended rather than lost',
 // And an agent with nothing on it gets exactly what this repo says.
 ok('an empty agent gets the full set', mergeTools([]).length === CHAT_TOOLS().length);
 
+// THE BUILDER AGENT GETS THE SAME TREATMENT, AND NEVER HAD IT.
+//
+// raffy, 2026-09-09: "why don't u check the build agents too." Its find_photos
+// kept arriving as a string where the code expects an array of objects, and
+// every fix before this treated that as the model being sloppy. It was not:
+// the live agent carries its own tool schemas, nothing had ever pushed the
+// builder's, so it was obeying an old one faithfully while this repo answered
+// it from a new one.
+console.log('\nthe builder agent, which had never been pushed');
+{
+  const { BUILDER_TOOLSET } = await import('../lib/agentSync.js');
+  const OURS = BUILDER_TOOLSET();
+  const staleFind = JSON.parse(JSON.stringify(OURS.find((t) => nameOf(t) === 'find_photos')));
+  // The shape the live agent plausibly carried: queries as a plain string.
+  staleFind.input_schema.properties.queries = { type: 'string', description: 'old' };
+  const liveBuilder = [staleFind, { name: 'his_own_thing', input_schema: { type: 'object' } }];
+
+  const merged = mergeTools(liveBuilder, OURS);
+  const find = byName(merged, 'find_photos');
+  ok('the builder find_photos is restored to an array of objects',
+     find.input_schema.properties.queries.type === 'array',
+     find.input_schema.properties.queries.type);
+  ok('every builder tool this repo defines is on it',
+     OURS.every((t) => merged.some((m) => nameOf(m) === nameOf(t))),
+     OURS.map(nameOf).join(', '));
+  // The list used to be the six itinerary ops only, which is why no push could
+  // ever have corrected find_photos on the agent.
+  ok('and find_photos is one of them', OURS.some((t) => nameOf(t) === 'find_photos'));
+  ok('and nothing of his is dropped', merged.some((t) => nameOf(t) === 'his_own_thing'));
+  // The two agents must not be given each other's tools.
+  ok('the builder does not get the chat agent\'s tools',
+     !merged.some((t) => nameOf(t) === 'check_prices'),
+     merged.map(nameOf).join(', ').slice(0, 120));
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
