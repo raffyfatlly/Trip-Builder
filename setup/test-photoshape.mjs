@@ -82,5 +82,22 @@ console.log('\nthe same call is not paid for twice');
   ok('edit calls are never collapsed', _dedupeKey(e1) !== _dedupeKey(e2));
 }
 
+// AND IT HAS TO STOP. raffy's Dolomites build put 1,776 requests to
+// staticflickr.com through one session: six find_photos calls, eight places
+// each, every candidate fetched to prove it loads — all inside one request that
+// then died before it could send a single answer, so the next poll did it all
+// again. The pump has a deadline now and answers what it cannot reach; this
+// checks the half of it that lives here.
+console.log('\nit cannot run away');
+{
+  const t0 = Date.now();
+  // Sixteen places is twice what one call is allowed; it must still come back.
+  const out = await findPhotos(Array.from({ length: 16 }, (_, i) => 'nowhere ' + i));
+  ok('more than it accepts is capped, not attempted', (out.match(/searched:/g) || []).length <= 8,
+     (out.match(/searched:/g) || []).length + ' lookups');
+  ok('and it returns quickly enough to be answered', Date.now() - t0 < 40000,
+     (Date.now() - t0) + 'ms');
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
