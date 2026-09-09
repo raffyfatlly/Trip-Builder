@@ -106,8 +106,13 @@ ok('and then it is a real dated fare search on a site people know',
    /google\.com\/travel\/flights/.test(withRoute.link)
    && /KUL/.test(decodeURIComponent(withRoute.link))
    && /FCO/.test(decodeURIComponent(withRoute.link)), withRoute.link);
-ok('carrying both dates', /2026-10-18/.test(decodeURIComponent(withRoute.link))
-   && /2026-10-25/.test(decodeURIComponent(withRoute.link)), withRoute.link);
+// Against the fixture's OWN dates, not the two literals that happened to be
+// right on the day this was written. `soon` and `later` are forty and
+// forty-seven days out, so the hard-coded pair went stale at the next midnight
+// and the suite failed every day afterwards for no reason — which is how a
+// test suite teaches people to ignore it.
+ok('carrying both dates', decodeURIComponent(withRoute.link).includes(soon)
+   && decodeURIComponent(withRoute.link).includes(later), withRoute.link);
 ok('without adding a second flight row',
    checklist(applyEdits(trip(), toEdits([{ op: 'add_task', id: 'd:flights',
      task: { route: { from: 'KUL', to: 'FCO' } } }], 1))).all.filter((t) => t.kind === 'flight').length === 1);
