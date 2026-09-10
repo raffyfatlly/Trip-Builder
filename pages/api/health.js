@@ -28,11 +28,11 @@ import { locktripProbe, rawTool } from '../../lib/locktrip.js';
 import { syncAgents, chatModel, toolCheck, pushPrompt } from '../../lib/agentSync.js';
 import { createSession, sendUserMessage, advanceState, getState, tripCost } from '../../lib/managedAgents.js';
 import { loadConfig } from '../../lib/settings.js';
-import { stripeProbe, webhookSecret } from '../../lib/stripe.js';
+import { stripeProbe, webhookSecret, webhookEndpoints, createWebhookEndpoint } from '../../lib/stripe.js';
 import { apifyProbe, apifyStore, apifyTry, apifyReady, flightsActor, hotelsActor } from '../../lib/apify.js';
 
 import crypto from 'crypto';
-import { readLedger, readConfig } from '../../lib/firestore.js';
+import { readLedger, readConfig, writeConfig } from '../../lib/firestore.js';
 
 // What is actually switched on in this deployment.
 //
@@ -269,6 +269,40 @@ export default async function handler(req, res) {
     }
   }
 
+  // `?webhooks=1` asks STRIPE what it has registered for this account —
+  // separate from `?webhooktest=1`, which only proves our own code is
+  // correct. raffy, 2026-09-10: a paid checkout in sandbox came back with
+  // "landing now" that never resolved, and pages/api/stripe-webhook.js had
+  // zero hits in the runtime logs. The self-test above can be perfect and
+  // still miss this: it signs with our OWN stored secret, so it never
+  // catches "Stripe has nowhere to send the event at all." This does.
+  let stripeWebhooks;
+  if (req.query && req.query.webhooks) { await loadConfig(); stripeWebhooks = await webhookEndpoints(); }
+
+  // `?makewebhook=1`, behind the admin key: registers the endpoint Stripe is
+  // missing and stores the secret it hands back. Guarded because it writes to
+  // the Stripe account and overwrites the stored webhook secret — the same
+  // admin key that gates the Apify spend-behind-a-key checks above.
+  let webhookMade;
+  if (req.query && req.query.makewebhook) {
+    const cfg = await readConfig().catch(() => ({}));
+    const want = process.env.ADMIN_KEY || cfg.adminKey || '';
+    const got = (req.query && req.query.key) || '';
+    if (!want || got.length !== want.length || got !== want) {
+      webhookMade = { error: 'admin key required' };
+    } else {
+      await loadConfig();
+      const url = 'https://' + (req.headers['x-forwarded-host'] || req.headers.host) + '/api/stripe-webhook';
+      try {
+        const created = await createWebhookEndpoint(url);
+        await writeConfig({ stripeWebhookSecret: created.secret });
+        webhookMade = { id: created.id, url: created.url, live: created.live, secretStored: true };
+      } catch (err) {
+        webhookMade = { error: String((err && err.message) || err).slice(0, 300) };
+      }
+    }
+  }
+
   // `?cost=<session>` asks ANTHROPIC what a trip cost, rather than trusting our
   // own journal. It reports the chat session and every builder session it
   // started, with token counts and list_cost. Free — it reads session objects.
@@ -373,6 +407,8 @@ export default async function handler(req, res) {
     locktrip,
     lt,
     stripe,
+    stripeWebhooks,
+    webhookMade,
     webhookTest,
     cost,
     promptPush,
