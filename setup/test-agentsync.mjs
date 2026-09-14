@@ -68,6 +68,7 @@ console.log('\nEvery op the agent is offered actually does something');
     add_task: { op: 'add_task', task: { what: 'Buy an eSIM' } },
     tick_task: { op: 'tick_task', id: 'd:stay0' },
     drop_task: { op: 'drop_task', id: 'd:flights' },
+    set_photo: { op: 'set_photo', day: 0, id: 'b0-0', photo: { target: 'item', url: 'https://x/y.jpg' } },
   };
 
   t('the enum and the samples cover each other', () => {
