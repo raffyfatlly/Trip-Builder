@@ -186,8 +186,15 @@ export default function Drawer({ open, onClose, trips, session, onOpenTrip, onDr
 
           {/* The other half of sharing: a named person who can actually plan
               in it, rather than a link that shows a copy. See components/
-              Invite.js — it draws nothing unless this trip has an owner. */}
-          {hasTrip && session && user && <Invite session={session} canShare={!!user} />}
+              Invite.js — it draws nothing unless this trip has an owner.
+              Available from session start, not gated on hasTrip like the
+              read-only link below: an invite means "plan this WITH me", and
+              that's true from the first message, not just once a trip exists.
+              raffy, 2026-09-14: "i want the sharing (invite via email) to be
+              available once session start." Ownership itself is already
+              claimed from birth (see pages/api/session.js), so this was only
+              ever a frontend gate — the backend supports it already. */}
+          {session && user && <Invite session={session} canShare={!!user} />}
 
           {/* raffy, 2026-09-07: "remove the download function and replace the
               button with the install app function."
