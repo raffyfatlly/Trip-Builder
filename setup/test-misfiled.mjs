@@ -131,5 +131,56 @@ const HIS = [
      countStale(it, [{ type: 'item.update', day: 9, id: 'x', patch: { t: '1pm' } }]) === 1);
 }
 
+// --- a delete must not poison the rest of its own batch ----------------------
+//
+// raffy, 2026-09-14, on Melbourne after changing a hotel and a location in one
+// go: "the app got stuck giving the blank page." item.delete nulls a day's
+// slot in place; the filter that removes nulls runs once, after the whole
+// batch. So a second op touching the SAME day in the SAME batch — an update,
+// another delete, a photo — found `null` sitting where findItem's own
+// `.findIndex` looked, and `it._id` on that null took down both the render
+// (blank page) and /api/advance (same code, server-side). Exactly what
+// "change the hotel" produces: a delete and an update to the same day, together.
+{
+  console.log('');
+  // withIds() stamps every item's _id from its BASE position (b<day>-<item>),
+  // overwriting whatever a fixture sets — so the id an op has to address is
+  // 'b0-0' here, not the 'x' the fixture happens to write for readability.
+  const it = trip();
+  const edits = [
+    { type: 'item.delete', day: 0, id: 'b0-0' },
+    { type: 'item.add', item: { h: 'New hotel check-in', t: '2:00pm' }, day: 0, id: 'a-new' },
+  ];
+  let threw = null;
+  let out = null;
+  try { out = applyEdits(it, edits); } catch (e) { threw = e.message; }
+  ok('deleting one item and adding another to the same day does not throw',
+     !threw, threw || '');
+  ok('and the add still lands', !!out && out.days[0].items.some((x) => x.h === 'New hotel check-in'));
+  ok('and the delete landed', !!out && !out.days[0].items.some((x) => x.h === 'Land at Naples'));
+
+  // The harder case: delete one, then UPDATE a different survivor on that
+  // same day — the shape that actually crashed his session. Ids are b0-0,
+  // b0-1, b0-2 by position, same rule.
+  const three = { ...it, days: [{ ...it.days[0], items: [
+    { h: 'Land', t: '6:40am' },
+    { h: 'Old hotel check-in', t: '2:00pm' },
+    { h: 'Dinner', t: '7:00pm' },
+  ] }] };
+  let threw2 = null;
+  let out2 = null;
+  try {
+    out2 = applyEdits(three, [
+      { type: 'item.delete', day: 0, id: 'b0-1' },
+      { type: 'item.update', day: 0, id: 'b0-2', patch: { h: 'Dinner near new hotel' } },
+    ]);
+  } catch (e) { threw2 = e.message; }
+  ok('deleting one item and updating a later one on the same day does not throw',
+     !threw2, threw2 || '');
+  ok('the delete landed', !!out2 && !out2.days[0].items.some((x) => x.h === 'Old hotel check-in'));
+  ok('and the update to the survivor landed',
+     !!out2 && out2.days[0].items.some((x) => x.h === 'Dinner near new hotel'));
+}
+
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);
