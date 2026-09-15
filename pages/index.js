@@ -2214,6 +2214,11 @@ export default function Home() {
         .msg p{margin:0}
         .msg p + p{margin-top:9px}
 
+        /* raffy, 2026-09-15, on mobile: "I feel it's too close." A little
+           extra air right where the speaker changes — not between two
+           messages from the same side, which should still read as one turn. */
+        .msg.user + .msg.assistant, .msg.assistant + .msg.user{margin-top:20px}
+
         /* The agent gets the page; only the traveller gets a bubble.
            (raffy, 2026-08-31: "agent is just taking the whole space just like
            this claude session.") Two speakers of equal weight in matching
