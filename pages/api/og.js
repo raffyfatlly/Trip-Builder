@@ -278,9 +278,23 @@ export default async function handler(req) {
     { width: W, height: H, fonts: fonts() },
   );
 
+  // raffy, 2026-09-16: "its not showing" in WhatsApp, and the reason was
+  // invisible from the browser, which is happy to render an image with no
+  // declared length. `new Response(img.body, img)` forwards ImageResponse's
+  // stream as-is, which has no known size up front, so the edge runtime sends
+  // it chunked with no Content-Length — and WhatsApp's link-preview fetcher
+  // silently drops an og:image that arrives that way. Buffering it into one
+  // fixed body is what turns a length-less stream back into an ordinary file
+  // with a size the very first byte can promise.
+  const bytes = await img.arrayBuffer();
+
   // Crawlers refetch on every share. A trip does change — an edit, a new
   // photograph — so this is cached in front rather than for ever.
-  const out = new Response(img.body, img);
-  out.headers.set('cache-control', 'public, max-age=600, s-maxage=86400, stale-while-revalidate=604800');
-  return out;
+  return new Response(bytes, {
+    headers: {
+      'content-type': 'image/png',
+      'content-length': String(bytes.byteLength),
+      'cache-control': 'public, max-age=600, s-maxage=86400, stale-while-revalidate=604800',
+    },
+  });
 }
