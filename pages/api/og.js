@@ -20,7 +20,25 @@ import { ImageResponse } from 'next/og';
 import { OUTFIT_400, OUTFIT_800 } from '../../lib/ogfonts.js';
 import { signed } from '../../lib/ogsign.js';
 
-export const config = { runtime: 'edge' };
+// NOT the edge runtime, on purpose — this ran there first and WhatsApp would
+// not show it.
+//
+// raffy, 2026-09-16: "yep fix it. its not showing." The card was correctly in
+// the page's HTML and the image rendered fine in a browser; the difference
+// was invisible until the raw response headers were read. Vercel's edge
+// runtime always answers with `Transfer-Encoding: chunked` and no
+// `Content-Length` — a stream whose size is not known up front, which is
+// exactly what an edge function is built to serve and exactly what a browser
+// does not care about. WhatsApp's link-preview fetcher does: an og:image
+// with no declared length is one it silently drops, which from the outside
+// looks identical to the crawler never trying at all.
+//
+// The Node.js serverless runtime doesn't have that problem — a Buffer handed
+// to `res.end()` gets a real Content-Length because Node knows its size
+// before it sends the first byte. Slower per request than the edge, and it
+// does not matter: a link preview is fetched once per share and cached by
+// the client afterwards, so correctness here is worth far more than the
+// difference in cold-start time.
 
 const W = 1200;
 const H = 630;
@@ -116,15 +134,17 @@ const titleSize = (t) => {
   return 56;
 };
 
-export default async function handler(req) {
-  const { searchParams, origin } = new URL(req.url);
+export default async function handler(req, res) {
+  const q = (k) => (Array.isArray(req.query[k]) ? req.query[k][0] : req.query[k]) || '';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+  const proto = /^localhost|^127\./.test(host) ? 'http' : 'https';
+  const origin = proto + '://' + host;
 
-  const title = clip(text(searchParams.get('t'), 60), 34) || 'A trip in the making';
-  const facts = clip(text(searchParams.get('f'), 90), 64);
-  const hint = clip(text(searchParams.get('h'), 140), 76);
-  const planning = searchParams.get('s') === 'planning';
-  const photo = await cover(
-    text(searchParams.get('p'), 700), text(searchParams.get('k'), 40), origin);
+  const title = clip(text(q('t'), 60), 34) || 'A trip in the making';
+  const facts = clip(text(q('f'), 90), 64);
+  const hint = clip(text(q('h'), 140), 76);
+  const planning = q('s') === 'planning';
+  const photo = await cover(text(q('p'), 700), text(q('k'), 40), origin);
 
   const img = new ImageResponse(
     (
@@ -278,23 +298,13 @@ export default async function handler(req) {
     { width: W, height: H, fonts: fonts() },
   );
 
-  // raffy, 2026-09-16: "its not showing" in WhatsApp, and the reason was
-  // invisible from the browser, which is happy to render an image with no
-  // declared length. `new Response(img.body, img)` forwards ImageResponse's
-  // stream as-is, which has no known size up front, so the edge runtime sends
-  // it chunked with no Content-Length — and WhatsApp's link-preview fetcher
-  // silently drops an og:image that arrives that way. Buffering it into one
-  // fixed body is what turns a length-less stream back into an ordinary file
-  // with a size the very first byte can promise.
-  const bytes = await img.arrayBuffer();
+  // A real Buffer, not a stream — see the note at the top of this file for why.
+  const bytes = Buffer.from(await img.arrayBuffer());
 
+  res.setHeader('content-type', 'image/png');
+  res.setHeader('content-length', String(bytes.length));
   // Crawlers refetch on every share. A trip does change — an edit, a new
   // photograph — so this is cached in front rather than for ever.
-  return new Response(bytes, {
-    headers: {
-      'content-type': 'image/png',
-      'content-length': String(bytes.byteLength),
-      'cache-control': 'public, max-age=600, s-maxage=86400, stale-while-revalidate=604800',
-    },
-  });
+  res.setHeader('cache-control', 'public, max-age=600, s-maxage=86400, stale-while-revalidate=604800');
+  res.status(200).end(bytes);
 }
