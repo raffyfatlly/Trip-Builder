@@ -18,6 +18,7 @@ import { loadTrips, rememberTrip, forgetTrip, loadMemory, saveMemory, adoptAccou
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
 import Onboard from '../components/Onboard.js';
+import HookBox from '../components/HookBox.js';
 import Plan from '../components/Plan.js';
 import Drawer from '../components/Drawer.js';
 import Rich from '../components/Rich.js';
@@ -1339,20 +1340,16 @@ export default function Home({ og } = {}) {
                       the days, the places, and what is still left to book.</span>
                   </div>
                 </div>
-                {/* The examples are for somebody who has not started. Once
-                    they have, two suggested openings sitting under their own
-                    first message read as if the app did not hear them. */}
+                {/* The free question. raffy, 2026-09-16: "i see user always
+                    ask questions in fb groups about the trip they going to
+                    make. i want them to be able to use this part of the
+                    landing page to ask for free." Real answers from a real
+                    desk (lib/hook.js), not the two example strings that used
+                    to sit here and only ever prefilled the composer — this
+                    is the hook itself, so it gets the room. Gone the moment
+                    a real message exists, same as the rule above. */}
                 {messages.length === 0 && (
-                  <div className="egs">
-                    {[
-                      'Da Nang with my wife and 2 kids, 10 to 14 September, staying at Furama',
-                      'Tokyo for a week in November, first time, just the two of us',
-                    ].map((s) => (
-                      <button key={s} className="eg" onClick={() => { setDraft(s); inputRef.current?.focus(); }}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
+                  <HookBox session={session} log={log} onContinue={(text) => send(text)} />
                 )}
               </div>
             )}
@@ -2235,13 +2232,6 @@ export default function Home({ og } = {}) {
           font-weight:800;margin:0 0 12px;letter-spacing:-.01em;
         }
         .intro p{margin:0;color:var(--ink-soft);font-size:15px;line-height:1.55}
-        .egs{display:flex;flex-direction:column;gap:9px;margin-top:22px}
-        .eg{
-          text-align:left;border:0;background:var(--surface);color:var(--ink-soft);
-          padding:13px 16px;border-radius:18px;box-shadow:var(--sh-s);font-size:13.5px;
-          line-height:1.45;cursor:pointer;transition:transform 160ms var(--e);
-        }
-        .eg:active{transform:scale(.98)}
 
         .msg{
           font-size:15px;line-height:1.55;margin:9px 0;
