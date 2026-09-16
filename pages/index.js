@@ -54,6 +54,11 @@ export default function Home({ og } = {}) {
   // And it survives a reload. The toggle staying put between messages but
   // resetting when the phone reloads the tab is the same surprise with a longer
   // fuse — on a phone that reload happens whenever the browser feels like it.
+  //
+  // Only reached for a session change AFTER the first paint now — switching
+  // trips from the drawer without a reload. The initial load restores `ask`
+  // itself, in the same effect that sets `session`, so the toggle's first
+  // render is never one tick behind — see the note there.
   useEffect(() => {
     if (!session) return;
     try { setAsk(localStorage.getItem('itin.ask.' + session) === 'on'); } catch (e) { /* private mode */ }
@@ -209,7 +214,22 @@ export default function Home({ og } = {}) {
     if (!id) {
       try { id = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
     }
-    if (id) { setSession(id); setBooting(false); return; }
+    if (id) {
+      setSession(id);
+      // raffy, 2026-09-16: "when switching between agent and other user in
+      // chat, usually it give wrong @ at first then correct itself after
+      // shortwhile." That was this: `ask` restored in its own effect, keyed
+      // on `session` — which does not run until the render THAT SETS session
+      // has already committed, so the toggle painted once with the default
+      // (false, "message the other person") before a second render corrected
+      // it. Read here instead, in the same tick as session itself, so the
+      // toggle's very first paint already has the real answer. The effect
+      // below stays for when `session` changes later — switching trips
+      // without a reload — where this one does not run again.
+      try { setAsk(localStorage.getItem('itin.ask.' + id) === 'on'); } catch (e) { /* private mode */ }
+      setBooting(false);
+      return;
+    }
 
     fetch('/api/session', { method: 'POST' })
       .then((d0) => d0.json())

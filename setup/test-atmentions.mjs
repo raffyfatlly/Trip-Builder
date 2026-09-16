@@ -63,9 +63,21 @@ ok('and the toggle is STILL on the assistant afterwards',
    (await page.locator('.dest').innerText()).includes('Assistant'),
    await page.locator('.dest').innerText());
 
-// --- and it survives the tab reloading ------------------------------------
+// --- and it survives the tab reloading, with no flash back to the wrong side
+//
+// raffy, 2026-09-16: "when switching between agent and other user in chat.
+// usually it give wrong @ at first then correct itself after shortwhile."
+// The old restore lived in its own effect keyed on `session`, which cannot
+// run until the render that sets `session` has already committed — one
+// full extra render showing the default ("the other person") before a
+// second one corrected it. So this checks the toggle's FIRST paint, not
+// just where it lands once everything has settled.
 extra = [{ role: 'user', text: 'what about dinner', id: 'u2', who: 'raffy.fatlly@gmail.com' }];
 await page.reload({ waitUntil: 'networkidle' });
+await page.locator('.dest').waitFor({ state: 'visible' });
+ok('the toggle never paints pointed at the other person first',
+   (await page.locator('.dest').innerText()).includes('Assistant'),
+   await page.locator('.dest').innerText());
 await page.waitForTimeout(1600);
 ok('a reload does not point it back at the other person',
    (await page.locator('.dest').innerText()).includes('Assistant'),
