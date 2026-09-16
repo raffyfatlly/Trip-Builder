@@ -16,6 +16,7 @@
 
 import Head from 'next/head';
 import Install from '../../components/Install.js';
+import SocialMeta from '../../components/SocialMeta.js';
 import { getState } from '../../lib/managedAgents.js';
 import { render } from '../../renderer/render.js';
 import { applyEdits } from '../../lib/edits.js';
@@ -24,40 +25,13 @@ import { groundQuery, mapPoints, BAKE_W } from '../../lib/mapfit.js';
 import { fetchWith } from '../../lib/net.js';
 import { shareSession, looksLikeToken } from '../../lib/share.js';
 
-// The card a crawler shows when this link is pasted somewhere. Built here
-// rather than in the image route because everything it needs is already in
-// hand: a card that looked the trip up would cost an Anthropic call per
-// preview, and a link in a group chat is previewed by everyone in it.
-function Social({ og }) {
-  if (!og) return null;
-  return (
-    <>
-      <meta property="og:type" content="website" />
-      <meta property="og:site_name" content="Trip Builder" />
-      <meta property="og:title" content={og.title} />
-      <meta property="og:description" content={og.description} />
-      <meta property="og:url" content={og.url} />
-      <meta property="og:image" content={og.image} />
-      <meta property="og:image:secure_url" content={og.image} />
-      <meta property="og:image:type" content="image/jpeg" />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta property="og:image:alt" content={og.title + ' — ' + og.description} />
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={og.title} />
-      <meta name="twitter:description" content={og.description} />
-      <meta name="twitter:image" content={og.image} />
-    </>
-  );
-}
-
 export default function Trip({ html, title, session, missing, gone, shared, og, waiting }) {
   if (missing) {
     return (
       <>
         <Head>
           <title>{gone ? 'This link has been turned off' : (waiting || 'Trip not found')}</title>
-          <Social og={og} />
+          <SocialMeta og={og} />
         </Head>
         <main style={{
           minHeight: '100dvh', display: 'grid', placeItems: 'center', margin: 0,
@@ -102,7 +76,7 @@ export default function Trip({ html, title, session, missing, gone, shared, og, 
             the share card, which WhatsApp and the rest read straight off the
             document when somebody pastes the link. */}
         <meta name="robots" content="noindex, nofollow" />
-        <Social og={og} />
+        <SocialMeta og={og} />
       </Head>
       {/* One tap on Android, where the browser gives a real install API; the
           actual steps on iPhone, where Apple gives none. See components/Install.js. */}

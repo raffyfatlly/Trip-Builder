@@ -1,4 +1,6 @@
 import Ring, { Credits } from '../components/Ring.js';
+import Head from 'next/head';
+import SocialMeta from '../components/SocialMeta.js';
 import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { renderPreview } from '../lib/preview.js';
@@ -32,7 +34,7 @@ const POLL_TIMEOUT_MS = 45000;
 // purpose: this one does the expensive work, and only one runs at a time.
 const ADVANCE_MS = 2500;
 
-export default function Home() {
+export default function Home({ og } = {}) {
   const [session, setSession] = useState(null);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
@@ -1211,7 +1213,21 @@ export default function Home() {
   };
 
   return (
-    <div className="app">
+    <>
+      {/* raffy, 2026-09-16: "how come before this I can see my app logo? now
+          i see nothing" — then, once the read-only /t/ link was fixed:
+          "I was using the invite send them the link button!" Invite.js hands
+          out THIS page (components/Invite.js: "The share link next to this
+          hands out a read-only copy. This hands out the trip itself" — a
+          collaborator, not a viewer, which is why it is a session id here
+          and never a forwardable token; see lib/share.js on why a session id
+          is never allowed to be one). It is a completely different URL from
+          /t/<token>, so the card built for that page never reached this
+          one. og is null on every ordinary visit — see getServerSideProps
+          below, which only does the extra work when ?s= names a trip — so
+          this changes nothing about the normal cost of opening the app. */}
+      <Head><SocialMeta og={og} /></Head>
+      <div className="app">
       <header className="bar">
         <button className="burger" onClick={() => setMenu(true)} aria-label="Menu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
@@ -2659,6 +2675,45 @@ export default function Home() {
           *{animation-duration:1ms !important;transition-duration:1ms !important}
         }
       `}</style>
-    </div>
+      </div>
+    </>
   );
+}
+
+// Only an invite link (?s=<session>) pays for this. Every ordinary visit —
+// opening the app fresh, continuing a session from localStorage, all of
+// it — reads none of this and costs nothing extra: the client derives its
+// own session from localStorage or the URL exactly as it always has,
+// entirely independently of these props.
+//
+// The session id here is never a share token — see components/Invite.js and
+// lib/share.js on why an invite is deliberately not a forwardable link — so
+// there is only one door to check, not two.
+export async function getServerSideProps(ctx) {
+  const s = String((ctx.query && ctx.query.s) || '').trim();
+  if (!s) return { props: {} };
+
+  const host = ctx.req.headers['x-forwarded-host'] || ctx.req.headers.host || '';
+  const proto = /^localhost|^127\./.test(host) ? 'http' : 'https';
+  const base = proto + '://' + host;
+  const url = base + '/?s=' + encodeURIComponent(s);
+
+  try {
+    const [{ getState }, { applyEdits }, { shareCard, planningCard }] = await Promise.all([
+      import('../lib/managedAgents.js'),
+      import('../lib/edits.js'),
+      import('../lib/sharecard.js'),
+    ]);
+    const state = await getState(s);
+    const it = state && state.itinerary ? applyEdits(state.itinerary, state.agentEdits || []) : null;
+    const og = it && (it.days || []).length
+      ? await shareCard(it, base, url)
+      : planningCard((state && state.plan) || null, base, url);
+    return { props: { og } };
+  } catch (err) {
+    // An invite link that fails to preview is still a working invite link —
+    // the actual app underneath reads its own session and works exactly as
+    // it always has. Only the card is missing.
+    return { props: { og: null } };
+  }
 }
