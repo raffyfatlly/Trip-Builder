@@ -1192,6 +1192,28 @@ export default function Home({ og } = {}) {
     && messages.length === 0 && !ready && !building;
   const title = tripName || null;
 
+  // raffy, 2026-09-16: "for when in session, clear it if they back from the
+  // session. only signup content is kept." Scoped to a session with nothing
+  // in it yet — an empty session looks identical to no session at all
+  // (mustSignIn above already blocks any real progress until signing in),
+  // so nothing real is ever at risk of being lost this way. It just stops
+  // an abandoned, never-used session id from quietly being resumed later,
+  // as if there were something there worth reopening.
+  //
+  // pagehide rather than trying to detect "specifically the back button":
+  // browsers do not expose that distinction cleanly, and for an EMPTY
+  // session every way of leaving — back, closing the tab, typing a new
+  // URL — deserves the same answer, so there is nothing to gain from
+  // telling them apart.
+  useEffect(() => {
+    if (!session || messages.length > 0) return;
+    const forget = () => {
+      try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+    };
+    window.addEventListener('pagehide', forget);
+    return () => window.removeEventListener('pagehide', forget);
+  }, [session, messages.length]);
+
   // A build runs for minutes, so it almost always lands while they are still
   // typing. Mark the button rather than interrupting them.
   //
