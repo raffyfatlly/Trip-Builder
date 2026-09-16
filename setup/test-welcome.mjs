@@ -26,7 +26,7 @@ let hookCalls = 0;
 await ctx.route('**/api/hook', (r) => {
   hookCalls++;
   const body = JSON.parse(r.request().postData());
-  ok('the question reaches the server', body.question.includes('beach destination'), body.question);
+  ok('the question reaches the server', body.question.includes('street food'), body.question);
   ok('a stable per-browser id rides along, not a real session', /^w_/.test(body.session || ''), body.session);
   ok('the browser timezone rides along too, same as the chat agent gets',
      !!(body.client && body.client.tz), JSON.stringify(body.client));
@@ -43,7 +43,7 @@ const errCtx = await browser.newContext({ viewport: { width: 390, height: 844 } 
 await errCtx.route('**/api/hook', (r) => r.fulfill({ status: 500, json: { error: 'boom' } }));
 const errPage = await errCtx.newPage();
 await errPage.goto(B + '/welcome', { waitUntil: 'networkidle' });
-await errPage.locator('.cat', { hasText: 'Beach' }).click();
+await errPage.locator('.cat', { hasText: 'Food' }).click();
 await errPage.locator('#askerr').waitFor({ state: 'visible', timeout: 5000 });
 ok('a failed lookup shows an inline error, not a silent redirect',
    (await errPage.locator('#askerr').innerText()).length > 0);
@@ -59,7 +59,7 @@ await page.goto(B + '/welcome', { waitUntil: 'networkidle' });
 ok('the ask box has its own header', (await page.locator('.askhead').innerText()).length > 0);
 
 // A chip both fills and fires the question.
-await page.locator('.cat', { hasText: 'Beach' }).click();
+await page.locator('.cat', { hasText: 'Food' }).click();
 await page.locator('#askanswer').waitFor({ state: 'visible', timeout: 5000 });
 ok('exactly one call went to the hook endpoint', hookCalls === 1, String(hookCalls));
 ok('the answer is shown', (await page.locator('#askanswerbody').innerText()).includes('Da Nang and Nha Trang'));
