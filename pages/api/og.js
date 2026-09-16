@@ -93,8 +93,20 @@ async function cover(p, tag, origin) {
 
   // A photo that is slow is worse than no photo: a crawler that times out
   // shows no card at all, and the card without the picture is still good.
+  //
+  // raffy, 2026-09-16: "it load some text in preview for awhile. then it
+  // lost it and just give plain link." That is WhatsApp fetching the HTML
+  // fine, starting on the image, running out of patience, and abandoning
+  // the WHOLE preview rather than keeping the text it already had. 3500ms
+  // was the budget for fetching the photo ALONE — before the JSX gets
+  // rendered to SVG, the SVG gets rasterised to PNG, and the PNG gets
+  // re-encoded to JPEG, none of which is free either. On a cold instance
+  // the photo fetch by itself could already be most of whatever a crawler
+  // is willing to wait for the entire card. Cut hard, because a fast card
+  // with no photo beats a slow card with one every time a crawler decides
+  // that for you anyway.
   const stop = new AbortController();
-  const timer = setTimeout(() => stop.abort(), 3500);
+  const timer = setTimeout(() => stop.abort(), 1400);
   try {
     const r = await fetch(url, { signal: stop.signal });
     if (!r.ok) return '';

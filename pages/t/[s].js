@@ -258,6 +258,34 @@ export async function getServerSideProps(ctx) {
   const body = html.replace(/^[\s\S]*?<body[^>]*>/i, '').replace(/<\/body>[\s\S]*$/i, '');
   const styles = (html.match(/<style[\s\S]*?<\/style>/gi) || []).join('\n');
 
+  const og = await shareCard(it, base, base + '/t/' + encodeURIComponent(asked));
+
+  // Warm the card BEFORE anyone shares it, not while a crawler is waiting.
+  //
+  // raffy, 2026-09-16: a real crawl showed the title and description fine,
+  // then lost the whole preview — WhatsApp fetching the HTML fast, starting
+  // on the image, and giving up before a cold render + a photo fetch +
+  // re-encoding finished. /api/og is cache-control'd for 24 hours, so the
+  // fix is to make sure that cache is already warm by the time a link ever
+  // reaches a crawler: every time this page renders — which happens when
+  // its owner is looking at their own trip, well before they hit share.
+  //
+  // AWAITED, on purpose, bounded to 2.5s. This repo has already paid for
+  // this exact mistake once — lib/chores.js's own notes on a fire-and-forget
+  // call that "died with the request" the moment the response went out,
+  // because Vercel can freeze a Node function right after it answers. An
+  // unawaited warm-up here would silently do nothing most of the time,
+  // which is worse than not having it: it would look fixed and not be. Once
+  // the cache is actually warm this costs nothing extra — a request behind
+  // a warm cache is a fast CDN hit — so the bound only ever bites on the
+  // first render after the trip's content last changed.
+  try {
+    const stop = new AbortController();
+    const timer = setTimeout(() => stop.abort(), 2500);
+    await fetch(og.image, { signal: stop.signal }).catch(() => {});
+    clearTimeout(timer);
+  } catch (err) { /* the card render can fail; the page cannot */ }
+
   return {
     props: {
       missing: false,
@@ -265,7 +293,7 @@ export async function getServerSideProps(ctx) {
       title: (it.trip && it.trip.title) || 'Trip',
       html: styles + body,
       shared,
-      og: await shareCard(it, base, base + '/t/' + encodeURIComponent(asked)),
+      og,
     },
   };
 }
