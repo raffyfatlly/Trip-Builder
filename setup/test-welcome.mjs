@@ -1,15 +1,15 @@
-// The real landing page: public/welcome/index.html's ask box, and the
-// handoff into the app — against a mocked backend.
+// The real landing page: public/welcome/index.html's ask box, and that
+// "Plan a trip" is a plain handoff — against a mocked backend.
 //
 //   BASE=http://localhost:3241 node setup/test-welcome.mjs
 //
 // raffy, 2026-09-16, after two earlier attempts landed this in the wrong
 // place entirely: "i actually want it on the landing page. here." — a
-// screenshot of THIS page. Then, seeing it still skip to an existing
-// session: "u messed my chat agent? ... I told u I want the whole thing
-// happening at the landing page." This checks the real static page, not a
-// React stand-in for it, and that / is untouched for anyone who is not
-// coming from here.
+// screenshot of THIS page. Then: "trigger sign up/signin button like usual
+// for unregistered user /visitor. like before. and for the question no
+// need to keep cause it might affect going forward." So "Plan a trip" is
+// checked here as a PLAIN link to / — no seed, no auto-send — leaving the
+// existing mustSignIn gate to do exactly what it always did.
 
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
@@ -22,7 +22,6 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const errs = [];
 
 let hookCalls = 0;
-let sent = null;
 
 await ctx.route('**/api/hook', (r) => {
   hookCalls++;
@@ -36,6 +35,9 @@ const page = await ctx.newPage();
 page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(B + '/welcome', { waitUntil: 'networkidle' });
 
+// The section introduces itself, same as every other one on the page.
+ok('the ask box has its own header', (await page.locator('.askhead').innerText()).length > 0);
+
 // A chip both fills and fires the question.
 await page.locator('.cat', { hasText: 'Beach' }).click();
 await page.locator('#askanswer').waitFor({ state: 'visible', timeout: 5000 });
@@ -43,14 +45,20 @@ ok('exactly one call went to the hook endpoint', hookCalls === 1, String(hookCal
 ok('the answer is shown', (await page.locator('#askanswerbody').innerText()).includes('Da Nang and Nha Trang'));
 ok('the box loses its pill shape once it has answered',
    await page.locator('#askform').evaluate((el) => el.classList.contains('answered')));
+ok('there is no "ask something else" option', await page.locator('#askagain').count() === 0);
 
-// "Plan a trip" seeds localStorage and leaves the marketing page entirely.
+// "Plan a trip" is a plain link to / now — no seed, no state carried.
 await Promise.all([
   page.waitForURL('**/'),
   page.locator('#askplanbtn').click(),
 ]);
+const seedLeft = await page.evaluate(() => {
+  try { return localStorage.getItem('itin.seed'); } catch (e) { return null; }
+});
+ok('the question is not carried into localStorage', seedLeft === null, String(seedLeft));
 
-// The real app: mock its backend and reload so the seed effect can run.
+// The real app, on an ordinary fresh visit with nothing seeded: this is the
+// exact regression "messed my chat agent" was about, still checked here.
 await ctx.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_WELCOME' } }));
 await ctx.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
 await ctx.route('**/api/log', (r) => r.fulfill({ json: { ok: true } }));
@@ -59,35 +67,14 @@ await ctx.route('**/api/state**', (r) => r.fulfill({ json: {
   credits: { left: 88, granted: 100, used: 0, plan: 'starter', buildCost: 25, paid: true, signedIn: '' },
   itinerary: null, plan: {}, agentEdits: [], memoryOps: [],
   building: false, thinking: false, turns: 0 } }));
+let sent = null;
 await ctx.route('**/api/send', (r) => { sent = JSON.parse(r.request().postData()); r.fulfill({ json: { ok: true, spoke: true } }); });
 await page.goto(B + '/', { waitUntil: 'networkidle' });
-await page.locator('.bar').waitFor({ state: 'visible', timeout: 5000 });
-await page.waitForTimeout(300);
+await page.waitForTimeout(1200);
 
-ok('the seeded question became the real first message',
-   sent && sent.text.includes('beach destination'), JSON.stringify(sent));
-ok('the app looks like the app — header and composer, no marketing chrome',
-   await page.locator('.bar').count() === 1 && await page.locator('.composer').count() === 1);
-
-// A second, ordinary visit to / with nothing seeded must be untouched —
-// this is the regression the "messed my chat agent" report was about.
-const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
-await ctx2.route('**/api/session', (r) => r.fulfill({ json: { session: 'sesn_PLAIN' } }));
-await ctx2.route('**/api/me', (r) => r.fulfill({ json: { accounts: false, user: null } }));
-await ctx2.route('**/api/log', (r) => r.fulfill({ json: { ok: true } }));
-await ctx2.route('**/api/state**', (r) => r.fulfill({ json: {
-  transcript: [], party: null,
-  credits: { left: 88, granted: 100, used: 0, plan: 'starter', buildCost: 25, paid: true, signedIn: '' },
-  itinerary: null, plan: {}, agentEdits: [], memoryOps: [],
-  building: false, thinking: false, turns: 0 } }));
-let sent2 = null;
-await ctx2.route('**/api/send', (r) => { sent2 = JSON.parse(r.request().postData()); r.fulfill({ json: { ok: true, spoke: true } }); });
-const page2 = await ctx2.newPage();
-await page2.goto(B, { waitUntil: 'networkidle' });
-await page2.waitForTimeout(1200);
-ok('a plain visit to / with nothing seeded starts onboarding as before, not the free-question box',
-   await page2.locator('.ob').count() === 1 && await page2.locator('.hook, .land').count() === 0);
-ok('and sends nothing on its own', sent2 === null, JSON.stringify(sent2));
+ok('a plain landing on / with accounts off starts onboarding as before',
+   await page.locator('.ob').count() === 1);
+ok('and sends nothing on its own', sent === null, JSON.stringify(sent));
 
 await page.screenshot({ path: 'shots/welcome-answered.png' });
 ok('no page errors', errs.length === 0, errs.join(' | '));

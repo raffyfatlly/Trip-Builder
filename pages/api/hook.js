@@ -1,6 +1,9 @@
 // The landing page's ask box, answered directly — see lib/hook.js for why
-// this is not the chat agent.
-export const config = { maxDuration: 30 };
+// this is not the chat agent. 60s, not 30: lib/hook.js's tools now include
+// research and check_prices, both of which can genuinely take 20-30s on
+// their own — raffy, 2026-09-16, "make the agent that answer the question
+// in landing page have all the tools it needs like the chat agent."
+export const config = { maxDuration: 60 };
 
 import { askHook } from '../../lib/hook.js';
 import { readHookAsks, writeHookAsks, firestoreConfigured } from '../../lib/firestore.js';

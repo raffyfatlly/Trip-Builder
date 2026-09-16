@@ -1192,25 +1192,6 @@ export default function Home({ og } = {}) {
     && messages.length === 0 && !ready && !building;
   const title = tripName || null;
 
-  // The handoff from public/welcome/index.html's ask box. raffy, 2026-09-16:
-  // "then only after we answer, and when user click plan a trip page, it
-  // trigger the sign in/sign up section and that continues to the chat
-  // session." mustSignIn above already forces sign-up on a brand-new
-  // session — nothing new needed there. This only carries the question
-  // across the page load (welcome.html has no React state to hand it off
-  // in) and fires it the moment nothing is blocking a first message any
-  // more, sign-in required or not.
-  const seedFired = useRef(false);
-  useEffect(() => {
-    if (seedFired.current || booting || !session || messages.length > 0 || mustSignIn) return;
-    let seed = '';
-    try { seed = localStorage.getItem('itin.seed') || ''; } catch (e) { /* private mode */ }
-    if (!seed) return;
-    seedFired.current = true;
-    try { localStorage.removeItem('itin.seed'); } catch (e) { /* ignore */ }
-    send(seed);
-  }, [booting, session, messages.length, mustSignIn, send]);
-
   // A build runs for minutes, so it almost always lands while they are still
   // typing. Mark the button rather than interrupting them.
   //
