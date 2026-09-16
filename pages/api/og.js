@@ -17,6 +17,7 @@
 // two Firestore reads per preview, for a picture.
 
 import { ImageResponse } from 'next/og';
+import sharp from 'sharp';
 import { OUTFIT_400, OUTFIT_800 } from '../../lib/ogfonts.js';
 import { signed } from '../../lib/ogsign.js';
 
@@ -299,12 +300,28 @@ export default async function handler(req, res) {
   );
 
   // A real Buffer, not a stream — see the note at the top of this file for why.
-  const bytes = Buffer.from(await img.arrayBuffer());
+  const png = Buffer.from(await img.arrayBuffer());
 
-  res.setHeader('content-type', 'image/png');
-  res.setHeader('content-length', String(bytes.length));
+  // raffy, 2026-09-16, still after the Content-Length fix: "still nothing.
+  // just link. not even an image." The Sorrento card — the same one photo
+  // cards always are, a photograph filling 1200×630 — came back as a 1.4MB
+  // PNG. PNG is lossless, so a photograph costs what a photograph actually
+  // weighs uncompressed; the plain typographic card, which is mostly one
+  // flat colour, was 140kB from the same route and worked. WhatsApp caps how
+  // large an og:image it will fetch well under a megabyte, so every card
+  // with a photo — which is the good case, the one this whole feature is
+  // for — was silently unviewable no matter how correct the headers were.
+  //
+  // Re-encoded as JPEG, which is what photographs are for: the same picture
+  // at quality 82 lands around a tenth of the PNG's size. mozjpeg rather
+  // than libjpeg (sharp's default) because it is meaningfully smaller at the
+  // same visual quality for exactly this kind of photo-plus-flat-text image.
+  const jpeg = await sharp(png).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+
+  res.setHeader('content-type', 'image/jpeg');
+  res.setHeader('content-length', String(jpeg.length));
   // Crawlers refetch on every share. A trip does change — an edit, a new
   // photograph — so this is cached in front rather than for ever.
   res.setHeader('cache-control', 'public, max-age=600, s-maxage=86400, stale-while-revalidate=604800');
-  res.status(200).end(bytes);
+  res.status(200).end(jpeg);
 }
