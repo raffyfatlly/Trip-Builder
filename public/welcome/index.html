@@ -160,16 +160,48 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 @media (min-width:980px){.askwrap{margin-top:70px}}
 .ask{
   background:var(--surface);border:1px solid var(--line);border-radius:22px;
-  box-shadow:var(--shadow);padding:12px;display:grid;gap:10px;
-  text-decoration:none;transition:box-shadow .2s,transform .2s;
+  box-shadow:var(--shadow);padding:12px;display:block;margin:0;
+  transition:box-shadow .2s,transform .2s,border-radius .2s;
 }
 @media (hover:hover){.ask:hover{box-shadow:var(--shadow-lift);transform:translateY(-1px)}}
-@media (min-width:700px){.ask{grid-template-columns:1fr auto;align-items:center;border-radius:var(--r-pill);padding:10px 10px 10px 22px}}
+@media (min-width:700px){.ask{border-radius:var(--r-pill);padding:10px 10px 10px 22px}}
+/* Once it has answered, the pill goes back to a normal card — a tall block
+   of prose wearing fully-rounded ends looks like a mistake, not a search bar. */
+.ask.answered{border-radius:22px}
+@media (min-width:700px){.ask.answered{padding:20px}}
+
+/* The explicit display below beats the UA stylesheet's [hidden]{display:none},
+   so that has to be said again here or JS's row.hidden = true does nothing. */
+.askrow{display:grid;gap:10px}
+.askrow[hidden]{display:none}
+@media (min-width:700px){.askrow{grid-template-columns:1fr auto;align-items:center}}
 .askfield{display:flex;align-items:center;gap:11px;padding:6px 10px}
 .askfield svg{width:18px;height:18px;color:var(--ink-faint);flex:none}
-.askfield span{color:var(--ink-faint);font-size:15.5px}
-.ask .btn{width:100%}
-@media (min-width:700px){.ask .btn{width:auto}}
+.askfield input{
+  border:0;background:none;outline:none;width:100%;color:var(--ink);
+  font-family:inherit;font-size:15.5px;padding:0;
+}
+.askfield input::placeholder{color:var(--ink-faint)}
+.askrow .btn{width:100%;border:0}
+@media (min-width:700px){.askrow .btn{width:auto}}
+.askrow .btn:disabled{opacity:.6;cursor:default}
+
+.askanswer{padding:6px 8px 2px}
+.askbody{font-size:15px;line-height:1.6;color:var(--ink)}
+.askbody p{margin:0 0 12px}
+.askbody p:last-child{margin-bottom:0}
+.askbody ul{margin:0 0 12px;padding-left:20px}
+.askbody li{margin-bottom:6px}
+.askbody strong{color:var(--ink);font-weight:750}
+.askctarow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px}
+.askctarow .btn{width:100%}
+@media (min-width:520px){.askctarow{flex-wrap:nowrap}.askctarow .btn{width:auto}}
+.askctarow .btn svg{width:16px;height:16px}
+.asklink{
+  border:0;background:none;color:var(--ink-faint);font-size:13px;font-weight:650;
+  cursor:pointer;padding:4px;text-decoration:underline;text-underline-offset:3px;
+}
+.asklink:hover{color:var(--ink-soft)}
 
 /* what it checks, four across */
 .trust{display:grid;gap:20px;margin-top:52px}
@@ -246,9 +278,10 @@ section{padding:66px 0}
   padding:11px 17px 11px 13px;border-radius:var(--r-pill);
   background:var(--surface);border:1px solid var(--line);
   font-family:'Outfit',sans-serif;font-size:14px;font-weight:700;letter-spacing:-.01em;
-  color:var(--ink);scroll-snap-align:start;
+  color:var(--ink);scroll-snap-align:start;cursor:pointer;appearance:none;
   transition:border-color .18s,box-shadow .18s;
 }
+.cat:disabled{opacity:.5;cursor:default}
 @media (hover:hover){.cat:hover{border-color:var(--sage);box-shadow:var(--shadow)}}
 .cat svg{width:17px;height:17px;flex:none;color:var(--coral)}
 
@@ -412,18 +445,44 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
   </div>
 
   <div class="wrap askwrap rv">
-    <a class="ask" href="/">
-      <span class="askfield"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg><span>Five days in Bali in June, two adults and a baby</span></span>
-      <span class="btn btn-primary">Plan a trip</span>
-    </a>
+    <!-- The one control on the page that used to be a picture of one: a
+         link styled like a search bar, going straight to "/" with whatever
+         static example text happened to be inside it. raffy, 2026-09-16,
+         after two attempts at this landed in the wrong place entirely: "i
+         actually want it on the landing page. here." This is that page.
+         Real answer via lib/hook.js's /api/hook (see its own file for why
+         that is a direct tool-use call and not the chat agent), then
+         "Plan a trip" hands the question to the real app — which already
+         requires signing up for a session with nothing in it yet
+         (pages/index.js's mustSignIn) — via a one-time localStorage seed,
+         since a static page has no React state to carry it in. -->
+    <form class="ask" id="askform">
+      <span class="askrow" id="askrow">
+        <span class="askfield">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+          <input id="askinput" type="text" autocomplete="off" placeholder="Five days in Bali in June, two adults and a baby" />
+        </span>
+        <button type="submit" class="btn btn-primary" id="askbtn">Ask about your trip</button>
+      </span>
+      <div class="askanswer" id="askanswer" hidden>
+        <div class="askbody" id="askanswerbody"></div>
+        <div class="askctarow">
+          <button type="button" class="btn btn-primary" id="askplanbtn">
+            Plan a trip
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+          </button>
+          <button type="button" class="asklink" id="askagain">Ask something else</button>
+        </div>
+      </div>
+    </form>
 
     <div class="cats rv">
-      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M6 20c0-4 3-7 7-7"/><path d="M13 13c0-4 3-7 7-7M13 13C9 13 6 10 6 6"/></svg>Beach</div>
-      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M7.9 16.1 16.1 7.9"/></svg>Road trip</div>
-      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4v16M9 21V13h6v8M15 21V11l6 4v6M6 12h.01M6 16h.01M18 17h.01"/></svg>City break</div>
-      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5S20 17 20 21"/></svg>With kids</div>
-      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M17 3c-1.5 2-2 4-2 6s.5 3 2 3v9"/></svg>Food</div>
-      <div class="cat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18L14.5 7 11 13l-2-3z"/></svg>Mountains</div>
+      <button type="button" class="cat" data-q="Where's a good beach destination for a relaxing week right now?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M6 20c0-4 3-7 7-7"/><path d="M13 13c0-4 3-7 7-7M13 13C9 13 6 10 6 6"/></svg>Beach</button>
+      <button type="button" class="cat" data-q="What's a great road trip route for a long weekend?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.6"/><circle cx="18" cy="6" r="2.6"/><path d="M7.9 16.1 16.1 7.9"/></svg>Road trip</button>
+      <button type="button" class="cat" data-q="Which city is great for a short city break right now?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4v16M9 21V13h6v8M15 21V11l6 4v6M6 12h.01M6 16h.01M18 17h.01"/></svg>City break</button>
+      <button type="button" class="cat" data-q="Where's a good family destination with young kids?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5S20 17 20 21"/></svg>With kids</button>
+      <button type="button" class="cat" data-q="Where should I go for an amazing food trip?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M17 3c-1.5 2-2 4-2 6s.5 3 2 3v9"/></svg>Food</button>
+      <button type="button" class="cat" data-q="Where's a great mountain destination for hiking right now?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18L14.5 7 11 13l-2-3z"/></svg>Mountains</button>
   </div>
 </section>
 
@@ -723,6 +782,125 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
   new IntersectionObserver(function (e) {
     document.getElementById('nav').classList.toggle('stuck', !e[0].isIntersecting);
   }).observe(sentinel);
+})();
+
+// The ask box. raffy, 2026-09-16: "i want them to be able to use this part
+// of the landing page to ask for free... the agent must answer it nicely
+// and really specific like a travel agent AI... then after that it answers
+// with tools it have and said something relevant to entice them to do more
+// so by clicking the plan a trip." Two states of one form: type a question,
+// get a real answer from /api/hook (lib/hook.js — its own tool-use call,
+// not the chat agent, see that file for why), then "Plan a trip" hands the
+// question to the real app.
+//
+// No accounts, no session id from this page — pages/index.js's mustSignIn
+// already makes a brand-new session require signing up before it can do
+// anything, so that gate does not need rebuilding here. All this page has
+// to do is carry the question across the page load, which a static file
+// with no shared React state can only do through localStorage.
+(function () {
+  var form = document.getElementById('askform');
+  if (!form) return;
+  var input = document.getElementById('askinput');
+  var askBtn = document.getElementById('askbtn');
+  var row = document.getElementById('askrow');
+  var answerBox = document.getElementById('askanswer');
+  var answerBody = document.getElementById('askanswerbody');
+  var planBtn = document.getElementById('askplanbtn');
+  var againBtn = document.getElementById('askagain');
+  var cats = document.querySelectorAll('.cat[data-q]');
+
+  // One stable id per browser — not an account, just something for the
+  // quiet per-visitor cost ceiling in pages/api/hook.js to count against.
+  // Never shown here; see that file's own comment on why it stays invisible.
+  var uid = '';
+  try {
+    uid = localStorage.getItem('welcome.uid') || '';
+    if (!uid) {
+      uid = 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('welcome.uid', uid);
+    }
+  } catch (e) { /* private mode: no id, still works, just no soft cap */ }
+
+  var asking = false;
+  var lastQ = '';
+
+  function setLoading(on) {
+    asking = on;
+    askBtn.disabled = on;
+    askBtn.textContent = on ? 'Asking…' : 'Ask about your trip';
+    cats.forEach(function (btn) { btn.disabled = on; });
+  }
+
+  // No markdown library on a static page — just the two things worth
+  // formatting: a bullet list, and **bold** for a price or a name.
+  var esc = function (s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  };
+  function renderAnswer(text) {
+    var lines = String(text || '').split(/\n+/).filter(Boolean);
+    var html = '';
+    var inList = false;
+    lines.forEach(function (line) {
+      var bullet = /^[-*]\s+/.test(line);
+      var content = esc(line.replace(/^[-*]\s+/, ''))
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      if (bullet && !inList) { html += '<ul>'; inList = true; }
+      if (!bullet && inList) { html += '</ul>'; inList = false; }
+      html += bullet ? '<li>' + content + '</li>' : '<p>' + content + '</p>';
+    });
+    if (inList) html += '</ul>';
+    answerBody.innerHTML = html;
+  }
+
+  function goPlan(question) {
+    try { localStorage.setItem('itin.seed', question || lastQ || ''); } catch (e) { /* ignore */ }
+    window.location.href = '/';
+  }
+
+  function ask(question) {
+    question = (question || '').trim();
+    if (!question || asking) return;
+    lastQ = question;
+    setLoading(true);
+    fetch('/api/hook', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question: question, session: uid }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        setLoading(false);
+        if (!res.ok || !res.d.answer) throw new Error((res.d && res.d.error) || 'no answer');
+        renderAnswer(res.d.answer);
+        form.classList.add('answered');
+        row.hidden = true;
+        answerBox.hidden = false;
+      })
+      .catch(function () {
+        setLoading(false);
+        // A miss here still gets them somewhere useful — straight into the
+        // real conversation, which can answer the same question itself.
+        goPlan(question);
+      });
+  }
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); });
+  planBtn.addEventListener('click', function () { goPlan(lastQ); });
+  againBtn.addEventListener('click', function () {
+    form.classList.remove('answered');
+    answerBox.hidden = true;
+    row.hidden = false;
+    input.value = '';
+    input.focus();
+  });
+  cats.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var q = btn.getAttribute('data-q');
+      input.value = q;
+      ask(q);
+    });
+  });
 })();
 </script>
 </body>

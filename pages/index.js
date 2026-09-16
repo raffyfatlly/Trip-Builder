@@ -18,7 +18,6 @@ import { loadTrips, rememberTrip, forgetTrip, loadMemory, saveMemory, adoptAccou
 import Editor from '../components/Editor.js';
 import Block from '../components/Blocks.js';
 import Onboard from '../components/Onboard.js';
-import Landing from '../components/Landing.js';
 import Plan from '../components/Plan.js';
 import Drawer from '../components/Drawer.js';
 import Rich from '../components/Rich.js';
@@ -177,13 +176,6 @@ export default function Home({ og } = {}) {
   const [unseen, setUnseen] = useState(false);
   const [plan, setPlan] = useState({});
   const [skipOb, setSkipOb] = useState(false);
-  // The real landing page — its own screen, not a card living inside the
-  // chat shell. raffy, 2026-09-16, correcting the first version of this:
-  // "no place it wrong. u placed it inside the chat session. i actually
-  // want it on the landing page." True only for the moment before anyone
-  // has said anything; asking a question and continuing, or answering the
-  // Onboard wizard's questions instead, both leave it behind for good.
-  const [landed, setLanded] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [hintOff, setHintOff] = useState(true);
   const [account, setAccount] = useState({ accounts: false, user: null });
@@ -1200,6 +1192,25 @@ export default function Home({ og } = {}) {
     && messages.length === 0 && !ready && !building;
   const title = tripName || null;
 
+  // The handoff from public/welcome/index.html's ask box. raffy, 2026-09-16:
+  // "then only after we answer, and when user click plan a trip page, it
+  // trigger the sign in/sign up section and that continues to the chat
+  // session." mustSignIn above already forces sign-up on a brand-new
+  // session — nothing new needed there. This only carries the question
+  // across the page load (welcome.html has no React state to hand it off
+  // in) and fires it the moment nothing is blocking a first message any
+  // more, sign-in required or not.
+  const seedFired = useRef(false);
+  useEffect(() => {
+    if (seedFired.current || booting || !session || messages.length > 0 || mustSignIn) return;
+    let seed = '';
+    try { seed = localStorage.getItem('itin.seed') || ''; } catch (e) { /* private mode */ }
+    if (!seed) return;
+    seedFired.current = true;
+    try { localStorage.removeItem('itin.seed'); } catch (e) { /* ignore */ }
+    send(seed);
+  }, [booting, session, messages.length, mustSignIn, send]);
+
   // A build runs for minutes, so it almost always lands while they are still
   // typing. Mark the button rather than interrupting them.
   //
@@ -1239,38 +1250,6 @@ export default function Home({ og } = {}) {
     setHintOff(true);
     try { localStorage.setItem('itin.hint.attach', 'off'); } catch (e) { /* ignore */ }
   };
-
-  // Its own screen — no header, no burger, no docked composer. Everything
-  // below this belongs to the app; this is what a stranger sees before
-  // deciding to become a user of it.
-  const showLanding = !booting && landed && messages.length === 0;
-  if (showLanding) {
-    return (
-      <>
-        <Head><SocialMeta og={og} /></Head>
-        <Landing
-          onAsk={async (question) => {
-            const r = await fetch('/api/hook', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ question, session }),
-            });
-            const d = await r.json().catch(() => ({}));
-            if (!r.ok || !d.answer) throw new Error(d.error || 'no answer');
-            log('landing_answered', { chars: question.length });
-            return d.answer;
-          }}
-          onPlan={(text) => {
-            log('landing_plan', { chars: (text || '').length });
-            setSkipOb(true);
-            setLanded(false);
-            if (text && text.trim()) send(text);
-          }}
-          onGuided={() => { log('landing_guided'); setLanded(false); }}
-        />
-      </>
-    );
-  }
 
   return (
     <>
