@@ -33,6 +33,24 @@ await ctx.route('**/api/hook', (r) => {
   r.fulfill({ json: { answer: 'Da Nang and Nha Trang both work well in September.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week' } });
 });
 
+// A failed /api/hook must never silently punt them into /, where an old
+// session — real for anyone who has used this before — would show up with
+// no explanation at all. raffy, 2026-09-16: "it didn't give answer like
+// before. it bring directly to chat session, which contains some of my
+// past question." Checked in its own context so the failing route here
+// never leaks into the success-path checks below.
+const errCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+await errCtx.route('**/api/hook', (r) => r.fulfill({ status: 500, json: { error: 'boom' } }));
+const errPage = await errCtx.newPage();
+await errPage.goto(B + '/welcome', { waitUntil: 'networkidle' });
+await errPage.locator('.cat', { hasText: 'Beach' }).click();
+await errPage.locator('#askerr').waitFor({ state: 'visible', timeout: 5000 });
+ok('a failed lookup shows an inline error, not a silent redirect',
+   (await errPage.locator('#askerr').innerText()).length > 0);
+ok('and it stays on the landing page rather than jumping to /',
+   errPage.url().includes('/welcome'));
+await errCtx.close();
+
 const page = await ctx.newPage();
 page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(B + '/welcome', { waitUntil: 'networkidle' });

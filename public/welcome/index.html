@@ -190,6 +190,7 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 .askrow .btn{width:100%;border:0}
 @media (min-width:700px){.askrow .btn{width:auto}}
 .askrow .btn:disabled{opacity:.6;cursor:default}
+.askerr{color:var(--coral-deep);font-size:13px;font-weight:600;margin:10px 4px 0}
 
 .askanswer{padding:6px 8px 2px}
 .askbody{font-size:15px;line-height:1.6;color:var(--ink)}
@@ -472,6 +473,7 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
         </span>
         <button type="submit" class="btn btn-primary" id="askbtn">Ask about your trip</button>
       </span>
+      <p class="askerr" id="askerr" hidden></p>
       <div class="askanswer" id="askanswer" hidden>
         <div class="askbody" id="askanswerbody"></div>
         <div class="askctarow">
@@ -815,6 +817,7 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
   var row = document.getElementById('askrow');
   var answerBox = document.getElementById('askanswer');
   var answerBody = document.getElementById('askanswerbody');
+  var errEl = document.getElementById('askerr');
   var planBtn = document.getElementById('askplanbtn');
   var cats = document.querySelectorAll('.cat[data-q]');
 
@@ -876,6 +879,7 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
   function ask(question) {
     question = (question || '').trim();
     if (!question || asking) return;
+    errEl.hidden = true;
     setLoading(true);
     fetch('/api/hook', {
       method: 'POST',
@@ -893,9 +897,15 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
       })
       .catch(function () {
         setLoading(false);
-        // A miss here still gets them somewhere useful — straight into the
-        // real conversation, which can answer the same question itself.
-        goPlan();
+        // raffy, 2026-09-16: "it didn't give answer like before. it bring
+        // directly to chat session, which contains some of my past
+        // question." That silent redirect used to land here on ANY
+        // failure — and if the browser already had an old session, "the
+        // real conversation" was somebody's unrelated past chat, which is
+        // a worse outcome than just saying it did not work. Stay put and
+        // say so; they can try again right here.
+        errEl.textContent = "Couldn't get an answer just now — try again in a moment.";
+        errEl.hidden = false;
       });
   }
 
