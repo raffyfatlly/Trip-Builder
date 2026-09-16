@@ -211,7 +211,27 @@ export default function Home({ og } = {}) {
       router.replace('/', undefined, { shallow: true });
     }
 
-    if (!id) {
+    // ?new=1 is public/welcome/index.html's "Plan a trip" button, and it
+    // means what it says: start something new, never resume whatever this
+    // browser happened to have lying around. raffy, 2026-09-16, with a
+    // screenshot: "i still see my past session (not signed in) when i
+    // click plan trip." The old bare link to `/` just read KEY out of
+    // localStorage like any other visit, so a stale anonymous session from
+    // an earlier round of testing — days old, never properly left so the
+    // pagehide-forget effect below never got a chance to run — came back
+    // exactly as if it were current, messages and all, which also skipped
+    // mustSignIn below (it only gates a session with zero messages) and let
+    // old content be read without ever signing in. This flag skips reading
+    // KEY entirely and falls through to minting a brand new session, same
+    // as a first-ever visit — which then makes mustSignIn fire correctly
+    // too, for free, since a fresh session always starts at zero messages.
+    let freshStart = false;
+    try { freshStart = new URLSearchParams(location.search).get('new') === '1'; } catch (e) { /* ignore */ }
+    if (freshStart) {
+      router.replace('/', undefined, { shallow: true });
+    }
+
+    if (!id && !freshStart) {
       try { id = localStorage.getItem(KEY); } catch (e) { /* private mode */ }
     }
     if (id) {

@@ -38,7 +38,12 @@ await ctx.route('**/api/hook', (r) => {
   ok('a stable per-browser id rides along, not a real session', /^w_/.test(lastBody.session || ''), lastBody.session);
   ok('the browser timezone rides along too, same as the chat agent gets',
      !!(lastBody.client && lastBody.client.tz), JSON.stringify(lastBody.client));
-  r.fulfill({ json: { answer: 'Da Nang and Nha Trang both work well in September. Check [Klook](https://www.klook.com/da-nang) for tours, or call +60 3-2113 1888 for the local desk.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week' } });
+  // The first "paragraph" here has ordinary mid-sentence line wraps (single
+  // \n, not a blank line) — raffy, 2026-09-16, with a screenshot: this used
+  // to come back as one fragment of a sentence per line, each with its own
+  // paragraph gap under it. Only the blank line before the list should
+  // start a new block.
+  r.fulfill({ json: { answer: 'Da Nang and Nha Trang both work\nwell in September. Check [Klook](https://www.klook.com/da-nang)\nfor tours, or call +60 3-2113 1888 for the local desk.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week' } });
 });
 
 // A failed /api/hook must never silently punt them into /, where an old
@@ -99,10 +104,21 @@ ok('a markdown link becomes a tappable chip, not a raw URL',
    await page.locator('#askanswerbody a.chip', { hasText: 'Klook' }).count() === 1);
 ok('a phone number becomes a tel: chip',
    await page.locator('#askanswerbody a.chip.call').count() === 1);
+// raffy, 2026-09-16, with a screenshot: a sentence with ordinary mid-line
+// wraps used to render as one separate paragraph per line. A blank line —
+// not a lone \n — is what should start a new paragraph.
+ok('mid-sentence line wraps join into one paragraph, not one per line',
+   await page.locator('#askanswerbody p').first().evaluate((el) => /well in September/.test(el.textContent) && /local desk/.test(el.textContent)));
+ok('and the whole answer is not one paragraph per source line',
+   await page.locator('#askanswerbody p').count() === 1);
 
-// "Plan a trip" is a plain link to / now — no seed, no state carried.
+// "Plan a trip" goes to /?new=1 now — no seed, no state carried, and the
+// flag tells pages/index.js to ignore whatever stale session this browser
+// already had rather than silently resuming it. raffy, 2026-09-16, with a
+// screenshot: "i still see my past session (not signed in) when i click
+// plan trip."
 await Promise.all([
-  page.waitForURL('**/'),
+  page.waitForURL('**/?new=1'),
   page.locator('#askplanbtn').click(),
 ]);
 const seedLeft = await page.evaluate(() => {

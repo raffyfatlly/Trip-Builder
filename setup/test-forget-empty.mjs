@@ -102,6 +102,37 @@ const afterSignedIn = await page3.evaluate(() => localStorage.getItem('itin.sess
 ok('a signed-in session survives the same event untouched',
    afterSignedIn === 'signedin_1', String(afterSignedIn));
 
+// public/welcome/index.html's "Plan a trip" now links to /?new=1, not a
+// bare /. raffy, 2026-09-16, with a screenshot: "i still see my past
+// session (not signed in) when i click plan trip." — a stale anonymous
+// session sitting in localStorage from an earlier round (never properly
+// left, so the pagehide-forget above never ran) was resumed exactly as if
+// current. ?new=1 tells the bootstrap effect to ignore whatever KEY holds
+// and always mint a fresh session — which then makes the required sign-up
+// dialog below fire too, for free, since a brand new session always starts
+// at zero messages.
+const ctx4 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+try { await ctx4.addInitScript((v) => localStorage.setItem('itin.session.v1', v), 'stale_old_1'); } catch (e) { /* ignore */ }
+let sessions4 = 0;
+await ctx4.route('**/api/session', (r) => { sessions4++; r.fulfill({ json: { session: 'fresh_' + sessions4 } }); });
+await ctx4.route('**/api/me', (r) => r.fulfill({ json: { accounts: true, user: null } }));
+await ctx4.route('**/api/log', (r) => r.fulfill({ json: { ok: true } }));
+await ctx4.route('**/api/state**', (r) => r.fulfill({ json: {
+  transcript: [], party: null,
+  credits: { left: 88, granted: 100, used: 0, plan: 'starter', buildCost: 25, paid: true, signedIn: '' },
+  itinerary: null, plan: {}, agentEdits: [], memoryOps: [],
+  building: false, thinking: false, turns: 0 } }));
+const page4 = await ctx4.newPage();
+await page4.goto(B + '/?new=1', { waitUntil: 'networkidle' });
+await page4.waitForTimeout(500);
+ok('?new=1 mints a brand new session rather than the stale one already in localStorage',
+   sessions4 === 1, String(sessions4));
+const key4 = await page4.evaluate(() => localStorage.getItem('itin.session.v1'));
+ok('and that new session id is what gets stored, not the stale one', key4 === 'fresh_1', key4);
+ok('a brand new anonymous session requires signing up before anything else',
+   await page4.locator('.panel[aria-label="Create your account"]').isVisible());
+await ctx4.close();
+
 await ctx2.close();
 await ctx3.close();
 await browser.close();
