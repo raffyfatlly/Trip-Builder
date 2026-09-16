@@ -45,7 +45,8 @@ ok('no stays, no stays clause', facts({ trip: {}, days: [{}, {}] }) === '2 days'
 
 console.log('\nThe teaser, which is the whole reason anybody taps');
 const t = teaser(IT);
-ok('the major ones lead', t.startsWith('Hagia Sophia · Bosphorus ferry at sunset'), t);
+ok('the anchor moments at real places lead',
+   t.startsWith('Hagia Sophia · Bosphorus ferry'), t);
 ok('a long chore is never one of the three', !t.includes('drive the long way'), t);
 ok('and the rest are counted, not listed', t.endsWith('· +2 more'), t);
 ok('an empty trip teases nothing rather than crashing', teaser({}) === '');
@@ -55,6 +56,51 @@ ok('no count when there is nothing left over',
 ok('the same place twice is named once',
    teaser({ days: [{ items: [{ h: 'A' }, { h: 'A' }, { h: 'B' }] }] }) === 'A · B · +1 more',
    teaser({ days: [{ items: [{ h: 'A' }, { h: 'A' }, { h: 'B' }] }] }));
+
+// The first card this code ever built, for a real week on the Amalfi coast,
+// opened with "Depart KLIA for Naples · Land in Naples · Circumvesuviana to
+// Pompeii". Every itinerary starts with a flight, so reading the days in
+// order sells somebody their own airport.
+const AMALFI = {
+  days: [
+    { items: [
+      { h: 'Depart KLIA for Naples' },
+      { h: 'Land in Naples', photo: 'n' },
+      { h: 'Check in to Casa Angelina', photo: 'c' },
+    ] },
+    { items: [
+      { h: 'Pompeii', major: true, photo: 'p' },
+      { h: 'Lunch in Sorrento' },
+    ] },
+    { items: [
+      { h: 'Amalfi Cathedral', major: true, photo: 'a' },
+      { h: 'Ravello gardens', major: true, photo: 'r' },
+      { h: 'Check out and fly home' },
+    ] },
+  ],
+};
+const am = teaser(AMALFI);
+ok('the airport is not the holiday', !/Depart|Land in|Check in|Check out/.test(am), am);
+ok('the anchors are', am.startsWith('Pompeii · Amalfi Cathedral · Ravello gardens'), am);
+ok('and everything else is the count', am.endsWith('· +5 more'), am);
+
+// A trip of nothing but logistics still has to say something rather than
+// coming back empty and dropping the line off the card.
+const ALL_CHORES = { days: [{ items: [{ h: 'Depart KLIA' }, { h: 'Land in Rome' }] }] };
+ok('all-logistics falls back rather than blanking',
+   teaser(ALL_CHORES) === 'Depart KLIA · Land in Rome', teaser(ALL_CHORES));
+
+ok('the line stays within its budget',
+   teaser({ days: [{ items: [
+     { h: 'A morning at the Alhambra palace' },
+     { h: 'Sunset over the Albaicin quarter' },
+     { h: 'Tapas' },
+   ] }] }).length <= 76,
+   teaser({ days: [{ items: [
+     { h: 'A morning at the Alhambra palace' },
+     { h: 'Sunset over the Albaicin quarter' },
+     { h: 'Tapas' },
+   ] }] }));
 
 console.log('\nThe cover');
 ok('the hero wins', cover(IT) === 'https://a-hotel.example/hero.jpg', cover(IT));
