@@ -18,15 +18,47 @@ import Head from 'next/head';
 import Install from '../../components/Install.js';
 import { getState } from '../../lib/managedAgents.js';
 import { render } from '../../renderer/render.js';
+import { applyEdits } from '../../lib/edits.js';
+import { shareCard, planningCard } from '../../lib/sharecard.js';
 import { groundQuery, mapPoints, BAKE_W } from '../../lib/mapfit.js';
 import { fetchWith } from '../../lib/net.js';
 import { shareSession, looksLikeToken } from '../../lib/share.js';
 
-export default function Trip({ html, title, session, missing, gone, shared }) {
+// The card a crawler shows when this link is pasted somewhere. Built here
+// rather than in the image route because everything it needs is already in
+// hand: a card that looked the trip up would cost an Anthropic call per
+// preview, and a link in a group chat is previewed by everyone in it.
+function Social({ og }) {
+  if (!og) return null;
+  return (
+    <>
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="Trip Builder" />
+      <meta property="og:title" content={og.title} />
+      <meta property="og:description" content={og.description} />
+      <meta property="og:url" content={og.url} />
+      <meta property="og:image" content={og.image} />
+      <meta property="og:image:secure_url" content={og.image} />
+      <meta property="og:image:type" content="image/png" />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:alt" content={og.title + ' — ' + og.description} />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={og.title} />
+      <meta name="twitter:description" content={og.description} />
+      <meta name="twitter:image" content={og.image} />
+    </>
+  );
+}
+
+export default function Trip({ html, title, session, missing, gone, shared, og, waiting }) {
   if (missing) {
     return (
       <>
-        <Head><title>Trip not found</title></Head>
+        <Head>
+          <title>{gone ? 'This link has been turned off' : (waiting || 'Trip not found')}</title>
+          <Social og={og} />
+        </Head>
         <main style={{
           minHeight: '100dvh', display: 'grid', placeItems: 'center', margin: 0,
           background: '#EDF2EA', color: '#0C241B', textAlign: 'center', padding: 24,
@@ -34,12 +66,19 @@ export default function Trip({ html, title, session, missing, gone, shared }) {
         }}>
           <div>
             <h1 style={{ fontSize: 20, margin: '0 0 8px' }}>
-              {gone ? 'This link has been turned off' : 'No trip here yet'}
+              {gone ? 'This link has been turned off' : (waiting ? waiting + ' is still being planned' : 'No trip here yet')}
             </h1>
+            {/* A guest who was sent the link before the trip was built cannot
+                "open the chat and build it" — they do not have one. Telling
+                them to is the app blaming them for somebody else's timing. */}
             <p style={{ fontSize: 14, color: '#4C6157', margin: 0, lineHeight: 1.5 }}>
               {gone
                 ? 'Whoever shared this trip has stopped sharing it. Ask them for a new link.'
-                : 'This link is for a trip that has been built. Open the chat and build it first.'}
+                : waiting
+                  ? 'The itinerary is still being put together. This same link will show it once it is ready — try again shortly.'
+                  : shared
+                    ? 'There is no itinerary on this link yet. Ask whoever shared it to send it again once their trip is built.'
+                    : 'This link is for a trip that has been built. Open the chat and build it first.'}
             </p>
           </div>
         </main>
@@ -59,7 +98,11 @@ export default function Trip({ html, title, session, missing, gone, shared }) {
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content={title} />
+        {/* noindex keeps the trip out of search results; it has no bearing on
+            the share card, which WhatsApp and the rest read straight off the
+            document when somebody pastes the link. */}
         <meta name="robots" content="noindex, nofollow" />
+        <Social og={og} />
       </Head>
       {/* One tap on Android, where the browser gives a real install API; the
           actual steps on iPhone, where Apple gives none. See components/Install.js. */}
@@ -162,15 +205,38 @@ export async function getServerSideProps(ctx) {
   const host = ctx.req.headers['x-forwarded-host'] || ctx.req.headers.host || '';
   const proto = /^localhost|^127\./.test(host) ? 'http' : 'https';
 
+  const base = proto + '://' + host;
+
   let it = null;
+  let plan = null;
   try {
     const state = await getState(session);
-    it = state && state.itinerary;
+    // The EDITED trip, which is the one its owner sees. /t/ read the builder's
+    // original: a hotel swapped in the chat, a day added, a check-in time
+    // fixed — none of it reached the person the link was sent to, and the
+    // shared page quietly disagreed with the app that shared it.
+    it = state && state.itinerary
+      ? applyEdits(state.itinerary, state.agentEdits || [])
+      : null;
+    plan = (state && state.plan) || null;
   } catch (err) {
     it = null;
   }
   if (!it || !(it.days || []).length) {
-    return { props: { missing: true, html: '', title: 'Trip', session } };
+    // Shared before it was built. The link is not wrong, it is early — so the
+    // card says the trip is being planned and names the place if the
+    // conversation has settled on one, rather than previewing as a dead URL.
+    return {
+      props: {
+        missing: true,
+        html: '',
+        title: 'Trip',
+        session,
+        shared,
+        waiting: String((plan && plan.destination) || '').split(',')[0].trim(),
+        og: planningCard(plan, base, base + '/t/' + encodeURIComponent(asked)),
+      },
+    };
   }
 
   it = await bakeGround(it, host, proto);
@@ -199,6 +265,7 @@ export async function getServerSideProps(ctx) {
       title: (it.trip && it.trip.title) || 'Trip',
       html: styles + body,
       shared,
+      og: await shareCard(it, base, base + '/t/' + encodeURIComponent(asked)),
     },
   };
 }
