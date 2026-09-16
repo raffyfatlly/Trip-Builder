@@ -57,6 +57,12 @@ export default async function handler(req, res) {
 
   const { answer, error } = await askHook(question, { geo: geoFrom(req), client });
   if (!answer) {
+    // Logged, not just returned — the 502 alone told the browser it failed
+    // but told nobody why. A model/tool mismatch (see lib/hook.js's
+    // SUPPORTS_NEW_WEB_TOOLS) took every single request down for hours
+    // before this existed, with the actual reason sitting unlogged inside
+    // askHook's own return value the whole time.
+    console.error('hook: no answer —', error);
     return res.status(502).json({
       error: error || 'no answer',
       answer: "Couldn't get an answer for that just now — try again in a moment, or jump straight into building the trip and ask me there.",
