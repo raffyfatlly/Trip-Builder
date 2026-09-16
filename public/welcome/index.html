@@ -460,8 +460,9 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
          one-off taste of the product, not the start of a real trip, and the
          two should not be conflated by quietly seeding one from the other. -->
     <div class="askhead">
-      <p class="eyebrow">Try it first</p>
-      <h3>Ask it something real, before you plan anything.</h3>
+      <p class="eyebrow">Got a question?</p>
+      <h3>Ask anything about your upcoming trip.</h3>
+      <p class="lede" style="margin-top:8px">The specific stuff a search engine only guesses at.</p>
     </div>
     <form class="ask" id="askform">
       <span class="askrow" id="askrow">
@@ -829,6 +830,15 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
     }
   } catch (e) { /* private mode: no id, still works, just no soft cap */ }
 
+  // The browser's own clock and timezone — the same pair pages/index.js
+  // sends on every real chat message (see lib/context.js's contextBlock).
+  // raffy, 2026-09-16: "make it has same context like chat agent like
+  // currency, current date and time etc." Country/currency come from
+  // Vercel's own request headers server-side; this is the one piece only
+  // the browser knows.
+  var tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* ignore */ }
+
   var asking = false;
 
   function setLoading(on) {
@@ -870,7 +880,7 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
     fetch('/api/hook', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ question: question, session: uid }),
+      body: JSON.stringify({ question: question, session: uid, client: { tz: tz } }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {

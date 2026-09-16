@@ -28,6 +28,8 @@ await ctx.route('**/api/hook', (r) => {
   const body = JSON.parse(r.request().postData());
   ok('the question reaches the server', body.question.includes('beach destination'), body.question);
   ok('a stable per-browser id rides along, not a real session', /^w_/.test(body.session || ''), body.session);
+  ok('the browser timezone rides along too, same as the chat agent gets',
+     !!(body.client && body.client.tz), JSON.stringify(body.client));
   r.fulfill({ json: { answer: 'Da Nang and Nha Trang both work well in September.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week' } });
 });
 
