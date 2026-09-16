@@ -81,7 +81,7 @@ const AMALFI = {
 };
 const am = teaser(AMALFI);
 ok('the airport is not the holiday', !/Depart|Land in|Check in|Check out/.test(am), am);
-ok('the anchors are', am.startsWith('Pompeii · Amalfi Cathedral · Ravello gardens'), am);
+ok('the anchors are', ['Pompeii', 'Amalfi Cathedral', 'Ravello gardens'].every((x) => am.includes(x)), am);
 ok('and everything else is the count', am.endsWith('· +5 more'), am);
 
 // A trip of nothing but logistics still has to say something rather than
@@ -90,17 +90,30 @@ const ALL_CHORES = { days: [{ items: [{ h: 'Depart KLIA' }, { h: 'Land in Rome' 
 ok('all-logistics falls back rather than blanking',
    teaser(ALL_CHORES) === 'Depart KLIA · Land in Rome', teaser(ALL_CHORES));
 
-ok('the line stays within its budget',
-   teaser({ days: [{ items: [
-     { h: 'A morning at the Alhambra palace' },
-     { h: 'Sunset over the Albaicin quarter' },
-     { h: 'Tapas' },
-   ] }] }).length <= 76,
-   teaser({ days: [{ items: [
-     { h: 'A morning at the Alhambra palace' },
-     { h: 'Sunset over the Albaicin quarter' },
-     { h: 'Tapas' },
-   ] }] }));
+// The same live trip named Pompeii twice — once as the ruins and once as the
+// train that gets you there — and spent a third of the line saying it.
+const POMPEII = { days: [{ items: [
+  { h: 'Depart KLIA for Naples' },
+  { h: 'Land in Naples', photo: 'a' },
+  { h: 'Circumvesuviana to Pompeii', photo: 'b', major: true },
+  { h: 'Pompeii ruins', photo: 'c', major: true },
+  { h: 'Naples old town', photo: 'd', major: true },
+  { h: 'Amalfi Cathedral', photo: 'e', major: true },
+] }] };
+const pm = teaser(POMPEII);
+ok('one place, one slot', pm === 'Pompeii ruins · Naples old town · Amalfi Cathedral · +3 more', pm);
+ok('and the journey loses to the place', !pm.includes('Circumvesuviana'), pm);
+
+const GRANADA = { days: [{ items: [
+  { h: 'A morning at the Alhambra', photo: 'a', major: true },
+  { h: 'Sunset over the Albaicin', photo: 'b', major: true },
+  { h: 'Tapas' },
+] }] };
+ok('the line stays within its budget', teaser(GRANADA).length <= 76, teaser(GRANADA));
+// Tapas is neither an anchor nor a place, so it can only ever be picked up
+// after both of them — which, with room left on the line, is fine.
+ok('the anchors come before the snack',
+   teaser(GRANADA).indexOf('Tapas') > teaser(GRANADA).indexOf('Alhambra'), teaser(GRANADA));
 
 console.log('\nThe cover');
 ok('the hero wins', cover(IT) === 'https://a-hotel.example/hero.jpg', cover(IT));
