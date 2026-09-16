@@ -10,6 +10,14 @@
 // need to keep cause it might affect going forward." So "Plan a trip" is
 // checked here as a PLAIN link to / — no seed, no auto-send — leaving the
 // existing mustSignIn gate to do exactly what it always did.
+//
+// raffy, 2026-09-16, a later round: "don't make it auto ask when clicking
+// the buttons. just as placeholder." — the topic pills used to fill AND
+// fire the question; now they only swap the input's placeholder. And:
+// "make the generated answer looks nice like the chat" — the answer is
+// now rendered through the same price/link/bold/list treatment
+// components/Rich.js gives a real chat message, ported in plain JS since
+// this page is static and can't import lib/richtext.js from the browser.
 
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
@@ -22,15 +30,15 @@ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const errs = [];
 
 let hookCalls = 0;
+let lastBody = null;
 
 await ctx.route('**/api/hook', (r) => {
   hookCalls++;
-  const body = JSON.parse(r.request().postData());
-  ok('the question reaches the server', body.question.includes('street food'), body.question);
-  ok('a stable per-browser id rides along, not a real session', /^w_/.test(body.session || ''), body.session);
+  lastBody = JSON.parse(r.request().postData());
+  ok('a stable per-browser id rides along, not a real session', /^w_/.test(lastBody.session || ''), lastBody.session);
   ok('the browser timezone rides along too, same as the chat agent gets',
-     !!(body.client && body.client.tz), JSON.stringify(body.client));
-  r.fulfill({ json: { answer: 'Da Nang and Nha Trang both work well in September.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week' } });
+     !!(lastBody.client && lastBody.client.tz), JSON.stringify(lastBody.client));
+  r.fulfill({ json: { answer: 'Da Nang and Nha Trang both work well in September. Check [Klook](https://www.klook.com/da-nang) for tours, or call +60 3-2113 1888 for the local desk.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week' } });
 });
 
 // A failed /api/hook must never silently punt them into /, where an old
@@ -43,7 +51,8 @@ const errCtx = await browser.newContext({ viewport: { width: 390, height: 844 } 
 await errCtx.route('**/api/hook', (r) => r.fulfill({ status: 500, json: { error: 'boom' } }));
 const errPage = await errCtx.newPage();
 await errPage.goto(B + '/welcome', { waitUntil: 'networkidle' });
-await errPage.locator('.cat', { hasText: 'Food' }).click();
+await errPage.locator('#askinput').fill('Any hidden gems in Bali?');
+await errPage.locator('#askform').evaluate((el) => el.requestSubmit());
 await errPage.locator('#askerr').waitFor({ state: 'visible', timeout: 5000 });
 ok('a failed lookup shows an inline error, not a silent redirect',
    (await errPage.locator('#askerr').innerText()).length > 0);
@@ -58,14 +67,38 @@ await page.goto(B + '/welcome', { waitUntil: 'networkidle' });
 // The section introduces itself, same as every other one on the page.
 ok('the ask box has its own header', (await page.locator('.askhead').innerText()).length > 0);
 
-// A chip both fills and fires the question.
+// raffy, 2026-09-16: "don't make it auto ask when clicking the buttons.
+// just as placeholder." A chip only swaps the placeholder and focuses the
+// field — nothing is sent, and the field stays empty.
+const foodQ = await page.locator('.cat', { hasText: 'Food' }).getAttribute('data-q');
 await page.locator('.cat', { hasText: 'Food' }).click();
+ok('a topic chip does not fire a question on its own', hookCalls === 0, String(hookCalls));
+ok('it sets the placeholder to that topic\'s example instead',
+   (await page.locator('#askinput').getAttribute('placeholder')) === foodQ);
+ok('and leaves the field itself empty', (await page.locator('#askinput').inputValue()) === '');
+ok('the field is focused, ready to type into',
+   await page.locator('#askinput').evaluate((el) => el === document.activeElement));
+
+// Typing a real question and submitting is what actually asks.
+await page.locator('#askinput').fill('What street food should I try in Da Nang?');
+await page.locator('#askform').evaluate((el) => el.requestSubmit());
 await page.locator('#askanswer').waitFor({ state: 'visible', timeout: 5000 });
 ok('exactly one call went to the hook endpoint', hookCalls === 1, String(hookCalls));
+ok('the typed question is what reached the server',
+   lastBody.question.includes('street food should I try in Da Nang'), lastBody.question);
 ok('the answer is shown', (await page.locator('#askanswerbody').innerText()).includes('Da Nang and Nha Trang'));
 ok('the box loses its pill shape once it has answered',
    await page.locator('#askform').evaluate((el) => el.classList.contains('answered')));
 ok('there is no "ask something else" option', await page.locator('#askagain').count() === 0);
+
+// raffy, 2026-09-16: "make the generated answer looks nice like the chat" —
+// same price/link treatment components/Rich.js gives a real chat message.
+ok('a price is picked out the way the chat highlights one',
+   (await page.locator('#askanswerbody .cost').first().innerText()).includes('RM450'));
+ok('a markdown link becomes a tappable chip, not a raw URL',
+   await page.locator('#askanswerbody a.chip', { hasText: 'Klook' }).count() === 1);
+ok('a phone number becomes a tel: chip',
+   await page.locator('#askanswerbody a.chip.call').count() === 1);
 
 // "Plan a trip" is a plain link to / now — no seed, no state carried.
 await Promise.all([

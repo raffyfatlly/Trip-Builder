@@ -185,6 +185,13 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 .askfield input{
   border:0;background:none;outline:none;width:100%;color:var(--ink);
   font-family:inherit;font-size:15.5px;padding:0;
+  /* A topic chip's example question is longer than the resting hint and
+     can outrun a phone-width field — raffy caught the resting one clipping
+     mid-word from a screenshot earlier the same session. text-overflow
+     alone (no white-space:nowrap here — this is a real single-line input,
+     already one line by nature) trims it to an ellipsis instead of a hard
+     cut, for whatever length a placeholder ends up being. */
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
 }
 .askfield input::placeholder{color:var(--ink-faint)}
 .askrow .btn{width:100%;border:0}
@@ -196,9 +203,29 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 .askbody{font-size:15px;line-height:1.6;color:var(--ink)}
 .askbody p{margin:0 0 12px}
 .askbody p:last-child{margin-bottom:0}
-.askbody ul{margin:0 0 12px;padding-left:20px}
-.askbody li{margin-bottom:6px}
+.askbody ul,.askbody ol{margin:0 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.askbody li{margin-bottom:0;line-height:1.5}
+.askbody li::marker{color:var(--ink-faint)}
 .askbody strong{color:var(--ink);font-weight:750}
+/* Same treatment the real chat gives a price and a link — see
+   components/Rich.js. Ported here in plain JS/CSS rather than imported:
+   this page is static and lib/richtext.js lives outside public/, so the
+   browser can never fetch it directly. */
+.askbody .cost{
+  font-family:'Outfit',sans-serif;font-weight:700;font-size:.97em;
+  color:var(--coral-deep);
+}
+.askbody .chip{
+  display:inline-flex;align-items:center;gap:4px;
+  white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;
+  vertical-align:baseline;margin:0 1px;
+  padding:2px 8px 2px 9px;border-radius:8px;
+  background:var(--sage);color:var(--deep);
+  font-size:.92em;font-weight:650;line-height:1.5;
+  text-decoration:none;transition:background 140ms ease;
+}
+.askbody .chip:hover,.askbody .chip:active{background:#D7E2D2}
+.askbody .chip svg{width:11px;height:11px;flex:none;opacity:.55;margin-top:-1px}
 .askctarow{margin-top:16px}
 .askctarow .btn{width:100%}
 @media (min-width:520px){.askctarow .btn{width:auto}}
@@ -469,7 +496,7 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
       <span class="askrow" id="askrow">
         <span class="askfield">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-          <input id="askinput" type="text" autocomplete="off" placeholder="Any local tips for Bali?" />
+          <input id="askinput" type="text" autocomplete="off" placeholder="Where do Bali locals actually eat?" />
         </span>
         <button type="submit" class="btn btn-primary" id="askbtn">Ask about your trip</button>
       </span>
@@ -486,12 +513,12 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
     </form>
 
     <div class="cats rv">
-      <button type="button" class="cat" data-q="What street food should I actually try, not just the tourist stalls?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M17 3c-1.5 2-2 4-2 6s.5 3 2 3v9"/></svg>Food</button>
-      <button type="button" class="cat" data-q="Is it safe to walk around at night there as a solo traveller?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-3z"/></svg>Safety</button>
-      <button type="button" class="cat" data-q="What's the best way to pay for things there without getting ripped off?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>Money</button>
-      <button type="button" class="cat" data-q="What's the easiest way to get around there without renting a car?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17a2 2 0 1 0 4 0M15 17a2 2 0 1 0 4 0M5 17V11l2-5h10l2 5v6"/></svg>Transport</button>
-      <button type="button" class="cat" data-q="What's the weather actually like there right now?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>Weather</button>
-      <button type="button" class="cat" data-q="What's considered rude there that tourists usually get wrong?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h16M5 21V10M9 21V10M15 21V10M19 21V10M3 10l9-6 9 6"/></svg>Culture</button>
+      <button type="button" class="cat" data-q="Which Penang stall locals queue for?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M17 3c-1.5 2-2 4-2 6s.5 3 2 3v9"/></svg>Food</button>
+      <button type="button" class="cat" data-q="Which KL areas locals avoid at night?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6l7-3z"/></svg>Safety</button>
+      <button type="button" class="cat" data-q="Where Bangkok locals get cash?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>Money</button>
+      <button type="button" class="cat" data-q="How Bali locals get around cheaply?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M5 17a2 2 0 1 0 4 0M15 17a2 2 0 1 0 4 0M5 17V11l2-5h10l2 5v6"/></svg>Transport</button>
+      <button type="button" class="cat" data-q="Is October actually rainy in Phuket?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M3 12h2M19 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>Weather</button>
+      <button type="button" class="cat" data-q="Bali temple rule tourists get wrong?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h16M5 21V10M9 21V10M15 21V10M19 21V10M3 10l9-6 9 6"/></svg>Culture</button>
   </div>
 </section>
 
@@ -851,24 +878,162 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
     cats.forEach(function (btn) { btn.disabled = on; });
   }
 
-  // No markdown library on a static page — just the two things worth
-  // formatting: a bullet list, and **bold** for a price or a name.
+  // The same rendering the real chat gives an agent reply — see
+  // components/Rich.js and lib/richtext.js, ported here in plain JS/CSS
+  // rather than imported: this page is static and lib/ lives outside
+  // public/, so the browser has no URL it could ever fetch that file from.
+  // raffy, 2026-09-16: "make the generated answer look nice like the chat."
+  // Bullets/numbers, **bold**, a price picked out the way a price matters,
+  // and a link as a tappable chip rather than a raw URL breaking mid-word —
+  // the same four things Rich.js draws, nothing more (deliberately not a
+  // general markdown renderer there either).
   var esc = function (s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   };
-  function renderAnswer(text) {
-    var lines = String(text || '').split(/\n+/).filter(Boolean);
-    var html = '';
-    var inList = false;
-    lines.forEach(function (line) {
-      var bullet = /^[-*]\s+/.test(line);
-      var content = esc(line.replace(/^[-*]\s+/, ''))
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      if (bullet && !inList) { html += '<ul>'; inList = true; }
-      if (!bullet && inList) { html += '</ul>'; inList = false; }
-      html += bullet ? '<li>' + content + '</li>' : '<p>' + content + '</p>';
+
+  function parseBlocks(text) {
+    var lines = String(text || '').split('\n');
+    var blocks = [];
+    var list = null;
+    var listType = null;
+    var flush = function () {
+      if (list && list.length) blocks.push({ type: listType, items: list });
+      list = null;
+      listType = null;
+    };
+    lines.forEach(function (raw) {
+      var line = raw.replace(/\s+$/, '');
+      var bullet = line.match(/^\s*[-•*]\s+(.*)$/);
+      var numbered = !bullet && line.match(/^\s*\d{1,2}[.)]\s+(.*)$/);
+      if (bullet || numbered) {
+        var want = bullet ? 'ul' : 'ol';
+        if (listType && listType !== want) flush();
+        list = list || [];
+        listType = want;
+        list.push((bullet || numbered)[1]);
+        return;
+      }
+      flush();
+      if (line.trim()) blocks.push({ type: 'p', text: line });
     });
-    if (inList) html += '</ul>';
+    flush();
+    return blocks;
+  }
+
+  var PRICE = /((?:RM|USD?|S\$|A\$|€|£|¥|₫|IDR|SGD|THB|VND|PHP|MYR)\s?[\d][\d,.]*(?:\s?(?:k|m|million))?(?:\s?[-–]\s?[\d][\d,.]*)?|\b\d[\d,.]*\s?(?:VND|IDR|THB|PHP|MYR|SGD|USD)\b)/gi;
+  var PHONE = /(?:\+?60[-\s]?|0)\d{1,2}[-\s]\d{3,4}[-\s]?\d{3,4}\b/g;
+  var TOKEN = new RegExp([
+    /\[([^\]\n]{1,80})\]\(((?:https?:\/\/|tel:)[^\s)]+)\)/.source,
+    /\*\*([^*\n]+?)\*\*/.source,
+    /(https?:\/\/[^\s<>"')]+)/.source,
+    /(?<![*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![*\w])/.source,
+  ].join('|'), 'g');
+
+  var SITES = [
+    [/google\s*flights?/i, 'Google Flights', /(^|\.)google\.[a-z.]+$/i, /travel\/flights|flights/i],
+    [/google\s*hotels?/i, 'Google Hotels', /(^|\.)google\.[a-z.]+$/i, /travel\/hotels|hotels/i],
+    [/booking\.?com/i, 'Booking.com', /(^|\.)booking\.com$/i],
+    [/agoda/i, 'Agoda', /(^|\.)agoda\.com$/i],
+    [/expedia/i, 'Expedia', /(^|\.)expedia\.[a-z.]+$/i],
+    [/aviasales/i, 'Aviasales', /(^|\.)aviasales\.[a-z.]+$/i],
+    [/skyscanner/i, 'Skyscanner', /(^|\.)skyscanner\.[a-z.]+$/i],
+    [/kayak/i, 'KAYAK', /(^|\.)kayak\.[a-z.]+$/i],
+    [/trip\.com/i, 'Trip.com', /(^|\.)trip\.com$/i],
+    [/airbnb/i, 'Airbnb', /(^|\.)airbnb\.[a-z.]+$/i],
+    [/priceline/i, 'Priceline', /(^|\.)priceline\.com$/i],
+  ];
+  function siteOf(url) {
+    var host = '', path = '';
+    try { var u = new URL(String(url)); host = u.hostname; path = u.pathname; } catch (e) { return ''; }
+    for (var i = 0; i < SITES.length; i++) {
+      var s = SITES[i];
+      if (s[2].test(host) && (!s[3] || s[3].test(path))) return s[1];
+    }
+    return host.replace(/^www\./, '');
+  }
+  function honestLabel(url, label) {
+    var text = String(label || '');
+    var real = siteOf(url);
+    if (!text || !real) return text;
+    for (var i = 0; i < SITES.length; i++) {
+      var claim = SITES[i][0], name = SITES[i][1];
+      if (!claim.test(text)) continue;
+      if (name === real) return text;
+      return text.replace(claim, real);
+    }
+    return text;
+  }
+  function linkLabel(url, label) {
+    var clean = honestLabel(url, String(label || '').trim());
+    if (clean) return clean;
+    if (/^tel:/i.test(String(url))) return String(url).slice(4);
+    try { return new URL(url).hostname.replace(/^www\./, ''); }
+    catch (e) { return String(url).replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '').slice(0, 40); }
+  }
+
+  function tokenize(text) {
+    var out = [];
+    var src = String(text || '');
+    var phones = function (str) {
+      var last = 0, m;
+      PHONE.lastIndex = 0;
+      while ((m = PHONE.exec(str))) {
+        if (m.index > last) out.push({ t: 'text', v: str.slice(last, m.index) });
+        out.push({ t: 'link', href: 'tel:' + m[0].replace(/[^\d+]/g, ''), v: m[0] });
+        last = m.index + m[0].length;
+      }
+      if (last < str.length) out.push({ t: 'text', v: str.slice(last) });
+    };
+    var plain = function (str) {
+      var last = 0, m;
+      PRICE.lastIndex = 0;
+      while ((m = PRICE.exec(str))) {
+        if (m.index > last) phones(str.slice(last, m.index));
+        out.push({ t: 'price', v: m[0] });
+        last = m.index + m[0].length;
+      }
+      if (last < str.length) phones(str.slice(last));
+    };
+    var last = 0, m;
+    TOKEN.lastIndex = 0;
+    while ((m = TOKEN.exec(src))) {
+      if (m.index > last) plain(src.slice(last, m.index));
+      if (m[2]) out.push({ t: 'link', href: m[2], v: linkLabel(m[2], m[1]) });
+      else if (m[3]) out.push({ t: 'bold', v: m[3] });
+      else if (m[4]) out.push({ t: 'link', href: m[4], v: linkLabel(m[4]) });
+      else out.push({ t: 'em', v: m[5] });
+      last = m.index + m[0].length;
+    }
+    if (last < src.length) plain(src.slice(last));
+    return out;
+  }
+
+  var CHIP_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>';
+  var CHIP_PHONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6 6l1.5-2 4 1.5v3a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 5 5.1 1.5 1.5 0 0 1 6.5 3.5z"/></svg>';
+
+  function inlineHtml(text) {
+    return tokenize(text).map(function (t) {
+      if (t.t === 'link') {
+        var call = /^tel:/i.test(t.href);
+        var attrs = call ? '' : ' target="_blank" rel="noopener noreferrer"';
+        return '<a class="chip' + (call ? ' call' : '') + '" href="' + esc(t.href) + '"' + attrs + '>'
+          + esc(t.v) + (call ? CHIP_PHONE : CHIP_ARROW) + '</a>';
+      }
+      if (t.t === 'bold') return '<strong>' + esc(t.v) + '</strong>';
+      if (t.t === 'em') return '<em>' + esc(t.v) + '</em>';
+      if (t.t === 'price') return '<b class="cost">' + esc(t.v) + '</b>';
+      return esc(t.v);
+    }).join('');
+  }
+
+  function renderAnswer(text) {
+    var html = parseBlocks(text).map(function (b) {
+      if (b.type === 'ul' || b.type === 'ol') {
+        var items = b.items.map(function (it) { return '<li>' + inlineHtml(it) + '</li>'; }).join('');
+        return '<' + b.type + '>' + items + '</' + b.type + '>';
+      }
+      return '<p>' + inlineHtml(b.text) + '</p>';
+    }).join('');
     answerBody.innerHTML = html;
   }
 
@@ -911,11 +1076,15 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
 
   form.addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); });
   planBtn.addEventListener('click', goPlan);
+  // A chip is an example of the kind of thing worth asking, not a
+  // shortcut that fires on its own — raffy, 2026-09-16: "don't make it
+  // auto ask when clicking the buttons. just as placeholder." Swaps the
+  // input's placeholder to that topic's example question and focuses it;
+  // nothing is sent until they type their own and submit.
   cats.forEach(function (btn) {
     btn.addEventListener('click', function () {
-      var q = btn.getAttribute('data-q');
-      input.value = q;
-      ask(q);
+      input.placeholder = btn.getAttribute('data-q');
+      input.focus();
     });
   });
 })();
