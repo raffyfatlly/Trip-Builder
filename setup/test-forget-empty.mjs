@@ -54,6 +54,56 @@ ok('and that one is what gets stored', key2 === 'sesn_2', key2);
 
 ok('no page errors', errs.length === 0, errs.join(' | '));
 
+// The actual bug report: "I still get my old session in chat. (I'm not
+// signed in) clear that." A session with REAL content but no account
+// behind it — on a deployment WITH accounts — must be forgotten too, not
+// just an empty one. A signed-in session must NOT be forgotten: the
+// account is its safety net, but there is no reason to throw it away
+// every time regardless.
+const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+let sessions2 = 0;
+await ctx2.route('**/api/session', (r) => { sessions2++; r.fulfill({ json: { session: 'anon_' + sessions2 } }); });
+await ctx2.route('**/api/me', (r) => r.fulfill({ json: { accounts: true, user: null } }));
+await ctx2.route('**/api/log', (r) => r.fulfill({ json: { ok: true } }));
+await ctx2.route('**/api/state**', (r) => r.fulfill({ json: {
+  transcript: [{ role: 'user', text: 'an old test question', id: 'u1' },
+    { role: 'assistant', text: 'an old test answer', id: 'a1' }],
+  party: null,
+  credits: { left: 88, granted: 100, used: 0, plan: 'starter', buildCost: 25, paid: true, signedIn: '' },
+  itinerary: null, plan: {}, agentEdits: [], memoryOps: [],
+  building: false, thinking: false, turns: 1 } }));
+const page2 = await ctx2.newPage();
+await page2.goto(B, { waitUntil: 'networkidle' });
+await page2.locator('.msg').first().waitFor({ state: 'visible', timeout: 5000 });
+ok('an anonymous session with real content still shows normally while the tab is open',
+   (await page2.locator('.msg').first().innerText()).includes('old test question'));
+
+await page2.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+const afterAnon = await page2.evaluate(() => localStorage.getItem('itin.session.v1'));
+ok('but it is forgotten on the way out, unsigned in, even with real content',
+   afterAnon === null, String(afterAnon));
+
+// A signed-in session with the same content must survive the same event.
+const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+await ctx3.route('**/api/session', (r) => r.fulfill({ json: { session: 'signedin_1' } }));
+await ctx3.route('**/api/me', (r) => r.fulfill({ json: { accounts: true, user: { email: 'raffy.fatlly@gmail.com' } } }));
+await ctx3.route('**/api/log', (r) => r.fulfill({ json: { ok: true } }));
+await ctx3.route('**/api/state**', (r) => r.fulfill({ json: {
+  transcript: [{ role: 'user', text: 'a real trip question', id: 'u1' }],
+  party: null,
+  credits: { left: 88, granted: 100, used: 0, plan: 'starter', buildCost: 25, paid: true, signedIn: 'raffy.fatlly@gmail.com' },
+  itinerary: null, plan: {}, agentEdits: [], memoryOps: [],
+  building: false, thinking: false, turns: 1 } }));
+const page3 = await ctx3.newPage();
+await page3.goto(B, { waitUntil: 'networkidle' });
+await page3.locator('.msg').first().waitFor({ state: 'visible', timeout: 5000 });
+await page3.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+const afterSignedIn = await page3.evaluate(() => localStorage.getItem('itin.session.v1'));
+ok('a signed-in session survives the same event untouched',
+   afterSignedIn === 'signedin_1', String(afterSignedIn));
+
+await ctx2.close();
+await ctx3.close();
 await browser.close();
 console.log(fail ? '\n' + fail + ' FAILED' : '\nall passed');
 process.exit(fail ? 1 : 0);

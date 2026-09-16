@@ -23,7 +23,17 @@ import { geoFrom } from '../../lib/context.js';
 // limit; it just stops spending on the model and gives back a normal-looking
 // answer that still points at planning. Whoever is asking never sees a
 // number.
-const SOFT_CAP = 8;
+//
+// PER DAY, not forever. raffy, 2026-09-16, hitting the fallback answer
+// repeatedly while testing: "why it's answering like this? it worked fine
+// before?" It had — the first version counted for the LIFETIME of a
+// browser, so a real visitor who liked the product and came back to ask a
+// few more things on a later day would find it permanently stuck on the
+// same canned line, forever, with nothing telling them why. Keying the
+// count on session+date instead means it resets at UTC midnight — the cap
+// still does its one job (bound spend on a public unauthenticated
+// endpoint), it just does not hold a grudge.
+const SOFT_CAP = 20;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -34,14 +44,15 @@ export default async function handler(req, res) {
   if (!question) return res.status(400).json({ error: 'question required' });
   if (question.length > 600) return res.status(400).json({ error: 'question too long' });
 
+  const capKey = session + ':' + new Date().toISOString().slice(0, 10);
   if (session && firestoreConfigured()) {
-    const asked = await readHookAsks(session).catch(() => 0);
+    const asked = await readHookAsks(capKey).catch(() => 0);
     if (asked >= SOFT_CAP) {
       return res.status(200).json({
         answer: "Let's get into the specifics together — tell me about the trip and I'll start putting it together properly.",
       });
     }
-    writeHookAsks(session, asked + 1).catch(() => {});
+    writeHookAsks(capKey, asked + 1).catch(() => {});
   }
 
   const { answer, error } = await askHook(question, { geo: geoFrom(req), client });
