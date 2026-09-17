@@ -85,6 +85,11 @@ header.nav.stuck{border-bottom-color:var(--line)}
   padding:13px 24px;transition:transform .16s cubic-bezier(.2,.9,.3,1),background .18s,box-shadow .18s;
 }
 .btn:active{transform:scale(.975)}
+/* Without this, JS setting shareBtn.hidden=true on a <button class="btn">
+   does nothing — see the long comment on .askrow[hidden] above. Found via
+   a failing test, not a screenshot this time: #askshare stayed visible
+   with an empty share token whenever /api/hook answered without one. */
+.btn[hidden]{display:none}
 /* White on the bright coral is 3.0:1, which fails AA at button text sizes.
    The deeper coral already in the palette clears 4.5:1 and keeps the hue. */
 .btn-primary{background:var(--coral-deep);color:#fff;box-shadow:0 10px 24px -12px rgba(194,84,47,.85)}
@@ -176,7 +181,12 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 @media (min-width:700px){.ask.answered{padding:20px}}
 
 /* The explicit display below beats the UA stylesheet's [hidden]{display:none},
-   so that has to be said again here or JS's row.hidden = true does nothing. */
+   so that has to be said again here or JS's row.hidden = true does nothing.
+   Same reason .btn[hidden] exists further down: .btn's own display:inline-flex
+   is an author rule at the same specificity as [hidden], and author rules
+   always beat the UA stylesheet regardless of source order — so ANY element
+   with class="btn" needs its own [hidden] override or JS hiding it does
+   nothing. Caught here once already; see #askshare below for the second time. */
 .askrow{display:grid;gap:10px}
 .askrow[hidden]{display:none}
 @media (min-width:700px){.askrow{grid-template-columns:1fr auto;align-items:center}}
@@ -226,10 +236,11 @@ h1 .soft{color:var(--ink-soft);font-weight:700}
 }
 .askbody .chip:hover,.askbody .chip:active{background:#D7E2D2}
 .askbody .chip svg{width:11px;height:11px;flex:none;opacity:.55;margin-top:-1px}
-.askctarow{margin-top:16px}
-.askctarow .btn{width:100%}
-@media (min-width:520px){.askctarow .btn{width:auto}}
+.askctarow{margin-top:16px;display:flex;flex-direction:column;gap:10px}
+.askctarow .btn{width:100%;justify-content:center}
+@media (min-width:520px){.askctarow{flex-direction:row}.askctarow .btn{width:auto}}
 .askctarow .btn svg{width:16px;height:16px}
+.askctarow #askshare svg{width:15px;height:15px}
 
 /* what it checks, four across */
 .trust{display:grid;gap:20px;margin-top:52px}
@@ -504,6 +515,10 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
       <div class="askanswer" id="askanswer" hidden>
         <div class="askbody" id="askanswerbody"></div>
         <div class="askctarow">
+          <button type="button" class="btn btn-ghost" id="askshare" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8 15.8 6.4M8.2 13.2l7.6 4.4"/></svg>
+            <span id="asksharelabel">Share this answer</span>
+          </button>
           <button type="button" class="btn btn-primary" id="askplanbtn">
             Plan a trip
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
@@ -846,7 +861,10 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
   var answerBody = document.getElementById('askanswerbody');
   var errEl = document.getElementById('askerr');
   var planBtn = document.getElementById('askplanbtn');
+  var shareBtn = document.getElementById('askshare');
+  var shareLabel = document.getElementById('asksharelabel');
   var cats = document.querySelectorAll('.cat[data-q]');
+  var shareToken = '';
 
   // One stable id per browser — not an account, just something for the
   // quiet per-visitor cost ceiling in pages/api/hook.js to count against.
@@ -1087,6 +1105,14 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
         form.classList.add('answered');
         row.hidden = true;
         answerBox.hidden = false;
+        // raffy, 2026-09-17: "i want to share the real answer it give in
+        // the form of visual link... so they might be intrigue to explore
+        // the app." /api/hook mints this token itself, from the real
+        // answer it just gave — see lib/answershare.js. No token (e.g.
+        // Firestore not configured on this deployment) just hides the
+        // button rather than offering a link that would 404.
+        shareToken = res.d.share || '';
+        shareBtn.hidden = !shareToken;
       })
       .catch(function () {
         setLoading(false);
@@ -1104,6 +1130,54 @@ footer{padding:44px 0 40px;border-top:1px solid var(--line);color:var(--ink-fain
 
   form.addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); });
   planBtn.addEventListener('click', goPlan);
+  shareBtn.addEventListener('click', function () {
+    if (!shareToken) return;
+    var url = location.origin + '/a/' + shareToken;
+    // The native share sheet on a phone — where this is actually used, per
+    // raffy's own workflow of pasting the link back into a Facebook
+    // comment — beats a silent clipboard copy nobody notices happened.
+    if (navigator.share) {
+      navigator.share({ url: url }).catch(function () { /* cancelled — fine */ });
+      return;
+    }
+    var done = function () {
+      shareLabel.textContent = 'Link copied!';
+      setTimeout(function () { shareLabel.textContent = 'Share this answer'; }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done).catch(function () { window.prompt('Copy this link:', url); });
+    } else {
+      window.prompt('Copy this link:', url);
+    }
+  });
+  // Arriving from a shared answer link — raffy, 2026-09-17: "I want the
+  // link bring to the answer on the landing page... people in fb click
+  // that link and will be brought to the answer section on the landing
+  // page." pages/a/[token].js exists only to hand a crawler the right
+  // preview card; a real click lands here, at /welcome?a=<token>, and this
+  // shows the SAME stored answer in the SAME ask box a live question would
+  // — no new /api/hook call, just a read of what was already generated.
+  try {
+    var sharedToken = new URLSearchParams(location.search).get('a');
+    if (sharedToken) {
+      fetch('/api/answer?token=' + encodeURIComponent(sharedToken))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d || !d.answer) return;
+          renderAnswer(d.answer);
+          form.classList.add('answered');
+          row.hidden = true;
+          answerBox.hidden = false;
+          // The same link someone was just sent still works to pass along
+          // again — no reason to mint a second one for the same content.
+          shareToken = sharedToken;
+          shareBtn.hidden = false;
+          form.scrollIntoView({ block: 'center' });
+        })
+        .catch(function () { /* falls back to the empty ask box, still usable */ });
+    }
+  } catch (e) { /* ignore */ }
+
   // A chip is an example of the kind of thing worth asking, not a
   // shortcut that fires on its own — raffy, 2026-09-16: "don't make it
   // auto ask when clicking the buttons. just as placeholder." Swaps the

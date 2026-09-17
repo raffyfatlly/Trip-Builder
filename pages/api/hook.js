@@ -17,6 +17,7 @@ export const config = { maxDuration: 90 };
 import { askHook } from '../../lib/hook.js';
 import { readHookAsks, writeHookAsks, firestoreConfigured } from '../../lib/firestore.js';
 import { geoFrom } from '../../lib/context.js';
+import { makeAnswerShare } from '../../lib/answershare.js';
 
 // A quiet ceiling, not a "free question" — raffy, 2026-09-16: "don't put the
 // one free question thing etc." Nothing about hitting this is shown as a
@@ -55,7 +56,7 @@ export default async function handler(req, res) {
     writeHookAsks(capKey, asked + 1).catch(() => {});
   }
 
-  const { answer, error } = await askHook(question, { geo: geoFrom(req), client });
+  const { answer, ask, error } = await askHook(question, { geo: geoFrom(req), client });
   if (!answer) {
     // Logged, not just returned — the 502 alone told the browser it failed
     // but told nobody why. A model/tool mismatch (see lib/hook.js's
@@ -68,5 +69,19 @@ export default async function handler(req, res) {
       answer: "Couldn't get an answer for that just now — try again in a moment, or jump straight into building the trip and ask me there.",
     });
   }
-  return res.status(200).json({ answer });
+  // A share link for the answer just given — see lib/answershare.js. Minted
+  // here, server-side, from the real answer that was just generated: there
+  // is no public endpoint that accepts arbitrary text to share, so this
+  // deployment's brand can never be made to say something it did not
+  // actually produce. Never blocks the answer itself — a share link is a
+  // bonus, not a reason to fail.
+  //
+  // `ask` (not the raw `question`) is what gets saved as the headline —
+  // raffy, 2026-09-17: "some question is a paragraph long it need to
+  // summarise." A whole paragraph copied from a Facebook post is what
+  // people actually paste here; lib/hook.js's own model call already
+  // produces a clean one-line version of what was actually asked, as part
+  // of the same answer, so nothing extra is billed to get one.
+  const share = await makeAnswerShare(ask || question, answer).catch(() => '');
+  return res.status(200).json({ answer, share });
 }

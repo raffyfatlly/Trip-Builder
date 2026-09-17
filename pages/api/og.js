@@ -147,8 +147,125 @@ const titleSize = (t) => {
   return 56;
 };
 
+// THE CARD FOR A SHARED ANSWER — raffy, 2026-09-17: "i want visuals that
+// would intrigue the questioner to click... people won't just click some
+// random link. especially if I don't give value." So the question comes
+// through verbatim (whoever asked it, or a friend it was forwarded to,
+// recognises it instantly) and a real snippet of the answer sits under it —
+// enough to prove this is a genuine, specific answer rather than a generic
+// link, not so much that there is nothing left to click through for.
+//
+// A separate render path rather than another branch inside the trip card's
+// JSX: the two have almost nothing in common (no photo, no facts line, a
+// sentence instead of a place name) and forcing one tree to serve both
+// shapes would mean every future trip-card tweak has to be re-checked
+// against a completely different kind of content.
+async function answerImage(req, res) {
+  const q = (k) => (Array.isArray(req.query[k]) ? req.query[k][0] : req.query[k]) || '';
+  const question = clip(text(q('t'), 400), 148) || 'A real travel question';
+  const hint = clip(text(q('h'), 400), 168);
+
+  const img = new ImageResponse(
+    (
+      <div
+        style={{
+          width: W,
+          height: H,
+          display: 'flex',
+          position: 'relative',
+          overflow: 'hidden',
+          backgroundColor: DEEP,
+          backgroundImage: `linear-gradient(145deg, ${DEEP} 0%, ${DEEP_2} 100%)`,
+          fontFamily: 'Outfit',
+        }}
+      >
+        <div
+          style={{
+            position: 'absolute', top: -340, left: 470, width: 1040, height: 1040,
+            display: 'flex', borderRadius: 1040,
+            backgroundImage: 'radial-gradient(circle, rgba(226,235,222,.17) 0%, rgba(226,235,222,0) 68%)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute', top: 200, left: 690, width: 840, height: 840,
+            display: 'flex', borderRadius: 840,
+            backgroundImage: 'radial-gradient(circle, rgba(238,123,69,.15) 0%, rgba(238,123,69,0) 66%)',
+          }}
+        />
+
+        <div style={{ position: 'absolute', left: 64, top: 52, display: 'flex', alignItems: 'center' }}>
+          <div
+            style={{
+              width: 12, height: 12, borderRadius: 12, backgroundColor: CORAL,
+              display: 'flex', marginRight: 12,
+            }}
+          />
+          <div
+            style={{
+              display: 'flex', color: 'rgba(255,255,255,.82)',
+              fontSize: 22, fontWeight: 800, letterSpacing: 2.6,
+            }}
+          >
+            TRIP BUILDER
+          </div>
+        </div>
+
+        <div
+          style={{
+            position: 'absolute', left: 64, top: 150, width: W - 128, height: H - 220,
+            display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', marginBottom: 26,
+              backgroundColor: CORAL, color: '#20150F',
+              borderRadius: 999, padding: '9px 20px 11px',
+              fontSize: 21, fontWeight: 800, letterSpacing: 1.6,
+            }}
+          >
+            REAL ANSWER
+          </div>
+
+          <div
+            style={{
+              display: 'flex', color: '#FFFFFF', fontWeight: 800,
+              fontSize: 46, letterSpacing: -1, lineHeight: 1.18,
+            }}
+          >
+            &ldquo;{question}&rdquo;
+          </div>
+
+          {hint && (
+            <div
+              style={{
+                display: 'flex', marginTop: 26, color: 'rgba(255,255,255,.6)',
+                fontSize: 26, fontWeight: 400, lineHeight: 1.35,
+              }}
+            >
+              {hint}
+            </div>
+          )}
+        </div>
+      </div>
+    ),
+    { width: W, height: H, fonts: fonts() },
+  );
+
+  const png = Buffer.from(await img.arrayBuffer());
+  const jpeg = await sharp(png).jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+
+  res.setHeader('content-type', 'image/jpeg');
+  res.setHeader('content-length', String(jpeg.length));
+  res.setHeader('cache-control', 'public, max-age=600, s-maxage=86400, stale-while-revalidate=604800');
+  res.status(200).end(jpeg);
+}
+
 export default async function handler(req, res) {
   const q = (k) => (Array.isArray(req.query[k]) ? req.query[k][0] : req.query[k]) || '';
+  if (q('s') === 'answer') return answerImage(req, res);
+
   const host = req.headers['x-forwarded-host'] || req.headers.host || '';
   const proto = /^localhost|^127\./.test(host) ? 'http' : 'https';
   const origin = proto + '://' + host;

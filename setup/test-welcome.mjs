@@ -43,7 +43,10 @@ await ctx.route('**/api/hook', (r) => {
   // to come back as one fragment of a sentence per line, each with its own
   // paragraph gap under it. Only the blank line before the list should
   // start a new block.
-  r.fulfill({ json: { answer: 'Da Nang and Nha Trang both work\nwell in September. Check [Klook](https://www.klook.com/da-nang)\nfor tours, or call +60 3-2113 1888 for the local desk.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week' } });
+  r.fulfill({ json: {
+    answer: 'Da Nang and Nha Trang both work\nwell in September. Check [Klook](https://www.klook.com/da-nang)\nfor tours, or call +60 3-2113 1888 for the local desk.\n\n- Flights: KUL to DAD direct, about RM450-650 return\n- Stay: Furama or Vinpearl both work well for a relaxed week',
+    share: 'testtoken000000000001',
+  } });
 });
 
 // A failed /api/hook must never silently punt them into /, where an old
@@ -64,6 +67,19 @@ ok('a failed lookup shows an inline error, not a silent redirect',
 ok('and it stays on the landing page rather than jumping to /',
    errPage.url().includes('/welcome'));
 await errCtx.close();
+
+// No token (e.g. Firestore not configured on this deployment) must not
+// offer a link that would 404 — the button just stays hidden.
+const noShareCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+await noShareCtx.route('**/api/hook', (r) => r.fulfill({ json: { answer: 'A plain answer with nothing to share.' } }));
+const noSharePage = await noShareCtx.newPage();
+await noSharePage.goto(B + '/welcome', { waitUntil: 'networkidle' });
+await noSharePage.locator('#askinput').fill('Any hidden gems in Kyoto?');
+await noSharePage.locator('#askform').evaluate((el) => el.requestSubmit());
+await noSharePage.locator('#askanswer').waitFor({ state: 'visible', timeout: 5000 });
+ok('no share button when the answer came back without a token',
+   !(await noSharePage.locator('#askshare').isVisible()));
+await noShareCtx.close();
 
 const page = await ctx.newPage();
 page.on('pageerror', (e) => errs.push(e.message));
@@ -112,6 +128,20 @@ ok('mid-sentence line wraps join into one paragraph, not one per line',
 ok('and the whole answer is not one paragraph per source line',
    await page.locator('#askanswerbody p').count() === 1);
 
+// raffy, 2026-09-17: "i want to share the real answer it give in the form
+// of visual link... so they might be intrigue to explore the app." The
+// token comes from /api/hook itself (lib/answershare.js mints it from the
+// real answer, server-side) — the button just builds the link from it.
+await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+ok('a share button appears once a real answer comes with a token',
+   await page.locator('#askshare').isVisible());
+await page.locator('#askshare').click();
+const copied = await page.evaluate(() => navigator.clipboard.readText());
+ok('clicking it copies the /a/<token> link (no native share sheet in a headless browser)',
+   copied.endsWith('/a/testtoken000000000001'), copied);
+ok('the button says so afterwards',
+   (await page.locator('#asksharelabel').innerText()) === 'Link copied!');
+
 // "Plan a trip" goes to /?new=1 now — no seed, no state carried, and the
 // flag tells pages/index.js to ignore whatever stale session this browser
 // already had rather than silently resuming it. raffy, 2026-09-16, with a
@@ -146,6 +176,35 @@ ok('a plain landing on / with accounts off starts onboarding as before',
 ok('and sends nothing on its own', sent === null, JSON.stringify(sent));
 
 await page.screenshot({ path: 'shots/welcome-answered.png' });
+
+// raffy, 2026-09-17, after catching an early draft that gave the shared
+// link its own separate page: "I want the link bring to the answer on the
+// landing page." pages/a/[token].js redirects a real click to exactly
+// this URL; this checks what a real visitor sees once they land here,
+// against a mocked /api/answer rather than a real Firestore round trip.
+const sharedCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+let answerCalls = 0;
+await sharedCtx.route('**/api/answer**', (r) => {
+  answerCalls++;
+  ok('the stored token from the URL is what gets asked for',
+     r.request().url().includes('token=shared_test_tok_01'));
+  r.fulfill({ json: {
+    question: 'Which Penang stall locals queue for?',
+    answer: 'Try Nam Heong on Kimberley Street.',
+  } });
+});
+const sharedPage = await sharedCtx.newPage();
+await sharedPage.goto(B + '/welcome?a=shared_test_tok_01', { waitUntil: 'networkidle' });
+await sharedPage.locator('#askanswer').waitFor({ state: 'visible', timeout: 5000 });
+ok('exactly one call went to /api/answer, none to /api/hook', answerCalls === 1);
+ok('the stored answer is shown, no question needed to be typed',
+   (await sharedPage.locator('#askanswerbody').innerText()).includes('Nam Heong'));
+ok('the ask row is hidden, same as after a live answer',
+   await sharedPage.locator('#askrow').isHidden());
+ok('the share button reuses the SAME token rather than needing a new one',
+   await sharedPage.locator('#askshare').isVisible());
+await sharedCtx.close();
+
 ok('no page errors', errs.length === 0, errs.join(' | '));
 
 await browser.close();
